@@ -1,0 +1,22 @@
+from django.contrib import admin
+from .models import (
+    User, ContingentEmployee, CalendarPlan, RouteSheet, DoctorExamination, Expertise,
+    EmergencyNotification, HealthImprovementPlan, RecommendationTracking, Doctor,
+    LaboratoryTest, FunctionalTest, Referral, PatientQueue
+)
+
+admin.site.register(User)
+admin.site.register(ContingentEmployee)
+admin.site.register(CalendarPlan)
+admin.site.register(RouteSheet)
+admin.site.register(DoctorExamination)
+admin.site.register(Expertise)
+admin.site.register(EmergencyNotification)
+admin.site.register(HealthImprovementPlan)
+admin.site.register(RecommendationTracking)
+admin.site.register(Doctor)
+admin.site.register(LaboratoryTest)
+admin.site.register(FunctionalTest)
+admin.site.register(Referral)
+admin.site.register(PatientQueue)
+
