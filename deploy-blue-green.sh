@@ -335,6 +335,46 @@ auto_deploy() {
         FRONTEND_PORT=$FRONTEND_BLUE_PORT
     fi
     
+    # Проверяем наличие скрипта автопереключения и переменных NPM
+    if [ -f "scripts/npm-switch.sh" ] && [ -f ".env.prod" ]; then
+        # Загружаем переменные из .env.prod
+        export $(grep -E '^NPM_' .env.prod | xargs)
+        
+        if [ -n "$NPM_EMAIL" ] && [ -n "$NPM_PASSWORD" ]; then
+            echo ""
+            echo -e "${YELLOW}Попытка автоматического переключения NPM...${NC}"
+            
+            if bash scripts/npm-switch.sh "$BACKEND_PORT" "$FRONTEND_PORT"; then
+                echo -e "${GREEN}✓ NPM переключен автоматически!${NC}"
+                AUTO_SWITCHED=true
+            else
+                echo -e "${RED}✗ Автоматическое переключение не удалось${NC}"
+                echo -e "${YELLOW}Переключите вручную в NPM${NC}"
+                AUTO_SWITCHED=false
+            fi
+        else
+            echo -e "${YELLOW}⚠ NPM credentials не найдены в .env.prod${NC}"
+            AUTO_SWITCHED=false
+        fi
+    else
+        AUTO_SWITCHED=false
+    fi
+    
+    # Если автопереключение не сработало, показываем инструкцию
+    if [ "$AUTO_SWITCHED" != "true" ]; then
+        echo ""
+        echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  ПЕРЕКЛЮЧИТЕ ТРАФИК В NGINX PROXY MANAGER                 ║${NC}"
+        echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${GREEN}Backend API (crm.archeo.kz/api):${NC}"
+        echo -e "  Forward Port: ${RED}старый${NC} → ${GREEN}$BACKEND_PORT${NC}"
+        echo ""
+        echo -e "${GREEN}Frontend (crm.archeo.kz):${NC}"
+        echo -e "  Forward Port: ${RED}старый${NC} → ${GREEN}$FRONTEND_PORT${NC}"
+        echo ""
+    fi
+    
     echo ""
     echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${YELLOW}║  ПЕРЕКЛЮЧИТЕ ТРАФИК В NGINX PROXY MANAGER                 ║${NC}"
