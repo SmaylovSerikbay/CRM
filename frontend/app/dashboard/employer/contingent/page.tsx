@@ -27,6 +27,10 @@ export default function ContingentPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
   const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
+  
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   useEffect(() => {
     const loadData = async () => {
@@ -208,23 +212,39 @@ export default function ContingentPage() {
 
   const filteredEmployees = getFilteredEmployees();
   const groupedEmployees = getGroupedEmployees();
+  
+  // Пагинация
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterContractId]);
 
   return (
-    <div>
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Sticky Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">Список контингента</h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Загрузите Excel-файл со списком сотрудников. Система автоматически присвоит вредные факторы.
               </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Всего: {employees.length} | Показано: {filteredEmployees.length}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto px-6 py-4">
         {/* Upload Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -427,28 +447,28 @@ export default function ContingentPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">№</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Договор</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">ФИО</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Дата рожд.</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Пол</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Объект/участок</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Должность</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Общий стаж</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Стаж по должности</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Последний осмотр</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Вредность</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Примечание</th>
-                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Действия</th>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                    <tr className="border-b-2 border-gray-300 dark:border-gray-700">
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">№</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Договор</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">ФИО</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Дата рожд.</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Пол</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Объект/участок</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Должность</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Общий стаж</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Стаж по должности</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Последний осмотр</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Вредность</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Примечание</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Действия</th>
                     </tr>
                   </thead>
                   <tbody>
                     {viewMode === 'list' ? (
                       // Режим списка
-                      filteredEmployees.map((employee, index) => (
+                      paginatedEmployees.map((employee, index) => (
                         <tr
                           key={employee.id}
                           className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -573,7 +593,7 @@ export default function ContingentPage() {
                             </>
                           ) : (
                             <>
-                              <td className="py-2 px-2">{index + 1}</td>
+                              <td className="py-1.5 px-2">{startIndex + index + 1}</td>
                               <td className="py-2 px-2">
                                 {employee.contractNumber ? (
                                   <div className="text-xs">
@@ -651,7 +671,7 @@ export default function ContingentPage() {
                       ))
                     ) : (
                       // Режим группировки по договорам
-                      Object.entries(groupedEmployees).map(([contractKey, contractEmployees]) => {
+                      Object.entries(groupedEmployees).slice(startIndex, endIndex).map(([contractKey, contractEmployees]) => {
                         const contract = contractKey !== 'no-contract' ? getContractInfo(contractKey) : null;
                         return (
                           <React.Fragment key={contractKey}>
@@ -789,6 +809,78 @@ export default function ContingentPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Пагинация */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Страница {currentPage} из {totalPages} | Показано {startIndex + 1}-{Math.min(endIndex, filteredEmployees.length)} из {filteredEmployees.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">На странице:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900"
+                      >
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Назад
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 text-sm rounded ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}

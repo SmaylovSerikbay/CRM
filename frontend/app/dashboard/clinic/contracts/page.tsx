@@ -5,11 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, MoreVertical } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
-import { DataTable, Column } from '@/components/ui/DataTable';
 
 interface Contract {
   id: string;
@@ -63,6 +62,10 @@ export default function ContractsPage() {
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
   
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  
   const [formData, setFormData] = useState({
     employer_bin: '',
     employer_phone: '',
@@ -77,6 +80,10 @@ export default function ContractsPage() {
   useEffect(() => {
     loadContracts();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, dateFromFilter, dateToFilter]);
 
   const loadContracts = async () => {
     try {
@@ -337,6 +344,12 @@ export default function ContractsPage() {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  // Пагинация
+  const totalPages = Math.ceil(filteredContracts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedContracts = filteredContracts.slice(startIndex, endIndex);
+
   const applyFilters = () => {
     setSearchQuery(tempSearchQuery);
     setStatusFilter(tempStatusFilter);
@@ -370,13 +383,14 @@ export default function ContractsPage() {
   }
 
   return (
-    <div>
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Sticky Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">Договоры</h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Управление договорами с работодателями
               </p>
             </div>
@@ -385,93 +399,132 @@ export default function ContractsPage() {
               Создать договор
             </Button>
           </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Панель фильтров */}
-        {(statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
-          <Card className="mb-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Фильтр по статусу */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Статус
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value);
-                      setTempStatusFilter(e.target.value);
-                    }}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                  >
-                    <option value="all">Все статусы</option>
-                    <option value="draft">Черновик</option>
-                    <option value="pending_approval">Ожидает согласования</option>
-                    <option value="approved">Согласован</option>
-                    <option value="rejected">Отклонен</option>
-                    <option value="sent">Отправлен</option>
-                    <option value="executed">Исполнен</option>
-                    <option value="cancelled">Отменен</option>
-                  </select>
+          {/* Панель поиска и фильтров */}
+          <Card className="mb-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Поиск */}
+              <div className="md:col-span-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    value={tempSearchQuery}
+                    onChange={(e) => setTempSearchQuery(e.target.value)}
+                    placeholder="Поиск по номеру, БИН, названию..."
+                    className="pl-10"
+                    onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+                  />
                 </div>
+              </div>
 
-                {/* Фильтр по дате от */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Дата от
-                  </label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
-                    <Input
-                      type="date"
-                      value={dateFromFilter}
-                      onChange={(e) => {
-                        setDateFromFilter(e.target.value);
-                        setTempDateFromFilter(e.target.value);
-                      }}
-                      className="w-full pl-10"
-                    />
-                  </div>
+              {/* Фильтр по статусу */}
+              <div className="md:col-span-2">
+                <select
+                  value={tempStatusFilter}
+                  onChange={(e) => setTempStatusFilter(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                >
+                  <option value="all">Все статусы</option>
+                  <option value="draft">Черновик</option>
+                  <option value="pending_approval">Ожидает согласования</option>
+                  <option value="approved">Согласован</option>
+                  <option value="rejected">Отклонен</option>
+                  <option value="sent">Отправлен</option>
+                  <option value="executed">Исполнен</option>
+                  <option value="cancelled">Отменен</option>
+                </select>
+              </div>
+
+              {/* Фильтр по дате от */}
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Input
+                    type="date"
+                    value={tempDateFromFilter}
+                    onChange={(e) => setTempDateFromFilter(e.target.value)}
+                    className="w-full pl-10"
+                    title="Дата от"
+                  />
                 </div>
+              </div>
 
-                {/* Фильтр по дате до */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Дата до
-                  </label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
-                    <Input
-                      type="date"
-                      value={dateToFilter}
-                      onChange={(e) => {
-                        setDateToFilter(e.target.value);
-                        setTempDateToFilter(e.target.value);
-                      }}
-                      className="w-full pl-10"
-                    />
-                  </div>
+              {/* Фильтр по дате до */}
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Input
+                    type="date"
+                    value={tempDateToFilter}
+                    onChange={(e) => setTempDateToFilter(e.target.value)}
+                    className="w-full pl-10"
+                    title="Дата до"
+                  />
                 </div>
+              </div>
 
-                {/* Кнопка сброса */}
-                <div className="flex items-end">
+              {/* Кнопка применить */}
+              <div className="md:col-span-1">
+                <Button
+                  onClick={applyFilters}
+                  className="w-full h-full"
+                  title="Применить фильтры"
+                  disabled={!hasUnappliedFilters}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Кнопка сброса */}
+              <div className="md:col-span-1">
+                {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
                   <Button
                     variant="outline"
                     onClick={resetFilters}
-                    className="w-full"
+                    className="w-full h-full"
                     title="Сбросить фильтры"
                   >
-                    <X className="h-4 w-4 mr-2" />
-                    Сбросить
+                    <X className="h-4 w-4" />
                   </Button>
+                )}
+              </div>
+            </div>
+
+              {/* Счетчик результатов и пагинация */}
+              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-4">
+                  <span>
+                    Показано {startIndex + 1}-{Math.min(endIndex, filteredContracts.length)} из {filteredContracts.length} ({contracts.length} всего)
+                  </span>
+                  {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
+                    <span className="text-blue-600 dark:text-blue-400">
+                      Фильтры активны
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">На странице:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900"
+                  >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
                 </div>
               </div>
             </div>
           </Card>
-        )}
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto px-6 py-4">
 
         {showForm && (
           <motion.div
@@ -627,244 +680,281 @@ export default function ContractsPage() {
           </motion.div>
         )}
 
-        {contracts.length === 0 ? (
-          <Card>
-            <div className="text-center py-12">
-              <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">Нет договоров</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Создайте первый договор с работодателем
-              </p>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Создать договор
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <Card>
-            <DataTable
-              data={filteredContracts}
-              columns={[
-                {
-                  key: 'contract_number',
-                  header: 'Номер договора',
-                  sortable: true,
-                  render: (value, row) => (
-                    <div className="font-semibold">№{value}</div>
-                  ),
-                },
-                {
-                  key: 'contract_date',
-                  header: 'Дата договора',
-                  sortable: true,
-                  render: (value) => new Date(value).toLocaleDateString('ru-RU'),
-                },
-                {
-                  key: 'status',
-                  header: 'Статус',
-                  sortable: true,
-                  render: (value) => (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(value)}`}>
-                      {getStatusLabel(value)}
-                    </span>
-                  ),
-                },
-                {
-                  key: 'employer_name',
-                  header: 'Работодатель',
-                  sortable: true,
-                  accessor: (row) => row.employer_name || row.employer_bin || '-',
-                },
-                {
-                  key: 'amount',
-                  header: 'Сумма',
-                  sortable: true,
-                  render: (value) => `${value.toLocaleString()} ₸`,
-                },
-                {
-                  key: 'people_count',
-                  header: 'Кол-во сотрудников',
-                  sortable: true,
-                },
-                {
-                  key: 'execution_date',
-                  header: 'Дата исполнения',
-                  sortable: true,
-                  render: (value) => new Date(value).toLocaleDateString('ru-RU'),
-                },
-                {
-                  key: 'actions',
-                  header: 'Действия',
-                  sortable: false,
-                  width: '200px',
-                  render: (_, row) => (
-                    <div className="flex items-center gap-2">
-                      {(row.status === 'draft' || row.status === 'rejected') && (
+        <div className="space-y-3">
+          {filteredContracts.length === 0 && contracts.length > 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <Search className="h-16 w-16 text-gray-400 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">Ничего не найдено</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Попробуйте изменить параметры поиска или фильтры
+                </p>
+                <Button variant="outline" onClick={resetFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Сбросить фильтры
+                </Button>
+              </div>
+            </Card>
+          ) : contracts.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">Нет договоров</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Создайте первый договор с работодателем
+                </p>
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Создать договор
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {paginatedContracts.map((contract) => (
+                <Card key={contract.id} className="hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <h3 className="text-base font-semibold">Договор №{contract.contract_number}</h3>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
+                        {getStatusLabel(contract.status)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Дата договора</p>
+                        <p className="font-medium text-sm">{contract.contract_date}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сумма</p>
+                        <p className="font-medium text-sm">{contract.amount.toLocaleString()} ₸</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сотрудников</p>
+                        <p className="font-medium text-sm">{contract.people_count}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Исполнение</p>
+                        <p className="font-medium text-sm">{contract.execution_date}</p>
+                      </div>
+                      {contract.employer_bin && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">БИН</p>
+                          <p className="font-medium text-sm">{contract.employer_bin}</p>
+                        </div>
+                      )}
+                      {contract.employer_name && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Работодатель</p>
+                          <p className="font-medium text-sm truncate">{contract.employer_name}</p>
+                        </div>
+                      )}
+                      {contract.notes && (
+                        <div className="col-span-full">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Примечания</p>
+                          <p className="font-medium text-sm">{contract.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      {(contract.status === 'draft' || contract.status === 'rejected') && (
                         <>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              handleEdit(row as Contract);
-                            }}
-                            title="Редактировать"
+                            onClick={() => handleEdit(contract)}
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-4 w-4 mr-2" />
+                            Редактировать
                           </Button>
                           <Button
                             size="sm"
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              setShowResendForm(row.id);
-                            }}
-                            title="Отправить на согласование"
+                            onClick={() => setShowResendForm(contract.id)}
                           >
-                            <Send className="h-4 w-4" />
+                            <Send className="h-4 w-4 mr-2" />
+                            {contract.status === 'rejected' ? 'Отправить повторно' : 'Отправить на согласование'}
                           </Button>
                         </>
                       )}
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          handleShowHistory(row.id);
-                        }}
-                        title="История"
+                        onClick={() => handleShowHistory(contract.id)}
                       >
-                        <History className="h-4 w-4" />
+                        <History className="h-4 w-4 mr-2" />
+                        История
                       </Button>
                     </div>
-                  ),
-                },
-              ]}
-              pageSize={25}
-              searchable={true}
-              searchPlaceholder="Поиск по номеру, БИН, названию..."
-              exportable={true}
-              exportFileName="contracts"
-              emptyMessage="Нет договоров для отображения"
-              onRowClick={(row) => {
-                // Можно открыть модальное окно с деталями
-              }}
-            />
-          </Card>
-        )}
 
-        {/* Модальные окна для действий */}
-        {showResendForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-md w-full">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Отправить на согласование</h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setShowResendForm(null);
-                    setResendComment('');
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Комментарий (необязательно)
-                  </label>
-                  <textarea
-                    value={resendComment}
-                    onChange={(e) => setResendComment(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
-                    rows={3}
-                    placeholder="Добавьте комментарий к договору..."
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleResendForApproval(showResendForm)}
-                    className="flex-1"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Отправить
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowResendForm(null);
-                      setResendComment('');
-                    }}
-                  >
-                    Отмена
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {showHistory && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">История изменений</h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowHistory(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {contractHistory.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">Нет записей в истории</p>
-                ) : (
-                  contractHistory.map((item) => (
-                    <div key={item.id} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{getActionLabel(item.action)}</span>
-                            {item.new_status && (
-                              <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(item.new_status)}`}>
-                                {getStatusLabel(item.new_status)}
-                              </span>
-                            )}
+                    {showResendForm === contract.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
+                      >
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Комментарий (необязательно)
+                            </label>
+                            <textarea
+                              value={resendComment}
+                              onChange={(e) => setResendComment(e.target.value)}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
+                              rows={3}
+                              placeholder="Добавьте комментарий к договору..."
+                            />
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
-                          </p>
-                          {item.comment && (
-                            <p className="text-sm mt-2 text-gray-700 dark:text-gray-300">
-                              {item.comment}
-                            </p>
-                          )}
-                          {item.changes && Object.keys(item.changes).length > 0 && (
-                            <div className="mt-2 text-xs">
-                              <p className="font-medium mb-1">Изменения:</p>
-                              {Object.entries(item.changes).map(([key, value]: [string, any]) => (
-                                <p key={key} className="text-gray-600 dark:text-gray-400">
-                                  {key}: {value.old} → {value.new}
-                                </p>
-                              ))}
-                            </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleResendForApproval(contract.id)}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Отправить
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setShowResendForm(null);
+                                setResendComment('');
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Отмена
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {showHistory === contract.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold">История изменений</h4>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowHistory(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-3">
+                          {contractHistory.length === 0 ? (
+                            <p className="text-sm text-gray-500">Нет записей в истории</p>
+                          ) : (
+                            contractHistory.map((item) => (
+                              <div key={item.id} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-sm">{getActionLabel(item.action)}</span>
+                                      {item.new_status && (
+                                        <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(item.new_status)}`}>
+                                          {getStatusLabel(item.new_status)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
+                                    </p>
+                                    {item.comment && (
+                                      <p className="text-sm mt-2 text-gray-700 dark:text-gray-300">
+                                        {item.comment}
+                                      </p>
+                                    )}
+                                    {item.changes && Object.keys(item.changes).length > 0 && (
+                                      <div className="mt-2 text-xs">
+                                        <p className="font-medium mb-1">Изменения:</p>
+                                        {Object.entries(item.changes).map(([key, value]: [string, any]) => (
+                                          <p key={key} className="text-gray-600 dark:text-gray-400">
+                                            {key}: {value.old} → {value.new}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                                    {new Date(item.created_at).toLocaleString('ru-RU')}
+                                  </span>
+                                </div>
+                              </div>
+                            ))
                           )}
                         </div>
-                        <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                          {new Date(item.created_at).toLocaleString('ru-RU')}
-                        </span>
-                      </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+              ))}
+              
+              {/* Пагинация */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Страница {currentPage} из {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Назад
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 text-sm rounded ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))
-                )}
-              </div>
-            </Card>
-          </div>
-        )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
