@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status hot hot-backend hot-frontend
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -83,6 +83,11 @@ endif
 	@echo "  make bg-rollback          - Откатить к предыдущей версии"
 	@echo "  make bg-cleanup           - Остановить неактивное окружение"
 	@echo "  make bg-status            - Статус blue-green окружений"
+	@echo ""
+	@echo "$(YELLOW)Hot Deploy (Мгновенное обновление, ~10-30 сек):$(NC)"
+	@echo "  make hot                  - 🔥 HOT DEPLOY всего (backend + frontend)"
+	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend (~5 сек)"
+	@echo "  make hot-frontend         - 🔥 HOT DEPLOY только frontend (~20 сек)"
 
 # Логи только backend
 logs-backend: ## Логи только backend
@@ -288,3 +293,16 @@ bg-cleanup: ## Остановить неактивное окружение
 bg-status: ## Статус blue-green окружений
 	@echo "$(GREEN)Blue-Green Deployment: Статус...$(NC)"
 	@bash deploy-blue-green.sh status
+
+# Hot Deploy команды (мгновенное обновление без пересборки Docker)
+hot: ## 🔥 HOT DEPLOY всего (backend + frontend) - ~30 сек
+	@echo "$(GREEN)Hot Deploy: Обновление всего...$(NC)"
+	@bash scripts/hot-deploy.sh all
+
+hot-backend: ## 🔥 HOT DEPLOY только backend - ~5 сек
+	@echo "$(GREEN)Hot Deploy: Обновление backend...$(NC)"
+	@bash scripts/hot-deploy.sh backend
+
+hot-frontend: ## 🔥 HOT DEPLOY только frontend - ~20 сек
+	@echo "$(GREEN)Hot Deploy: Обновление frontend...$(NC)"
+	@bash scripts/hot-deploy.sh frontend
