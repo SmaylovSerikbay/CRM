@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # Blue environment (текущая версия)
+  backend-blue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py makemigrations && python manage.py migrate && gunicorn crm_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
+    ports:
+      - "8001:8000"  # Внутренний порт для blue backend
+    env_file:
+      - .env.prod
+    environment:
+      - DEPLOYMENT_COLOR=blue
+    restart: unless-stopped
+    networks:
+      - database_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.crm.deployment=blue"
+      - "com.crm.service=backend"
+
+  frontend-blue:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://crm.archeo.kz/api}
+    ports:
+      - "3001:3000"  # Внутренний порт для blue frontend
+    env_file:
+      - .env.prod
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://crm.archeo.kz/api}
+      - DEPLOYMENT_COLOR=blue
+    depends_on:
+      backend-blue:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - database_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.crm.deployment=blue"
+      - "com.crm.service=frontend"
+
+  # Green environment (новая версия)
+  backend-green:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py makemigrations && python manage.py migrate && gunicorn crm_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
+    ports:
+      - "8002:8000"  # Внутренний порт для green backend
+    env_file:
+      - .env.prod
+    environment:
+      - DEPLOYMENT_COLOR=green
+    restart: unless-stopped
+    networks:
+      - database_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.crm.deployment=green"
+      - "com.crm.service=backend"
+    profiles:
+      - green
+
+  frontend-green:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://crm.archeo.kz/api}
+    ports:
+      - "3002:3000"  # Внутренний порт для green frontend
+    env_file:
+      - .env.prod
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://crm.archeo.kz/api}
+      - DEPLOYMENT_COLOR=green
+    depends_on:
+      backend-green:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - database_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.crm.deployment=green"
+      - "com.crm.service=frontend"
+    profiles:
+      - green
+
+networks:
+  database_network:
+    external: true
