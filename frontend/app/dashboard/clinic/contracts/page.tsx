@@ -50,6 +50,9 @@ export default function ContractsPage() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [formData, setFormData] = useState({
     employer_bin: '',
     employer_phone: '',
@@ -268,6 +271,44 @@ export default function ContractsPage() {
     return labels[action] || action;
   };
 
+  // Фильтрация контрактов
+  const filteredContracts = contracts.filter((contract) => {
+    // Поиск по тексту
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = !searchQuery || 
+      contract.contract_number.toLowerCase().includes(searchLower) ||
+      contract.employer_bin?.toLowerCase().includes(searchLower) ||
+      contract.employer_name?.toLowerCase().includes(searchLower) ||
+      contract.notes?.toLowerCase().includes(searchLower);
+
+    // Фильтр по статусу
+    const matchesStatus = statusFilter === 'all' || contract.status === statusFilter;
+
+    // Фильтр по дате
+    let matchesDate = true;
+    if (dateFilter !== 'all') {
+      const contractDate = new Date(contract.createdAt);
+      const now = new Date();
+      const daysDiff = Math.floor((now.getTime() - contractDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (dateFilter === 'today') {
+        matchesDate = daysDiff === 0;
+      } else if (dateFilter === 'week') {
+        matchesDate = daysDiff <= 7;
+      } else if (dateFilter === 'month') {
+        matchesDate = daysDiff <= 30;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setDateFilter('all');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -296,6 +337,82 @@ export default function ContractsPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Панель поиска и фильтров */}
+        <Card className="mb-6">
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Поиск */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Поиск по номеру, БИН, названию или примечаниям..."
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Фильтр по статусу */}
+              <div className="w-full md:w-48">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                >
+                  <option value="all">Все статусы</option>
+                  <option value="draft">Черновик</option>
+                  <option value="pending_approval">Ожидает согласования</option>
+                  <option value="approved">Согласован</option>
+                  <option value="rejected">Отклонен</option>
+                  <option value="sent">Отправлен</option>
+                  <option value="executed">Исполнен</option>
+                  <option value="cancelled">Отменен</option>
+                </select>
+              </div>
+
+              {/* Фильтр по дате */}
+              <div className="w-full md:w-48">
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value as any)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                >
+                  <option value="all">Все даты</option>
+                  <option value="today">Сегодня</option>
+                  <option value="week">За неделю</option>
+                  <option value="month">За месяц</option>
+                </select>
+              </div>
+
+              {/* Кнопка сброса */}
+              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="w-full md:w-auto"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Сбросить
+                </Button>
+              )}
+            </div>
+
+            {/* Счетчик результатов */}
+            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+              <span>
+                Найдено: {filteredContracts.length} из {contracts.length}
+              </span>
+              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
+                <span className="text-blue-600 dark:text-blue-400">
+                  Применены фильтры
+                </span>
+              )}
+            </div>
+          </div>
+        </Card>
+
         {showForm && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -451,7 +568,21 @@ export default function ContractsPage() {
         )}
 
         <div className="grid gap-6">
-          {contracts.length === 0 ? (
+          {filteredContracts.length === 0 && contracts.length > 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <Search className="h-16 w-16 text-gray-400 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">Ничего не найдено</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Попробуйте изменить параметры поиска или фильтры
+                </p>
+                <Button variant="outline" onClick={resetFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Сбросить фильтры
+                </Button>
+              </div>
+            </Card>
+          ) : contracts.length === 0 ? (
             <Card>
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4 opacity-50" />
@@ -466,7 +597,7 @@ export default function ContractsPage() {
               </div>
             </Card>
           ) : (
-            contracts.map((contract) => (
+            filteredContracts.map((contract) => (
               <Card key={contract.id}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
