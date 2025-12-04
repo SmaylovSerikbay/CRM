@@ -244,13 +244,13 @@ export default function CalendarPlanPage() {
     try {
       showToast('Генерация PDF...', 'info');
       
-      // Получаем API URL
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      // Получаем API URL (уже содержит /api в конце)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
       
       console.log(`[PDF] Generating PDF for plan ${plan.id}`);
       
       // Вызываем API для генерации PDF
-      const response = await fetch(`${API_URL}/api/calendar-plans/${plan.id}/export_pdf/`, {
+      const response = await fetch(`${API_URL}/calendar-plans/${plan.id}/export_pdf/`, {
         method: 'GET',
         credentials: 'include',
       });

@@ -8,6 +8,10 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy DejaVu fonts for PDF generation with Cyrillic support
+RUN mkdir -p /usr/share/fonts/truetype/dejavu
+COPY fonts/*.ttf /usr/share/fonts/truetype/dejavu/
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 

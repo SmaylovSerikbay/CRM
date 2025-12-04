@@ -18,6 +18,8 @@ try:
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
@@ -1030,6 +1032,47 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             print(f"[PDF Export] Generating PDF for plan {plan.id}: {plan.department}")
             print(f"[PDF Export] Plan data - departments_info: {plan.departments_info}")
             
+            # Регистрация шрифта для поддержки кириллицы
+            try:
+                # Пробуем найти и зарегистрировать шрифты с поддержкой кириллицы
+                import os
+                font_paths = [
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+                    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+                    'DejaVuSans.ttf',  # Может быть в PATH
+                ]
+                
+                font_found = False
+                for font_path in font_paths:
+                    if os.path.exists(font_path):
+                        try:
+                            pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+                            # Пробуем найти Bold версию
+                            bold_path = font_path.replace('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf')
+                            if os.path.exists(bold_path):
+                                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
+                                font_name_bold = 'DejaVuSans-Bold'
+                            else:
+                                font_name_bold = 'DejaVuSans'  # Используем обычный шрифт вместо bold
+                            
+                            font_name = 'DejaVuSans'
+                            font_found = True
+                            print(f"[PDF Export] DejaVu fonts registered successfully from {font_path}")
+                            break
+                        except Exception as e:
+                            print(f"[PDF Export] Failed to register font from {font_path}: {e}")
+                            continue
+                
+                if not font_found:
+                    print("[PDF Export] No suitable fonts found, using Helvetica (no Cyrillic support)")
+                    font_name = 'Helvetica'
+                    font_name_bold = 'Helvetica-Bold'
+            except Exception as e:
+                print(f"[PDF Export] Error during font registration: {e}")
+                font_name = 'Helvetica'
+                font_name_bold = 'Helvetica-Bold'
+            
             # Создание PDF
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
@@ -1040,6 +1083,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
+                fontName=font_name_bold,
                 fontSize=16,
                 textColor=colors.HexColor('#1e40af'),
                 spaceAfter=20,
@@ -1050,6 +1094,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             subtitle_style = ParagraphStyle(
                 'CustomSubtitle',
                 parent=styles['Heading2'],
+                fontName=font_name_bold,
                 fontSize=12,
                 textColor=colors.HexColor('#374151'),
                 spaceAfter=10
@@ -1059,6 +1104,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             normal_style = ParagraphStyle(
                 'CustomNormal',
                 parent=styles['Normal'],
+                fontName=font_name,
                 fontSize=10,
                 textColor=colors.HexColor('#1f2937')
             )
@@ -1084,8 +1130,8 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
                 ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTNAME', (0, 0), (0, -1), font_name_bold),
+                ('FONTNAME', (1, 0), (1, -1), font_name),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -1122,9 +1168,9 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                    ('FONTNAME', (0, 1), (-1, -1), font_name),
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -1168,9 +1214,9 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                             ('ALIGN', (0, 0), (0, -1), 'CENTER'),
                             ('ALIGN', (1, 0), (-1, -1), 'LEFT'),
-                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                             ('FONTSIZE', (0, 0), (-1, 0), 10),
-                            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                            ('FONTNAME', (0, 1), (-1, -1), font_name),
                             ('FONTSIZE', (0, 1), (-1, -1), 9),
                             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
                             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -1189,6 +1235,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             footer_style = ParagraphStyle(
                 'Footer',
                 parent=styles['Normal'],
+                fontName=font_name,
                 fontSize=8,
                 textColor=colors.HexColor('#6b7280'),
                 alignment=1
