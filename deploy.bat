@@ -1,9 +1,10 @@
 @echo off
+chcp 65001 >nul
 REM Скрипт автоматического деплоя для Windows
 REM Использование: deploy.bat "сообщение коммита"
 
 echo ================================
-echo CRM Medical - Автодеплой
+echo CRM Medical - Autodeploy
 echo ================================
 echo.
 
@@ -20,16 +21,16 @@ if "%~1"=="" (
     set COMMIT_MSG=%~1
 )
 
-echo [1/5] Добавление изменений в git...
+echo [1/5] Adding changes to git...
 git add .
 
-echo [2/5] Создание коммита...
+echo [2/5] Creating commit...
 git commit -m "%COMMIT_MSG%"
 if errorlevel 1 (
-    echo Нет изменений для коммита или ошибка
+    echo No changes to commit or error
 )
 
-echo [3/5] Отправка в репозиторий...
+echo [3/5] Pushing to repository...
 git push upstream main
 if errorlevel 1 (
     git push upstream master
@@ -41,13 +42,13 @@ if errorlevel 1 (
     )
 )
 
-echo [4/5] Подключение к серверу...
-echo [5/5] Обновление на сервере...
+echo [4/5] Connecting to server...
+echo [5/5] Updating on server...
 
 ssh -i "%SSH_KEY%" %PROD_USER%@%PROD_HOST% "cd %PROD_PATH% && git pull origin main || git pull origin master && docker compose -f docker-compose.yml build && docker compose -f docker-compose.yml up -d"
 
 echo.
 echo ================================
-echo Деплой завершен успешно!
+echo Deploy completed successfully!
 echo ================================
 pause
