@@ -77,14 +77,26 @@ class UserViewSet(viewsets.ModelViewSet):
                 "chatId": f"{formatted_phone}@c.us",
                 "message": f"Ваш код подтверждения для входа в CRM: {otp}"
             }
+            
+            print(f"[OTP] Sending to {formatted_phone}, URL: {url}")
             response = requests.post(url, json=payload, timeout=10)
+            print(f"[OTP] Response status: {response.status_code}, body: {response.text}")
             
             if response.status_code == 200:
-                return Response({'message': 'OTP sent successfully'}, status=status.HTTP_200_OK)
+                response_data = response.json()
+                if response_data.get('idMessage'):
+                    return Response({'message': 'OTP sent successfully'}, status=status.HTTP_200_OK)
+                else:
+                    print(f"[OTP] Green API error: {response_data}")
+                    return Response({'error': f'Green API error: {response_data.get("message", "Unknown error")}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
-                return Response({'error': 'Failed to send OTP'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                print(f"[OTP] HTTP error: {response.status_code} - {response.text}")
+                return Response({'error': f'Failed to send OTP: {response.text}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"[OTP] Exception: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({'error': f'Error sending OTP: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
     def verify_otp(self, request):
