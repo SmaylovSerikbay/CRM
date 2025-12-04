@@ -61,7 +61,11 @@ endif
 	@echo "  make clean            - Очистить все контейнеры и volumes"
 	@echo "  make restart-dev      - Перезапустить dev"
 	@echo "  make restart-prod     - Перезапустить prod"
+# Только backend
+docker compose -f docker-compose.yml logs -f backend
 
+# Только frontend
+docker compose -f docker-compose.yml logs -f frontend
 # Development команды
 dev: build-dev up-dev ## Полный запуск в dev режиме
 
@@ -88,7 +92,12 @@ prod: build-prod up-prod ## Полный запуск в prod режиме
 
 build-prod: ## Собрать prod образы
 	@echo "$(GREEN)Сборка prod образов...$(NC)"
-	$(DOCKER_COMPOSE) -f docker-compose.yml build
+	@if [ -f .env.prod ]; then \
+		export $$(grep -v '^#' .env.prod | xargs) && \
+		$(DOCKER_COMPOSE) -f docker-compose.yml build; \
+	else \
+		$(DOCKER_COMPOSE) -f docker-compose.yml build; \
+	fi
 
 up-prod: ## Запустить prod контейнеры
 	@echo "$(GREEN)Запуск prod контейнеров...$(NC)"

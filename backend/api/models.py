@@ -44,6 +44,7 @@ class User(AbstractUser):
 class ContingentEmployee(models.Model):
     """Список контингента - лица, подлежащие обязательному медосмотру по приказу №131"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contingent_employees')
+    contract = models.ForeignKey('Contract', on_delete=models.CASCADE, related_name='contingent_employees', null=True, blank=True, verbose_name='Договор', help_text='Договор, по которому загружен контингент')
     name = models.CharField(max_length=255, verbose_name='ФИО')
     birth_date = models.DateField(null=True, blank=True, verbose_name='Дата рождения')
     gender = models.CharField(max_length=10, choices=[('male', 'Мужской'), ('female', 'Женский')], blank=True, verbose_name='Пол')
@@ -72,10 +73,12 @@ class CalendarPlan(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendar_plans')
-    department = models.CharField(max_length=255)
-    start_date = models.DateField()
-    end_date = models.DateField()
-    employee_ids = models.JSONField(default=list)
+    contract = models.ForeignKey('Contract', on_delete=models.CASCADE, related_name='calendar_plans', null=True, blank=True, verbose_name='Договор', help_text='Договор, по которому создан календарный план')
+    department = models.CharField(max_length=255, verbose_name='Объект/участок', help_text='Основной объект/участок (для обратной совместимости)')
+    start_date = models.DateField(verbose_name='Дата начала', help_text='Общая дата начала (минимальная из всех участков)')
+    end_date = models.DateField(verbose_name='Дата окончания', help_text='Общая дата окончания (максимальная из всех участков)')
+    employee_ids = models.JSONField(default=list, verbose_name='ID сотрудников', help_text='Список ID всех сотрудников из всех выбранных участков')
+    departments_info = models.JSONField(default=list, blank=True, verbose_name='Информация об участках', help_text='Список участков с их датами и сотрудниками: [{"department": "Участок 1", "start_date": "2024-01-01", "end_date": "2024-01-31", "employee_ids": [1,2,3]}, ...]')
     harmful_factors = models.JSONField(default=list, verbose_name='Вредные факторы', help_text='Список вредных факторов для формирования приказа медкомиссии')
     selected_doctors = models.JSONField(default=list, verbose_name='Выбранные врачи клиники', help_text='Список ID врачей, которые будут проводить осмотр')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')

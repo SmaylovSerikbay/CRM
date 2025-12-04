@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
@@ -14,6 +14,11 @@ import { useRouter } from 'next/navigation';
 export default function ClinicContingentPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<ContingentEmployee[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [selectedContractId, setSelectedContractId] = useState<string>('');
+  const [filterContractId, setFilterContractId] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('grouped');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,28 +27,39 @@ export default function ClinicContingentPage() {
   const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
 
   useEffect(() => {
-    const loadEmployees = async () => {
+    const loadData = async () => {
       try {
+        // Загружаем договоры
+        const contractsData = await workflowStoreAPI.getContracts();
+        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved');
+        setContracts(approvedContracts);
+        
+        // Загружаем контингент
         const data = await workflowStoreAPI.getContingent();
         setEmployees(data);
       } catch (error) {
-        console.error('Error loading employees:', error);
+        console.error('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    loadEmployees();
+    loadData();
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    if (!selectedContractId) {
+      alert('Пожалуйста, выберите договор перед загрузкой контингента');
+      return;
+    }
+    
     setIsUploading(true);
     setUploadSuccess(false);
 
     try {
-      const result = await workflowStoreAPI.uploadExcelContingent(file);
+      const result = await workflowStoreAPI.uploadExcelContingent(file, selectedContractId);
       
       const updated = await workflowStoreAPI.getContingent();
       setEmployees(updated);
@@ -124,6 +140,59 @@ export default function ClinicContingentPage() {
     setEditData({});
   };
 
+  // Фильтрация и группировка
+  const getFilteredEmployees = (): ContingentEmployee[] => {
+    let filtered = employees;
+    if (filterContractId) {
+      filtered = filtered.filter(emp => emp.contractId === filterContractId);
+    }
+    return filtered;
+  };
+
+  const getGroupedEmployees = (): Record<string, ContingentEmployee[]> => {
+    const filtered = getFilteredEmployees();
+    const grouped: Record<string, ContingentEmployee[]> = {};
+    
+    filtered.forEach(emp => {
+      const key = emp.contractId || 'no-contract';
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(emp);
+    });
+    
+    return grouped;
+  };
+
+  const getContractInfo = (contractId?: string) => {
+    if (!contractId) return null;
+    return contracts.find(c => c.id === contractId);
+  };
+
+  const toggleGroup = (contractKey: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contractKey)) {
+        newSet.delete(contractKey);
+      } else {
+        newSet.add(contractKey);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAll = () => {
+    const allKeys = Object.keys(getGroupedEmployees());
+    setExpandedGroups(new Set(allKeys));
+  };
+
+  const collapseAll = () => {
+    setExpandedGroups(new Set());
+  };
+
+  const filteredEmployees = getFilteredEmployees();
+  const groupedEmployees = getGroupedEmployees();
+
   return (
     <div>
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
@@ -178,6 +247,38 @@ export default function ClinicContingentPage() {
               </div>
             )}
 
+            {/* Выбор договора */}
+            {contracts.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Выберите договор для загрузки контингента:
+                </label>
+                <select
+                  value={selectedContractId}
+                  onChange={(e) => setSelectedContractId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">-- Выберите договор --</option>
+                  {contracts.map((contract: any) => (
+                    <option key={contract.id} value={contract.id}>
+                      Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')} - {contract.employer_name || `БИН: ${contract.employer_bin}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Контингент будет загружен для выбранного работодателя по договору
+                </p>
+              </div>
+            )}
+
+            {contracts.length === 0 && !isLoading && (
+              <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  У вас нет подтвержденных договоров. Сначала необходимо создать и подтвердить договор с работодателем.
+                </p>
+              </div>
+            )}
+
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
               <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <label className="cursor-pointer">
@@ -213,25 +314,107 @@ export default function ClinicContingentPage() {
             className="mb-8"
           >
             <Card>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">
-                  Список сотрудников ({employees.length})
-                </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDeleteAll}
-                  className="text-red-600 hover:text-red-700 dark:text-red-400"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Удалить всех
-                </Button>
+              {/* Фильтры и управление */}
+              <div className="mb-6 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">
+                      Список сотрудников ({filteredEmployees.length} из {employees.length})
+                    </h3>
+                    {filterContractId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilterContractId('')}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Сбросить фильтр
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {viewMode === 'grouped' && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={expandAll}
+                        >
+                          Раскрыть все
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={collapseAll}
+                        >
+                          Свернуть все
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 border border-gray-300 dark:border-gray-700 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('grouped')}
+                        className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                          viewMode === 'grouped'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <Grid className="h-4 w-4 inline mr-1" />
+                        По договорам
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                          viewMode === 'list'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <List className="h-4 w-4 inline mr-1" />
+                        Список
+                      </button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteAll}
+                      className="text-red-600 hover:text-red-700 dark:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Удалить всех
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Фильтр по договору */}
+                <div className="flex items-center gap-3">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <select
+                    value={filterContractId}
+                    onChange={(e) => setFilterContractId(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                  >
+                    <option value="">Все договоры</option>
+                    {contracts.map((contract: any) => {
+                      const count = employees.filter(emp => emp.contractId === contract.id).length;
+                      return (
+                        <option key={contract.id} value={contract.id}>
+                          Договор №{contract.contract_number} ({count} сотрудников)
+                        </option>
+                      );
+                    })}
+                    <option value="no-contract">Без договора ({employees.filter(emp => !emp.contractId).length} сотрудников)</option>
+                  </select>
+                </div>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700">
                       <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">№</th>
+                      <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Договор</th>
                       <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">ФИО</th>
                       <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Дата рожд.</th>
                       <th className="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-300 text-xs">Пол</th>
@@ -246,7 +429,9 @@ export default function ClinicContingentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {employees.map((employee, index) => (
+                    {viewMode === 'list' ? (
+                      // Режим списка
+                      filteredEmployees.map((employee, index) => (
                       <tr
                         key={employee.id}
                         className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -254,6 +439,18 @@ export default function ClinicContingentPage() {
                         {editingId === employee.id ? (
                           <>
                             <td className="py-2 px-2">{index + 1}</td>
+                            <td className="py-2 px-2">
+                              {employee.contractNumber ? (
+                                <div className="text-xs">
+                                  <div className="font-medium text-blue-600 dark:text-blue-400">№{employee.contractNumber}</div>
+                                  {employee.employerName && (
+                                    <div className="text-gray-500 dark:text-gray-400">{employee.employerName}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="py-2 px-2">
                               <input
                                 type="text"
@@ -360,6 +557,18 @@ export default function ClinicContingentPage() {
                         ) : (
                           <>
                             <td className="py-2 px-2">{index + 1}</td>
+                            <td className="py-2 px-2">
+                              {employee.contractNumber ? (
+                                <div className="text-xs">
+                                  <div className="font-medium text-blue-600 dark:text-blue-400">№{employee.contractNumber}</div>
+                                  {employee.employerName && (
+                                    <div className="text-gray-500 dark:text-gray-400">{employee.employerName}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="py-2 px-2 font-medium">{employee.name}</td>
                             <td className="py-2 px-2">{employee.birthDate ? new Date(employee.birthDate).toLocaleDateString('ru-RU') : '-'}</td>
                             <td className="py-2 px-2">{employee.gender === 'male' ? 'мужской' : employee.gender === 'female' ? 'женский' : '-'}</td>
@@ -422,7 +631,139 @@ export default function ClinicContingentPage() {
                           </>
                         )}
                       </tr>
-                    ))}
+                    ))
+                    ) : (
+                      // Режим группировки по договорам
+                      Object.entries(groupedEmployees).map(([contractKey, contractEmployees]) => {
+                        const contract = contractKey !== 'no-contract' ? getContractInfo(contractKey) : null;
+                        return (
+                          <React.Fragment key={contractKey}>
+                            {/* Заголовок группы */}
+                            <tr className="bg-blue-50 dark:bg-blue-900/20 border-b-2 border-blue-200 dark:border-blue-800">
+                              <td colSpan={13} className="py-3 px-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <button
+                                      onClick={() => toggleGroup(contractKey)}
+                                      className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded transition-colors"
+                                      title={expandedGroups.has(contractKey) ? 'Свернуть' : 'Раскрыть'}
+                                    >
+                                      {expandedGroups.has(contractKey) ? (
+                                        <ChevronDown className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                      ) : (
+                                        <ChevronRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                      )}
+                                    </button>
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">{contractEmployees.length}</span>
+                                    </div>
+                                    <div>
+                                      {contract ? (
+                                        <>
+                                          <div className="font-semibold text-gray-900 dark:text-white">
+                                            Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')}
+                                          </div>
+                                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                                            {contract.employer_name || `БИН: ${contract.employer_bin}`}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="font-semibold text-gray-900 dark:text-white">
+                                          Без договора
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    {contractEmployees.length} сотрудников
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                            {/* Сотрудники группы */}
+                            {expandedGroups.has(contractKey) && contractEmployees.map((employee, empIndex) => (
+                              <tr
+                                key={employee.id}
+                                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                              >
+                                <td className="py-2 px-2">{empIndex + 1}</td>
+                                <td className="py-2 px-2">
+                                  {employee.contractNumber ? (
+                                    <div className="text-xs">
+                                      <div className="font-medium text-blue-600 dark:text-blue-400">№{employee.contractNumber}</div>
+                                      {employee.employerName && (
+                                        <div className="text-gray-500 dark:text-gray-400">{employee.employerName}</div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2 font-medium">{employee.name}</td>
+                                <td className="py-2 px-2">{employee.birthDate ? new Date(employee.birthDate).toLocaleDateString('ru-RU') : '-'}</td>
+                                <td className="py-2 px-2">{employee.gender === 'male' ? 'мужской' : employee.gender === 'female' ? 'женский' : '-'}</td>
+                                <td className="py-2 px-2">{employee.department}</td>
+                                <td className="py-2 px-2">{employee.position}</td>
+                                <td className="py-2 px-2">{(employee as any).totalExperienceYears ? `${(employee as any).totalExperienceYears} лет` : '-'}</td>
+                                <td className="py-2 px-2">{(employee as any).positionExperienceYears ? `${(employee as any).positionExperienceYears} лет` : '-'}</td>
+                                <td className="py-2 px-2">{employee.lastExaminationDate ? new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU') : '-'}</td>
+                                <td className="py-2 px-2">
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {employee.harmfulFactors.length > 0 ? (
+                                      employee.harmfulFactors.map((factor, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded"
+                                          title={factor}
+                                        >
+                                          {factor.length > 25 ? factor.substring(0, 25) + '...' : factor}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">-</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2 text-xs">{(employee as any).notes || '-'}</td>
+                                <td className="py-2 px-2">
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const qrUrl = await workflowStoreAPI.generateEmployeeQRCode(employee.id);
+                                          setQrCodeModal({ employeeId: employee.id, qrUrl });
+                                        } catch (error) {
+                                          console.error('Error generating QR code:', error);
+                                          alert('Ошибка при генерации QR-кода');
+                                        }
+                                      }}
+                                      className="p-1 text-green-600 hover:text-green-700"
+                                      title="Сгенерировать QR-код"
+                                    >
+                                      <QrCode className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleEdit(employee)}
+                                      className="p-1 text-blue-600 hover:text-blue-700"
+                                      title="Редактировать"
+                                    >
+                                      <Edit2 className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(employee.id)}
+                                      className="p-1 text-red-600 hover:text-red-700"
+                                      title="Удалить"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
