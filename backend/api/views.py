@@ -1019,6 +1019,198 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
 class CalendarPlanViewSet(viewsets.ModelViewSet):
     serializer_class = CalendarPlanSerializer
 
+    @action(detail=True, methods=['get'])
+    def export_pdf(self, request, pk=None):
+        """Экспорт календарного плана в PDF"""
+        if not REPORTLAB_AVAILABLE:
+            return Response({'error': 'ReportLab library not installed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        try:
+            plan = self.get_object()
+            
+            # Создание PDF
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Стиль для заголовка
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor=colors.HexColor('#1e40af'),
+                spaceAfter=20,
+                alignment=1  # Центрирование
+            )
+            
+            # Стиль для подзаголовков
+            subtitle_style = ParagraphStyle(
+                'CustomSubtitle',
+                parent=styles['Heading2'],
+                fontSize=12,
+                textColor=colors.HexColor('#374151'),
+                spaceAfter=10
+            )
+            
+            # Стиль для обычного текста
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.HexColor('#1f2937')
+            )
+            
+            # Заголовок
+            elements.append(Paragraph('Календарный план медицинских осмотров', title_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Основная информация
+            info_data = [
+                ['Объект/участок:', plan.department],
+                ['Период проведения:', f"{plan.start_date.strftime('%d.%m.%Y')} - {plan.end_date.strftime('%d.%m.%Y')}"],
+                ['Количество сотрудников:', str(len(plan.employee_ids))],
+                ['Статус:', self._get_status_text(plan.status)],
+            ]
+            
+            if plan.contract:
+                info_data.insert(0, ['Договор:', f"№{plan.contract.contract_number} от {plan.contract.contract_date.strftime('%d.%m.%Y')}"])
+            
+            info_table = Table(info_data, colWidths=[2.5*inch, 4*inch])
+            info_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            elements.append(info_table)
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Информация по участкам (если есть несколько)
+            if plan.departments_info and len(plan.departments_info) > 1:
+                elements.append(Paragraph('Участки и периоды проведения осмотров', subtitle_style))
+                elements.append(Spacer(1, 0.1*inch))
+                
+                dept_data = [['№', 'Объект/участок', 'Период', 'Сотрудников']]
+                for idx, dept_info in enumerate(plan.departments_info, 1):
+                    dept_data.append([
+                        str(idx),
+                        dept_info.get('department', ''),
+                        f"{dept_info.get('startDate', '')} - {dept_info.get('endDate', '')}",
+                        str(len(dept_info.get('employeeIds', [])))
+                    ])
+                
+                dept_table = Table(dept_data, colWidths=[0.5*inch, 2.5*inch, 2*inch, 1.5*inch])
+                dept_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
+                ]))
+                elements.append(dept_table)
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Вредные факторы
+            if plan.harmful_factors:
+                elements.append(Paragraph('Вредные и опасные производственные факторы', subtitle_style))
+                elements.append(Spacer(1, 0.1*inch))
+                
+                factors_text = ', '.join(plan.harmful_factors)
+                elements.append(Paragraph(factors_text, normal_style))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Врачи
+            if plan.selected_doctors:
+                elements.append(Paragraph('Назначенные врачи', subtitle_style))
+                elements.append(Spacer(1, 0.1*inch))
+                
+                try:
+                    from .models import Doctor
+                    doctors = Doctor.objects.filter(id__in=plan.selected_doctors)
+                    if doctors.exists():
+                        doctor_data = [['№', 'ФИО', 'Специализация', 'Кабинет']]
+                        for idx, doctor in enumerate(doctors, 1):
+                            doctor_data.append([
+                                str(idx),
+                                doctor.name,
+                                doctor.specialization,
+                                doctor.cabinet or '-'
+                            ])
+                        
+                        doctor_table = Table(doctor_data, colWidths=[0.5*inch, 2.5*inch, 2*inch, 1.5*inch])
+                        doctor_table.setStyle(TableStyle([
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                            ('ALIGN', (1, 0), (-1, -1), 'LEFT'),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                            ('FONTSIZE', (0, 1), (-1, -1), 9),
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+                            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                            ('TOPPADDING', (0, 0), (-1, -1), 6),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
+                        ]))
+                        elements.append(doctor_table)
+                        elements.append(Spacer(1, 0.3*inch))
+                except Exception as e:
+                    pass
+            
+            # Футер с датой создания
+            elements.append(Spacer(1, 0.5*inch))
+            footer_style = ParagraphStyle(
+                'Footer',
+                parent=styles['Normal'],
+                fontSize=8,
+                textColor=colors.HexColor('#6b7280'),
+                alignment=1
+            )
+            elements.append(Paragraph(f'Документ создан: {timezone.now().strftime("%d.%m.%Y %H:%M")}', footer_style))
+            
+            # Генерация PDF
+            doc.build(elements)
+            buffer.seek(0)
+            
+            response = HttpResponse(buffer.read(), content_type='application/pdf')
+            filename = f"calendar_plan_{plan.department.replace(' ', '_')}_{plan.start_date.strftime('%Y%m%d')}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_status_text(self, status_code):
+        """Получить текстовое описание статуса"""
+        status_map = {
+            'draft': 'Черновик',
+            'pending_clinic': 'Ожидает утверждения клиникой',
+            'pending_employer': 'Ожидает утверждения работодателем',
+            'approved': 'Утвержден',
+            'sent_to_ses': 'Отправлен в СЭС'
+        }
+        return status_map.get(status_code, status_code)
+
     def get_queryset(self):
         user_id = self.request.query_params.get('user_id')
         if user_id:
@@ -1091,47 +1283,69 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         user_id = self.request.data.get('user')
         contract_id = self.request.data.get('contract')
         
+        print(f"[CalendarPlan] Creating calendar plan - user_id: {user_id}, contract_id: {contract_id}")
+        print(f"[CalendarPlan] Request data: {self.request.data}")
+        
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                print(f"[CalendarPlan] User found: {user.phone}, role: {user.role}")
                 contract = None
                 
                 # Если указан договор, проверяем его
                 if contract_id:
                     try:
                         contract = Contract.objects.get(id=contract_id)
-                        # Проверяем, что договор подтвержден
-                        if contract.status != 'approved':
-                            raise ValidationError({'contract': 'Договор должен быть подтвержден перед созданием календарного плана'})
+                        print(f"[CalendarPlan] Contract found: {contract.contract_number}, status: {contract.status}")
+                        
+                        # Проверяем, что договор подтвержден или исполнен
+                        if contract.status not in ['approved', 'executed']:
+                            print(f"[CalendarPlan] Contract status invalid: {contract.status}")
+                            raise ValidationError({'contract': f'Договор должен быть подтвержден или исполнен. Текущий статус: {contract.status}'})
+                        
                         # Проверяем, что пользователь связан с договором
-                        if user.role == 'clinic' and contract.clinic != user:
-                            raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
+                        if user.role == 'clinic':
+                            if contract.clinic != user:
+                                print(f"[CalendarPlan] User is not clinic of this contract")
+                                raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
                         elif user.role == 'employer':
                             if contract.employer != user:
                                 # Проверяем по БИН
                                 reg_data = user.registration_data or {}
                                 user_bin = reg_data.get('bin') or reg_data.get('inn')
+                                print(f"[CalendarPlan] Checking BIN: user_bin={user_bin}, contract_bin={contract.employer_bin}")
                                 if not user_bin or str(user_bin).strip() != str(contract.employer_bin or '').strip():
                                     raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
                     except Contract.DoesNotExist:
+                        print(f"[CalendarPlan] Contract not found: {contract_id}")
                         raise ValidationError({'contract': 'Договор не найден'})
                 else:
                     # Если договор не указан, ищем подтвержденный договор
+                    print(f"[CalendarPlan] No contract specified, searching for approved contract")
                     if user.role == 'clinic':
-                        contract = Contract.objects.filter(clinic=user, status='approved').first()
+                        contract = Contract.objects.filter(clinic=user, status__in=['approved', 'executed']).first()
                     elif user.role == 'employer':
                         contract = Contract.objects.filter(
                             Q(employer=user) | Q(employer_bin=user.registration_data.get('bin', '') if user.registration_data else ''),
-                            status='approved'
+                            status__in=['approved', 'executed']
                         ).first()
                     
                     if not contract:
+                        print(f"[CalendarPlan] No approved contract found for user")
                         raise ValidationError({'contract': 'Необходимо выбрать подтвержденный договор для создания календарного плана'})
+                    print(f"[CalendarPlan] Auto-selected contract: {contract.contract_number}")
                 
+                print(f"[CalendarPlan] Saving calendar plan with contract: {contract.contract_number if contract else 'None'}")
                 serializer.save(user=user, contract=contract)
+                print(f"[CalendarPlan] Calendar plan created successfully")
             except User.DoesNotExist:
+                print(f"[CalendarPlan] User not found: {user_id}")
                 raise ValidationError({'user': 'User not found'})
+            except Exception as e:
+                print(f"[CalendarPlan] Unexpected error: {type(e).__name__}: {str(e)}")
+                raise
         else:
+            print(f"[CalendarPlan] No user_id provided, saving without user")
             serializer.save()
 
 

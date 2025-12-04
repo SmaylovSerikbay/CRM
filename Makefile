@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status hot hot-backend hot-frontend hot-pull hot-pull-backend hot-pull-frontend
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status deploy-all hot hot-backend hot-frontend hot-pull hot-pull-backend hot-pull-frontend
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -74,6 +74,9 @@ endif
 	@echo "  make rebuild-backend-prod - Пересборка только backend (prod)"
 	@echo "  make rebuild-frontend-prod- Пересборка только frontend (prod)"
 	@echo ""
+	@echo "$(YELLOW)Быстрый деплой (рекомендуется):$(NC)"
+	@echo "  make deploy-all           - 🚀 GIT PULL + деплой backend + frontend (~2-3 мин)"
+	@echo ""
 	@echo "$(YELLOW)Blue-Green Deployment (Zero Downtime):$(NC)"
 	@echo "  make bg-auto              - 🚀 АВТОМАТИЧЕСКИЙ деплой (спросит тип сборки)"
 	@echo "  make bg-auto-fast         - ⚡ БЫСТРЫЙ деплой (с кэшем, ~2-3 мин)"
@@ -84,13 +87,14 @@ endif
 	@echo "  make bg-cleanup           - Остановить неактивное окружение"
 	@echo "  make bg-status            - Статус blue-green окружений"
 	@echo ""
-	@echo "$(YELLOW)Hot Deploy (Мгновенное обновление, ~10-30 сек):$(NC)"
-	@echo "  make hot                  - 🔥 HOT DEPLOY всего (backend + frontend)"
-	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend (~5 сек)"
-	@echo "  make hot-frontend         - 🔥 HOT DEPLOY только frontend (~20 сек)"
-	@echo "  make hot-pull             - 🔥 GIT PULL + HOT DEPLOY всего"
+	@echo "$(YELLOW)Hot Deploy (только backend, ~10 сек):$(NC)"
+	@echo "  make hot                  - 🔥 HOT DEPLOY backend (git pull + deploy)"
+	@echo "  make hot-pull             - 🔥 GIT PULL + HOT DEPLOY backend"
+	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend"
 	@echo "  make hot-pull-backend     - 🔥 GIT PULL + HOT DEPLOY backend"
-	@echo "  make hot-pull-frontend    - 🔥 GIT PULL + HOT DEPLOY frontend"
+	@echo ""
+	@echo "$(YELLOW)⚠️  Frontend hot deploy не поддерживается (production build)$(NC)"
+	@echo "$(YELLOW)   Для frontend используйте: make bg-auto-fast (~2-3 мин)$(NC)"
 
 # Логи только backend
 logs-backend: ## Логи только backend
@@ -276,6 +280,13 @@ bg-auto-fast: ## 🚀 БЫСТРЫЙ деплой (с кэшем Docker, тол�
 bg-auto-full: ## 🚀 ПОЛНЫЙ деплой (без кэша, пересборка всего)
 	@echo "$(GREEN)Blue-Green Deployment: Полная пересборка...$(NC)"
 	@FULL_BUILD=1 bash deploy-blue-green.sh auto
+
+# Быстрый деплой с git pull
+deploy-all: ## 🚀 GIT PULL + БЫСТРЫЙ ДЕПЛОЙ backend + frontend (~2-3 мин)
+	@echo "$(YELLOW)Git Pull...$(NC)"
+	@git pull
+	@echo "$(GREEN)Blue-Green Deployment: Быстрый деплой backend + frontend...$(NC)"
+	@FAST_BUILD=1 bash deploy-blue-green.sh auto
 
 bg-deploy: ## Деплой новой версии (blue-green)
 	@echo "$(GREEN)Blue-Green Deployment: Деплой новой версии...$(NC)"

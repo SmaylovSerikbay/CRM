@@ -240,9 +240,42 @@ export default function CalendarPlanPage() {
     showToast('Редактирование плана будет доступно в следующей версии', 'info');
   };
 
-  const handleGeneratePDF = (plan: CalendarPlan) => {
-    // Симуляция генерации PDF
-    showToast(`Генерация PDF календарного плана для объекта/участка: ${plan.department}...`, 'info');
+  const handleGeneratePDF = async (plan: CalendarPlan) => {
+    try {
+      showToast('Генерация PDF...', 'info');
+      
+      // Получаем API URL
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      
+      // Вызываем API для генерации PDF
+      const response = await fetch(`${API_URL}/api/calendar-plans/${plan.id}/export_pdf/`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Ошибка генерации PDF' }));
+        throw new Error(errorData.error || 'Ошибка генерации PDF');
+      }
+      
+      // Получаем blob
+      const blob = await response.blob();
+      
+      // Создаем ссылку для скачивания
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `calendar_plan_${plan.department.replace(/[^a-zA-Z0-9]/g, '_')}_${plan.startDate}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showToast('PDF успешно сгенерирован и скачан', 'success');
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      showToast(error.message || 'Ошибка генерации PDF', 'error');
+    }
   };
 
   const getEmployeeCount = (plan: CalendarPlan) => {

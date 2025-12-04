@@ -386,7 +386,10 @@ auto_deploy() {
         AUTO_SWITCHED=false
     fi
     
-    # Если автопереключение не сработало, показываем инструкцию
+    # Сохраняем для отката
+    echo "$active" > ".deployment-state.backup"
+    
+    # Если автопереключение не сработало, показываем инструкцию и запрашиваем подтверждение
     if [ "$AUTO_SWITCHED" != "true" ]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -399,34 +402,22 @@ auto_deploy() {
         echo -e "${GREEN}Frontend (crm.archeo.kz):${NC}"
         echo -e "  Forward Port: ${RED}старый${NC} → ${GREEN}$FRONTEND_PORT${NC}"
         echo ""
-    fi
-    
-    echo ""
-    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║  ПЕРЕКЛЮЧИТЕ ТРАФИК В NGINX PROXY MANAGER                 ║${NC}"
-    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${GREEN}Backend API (crm.archeo.kz/api):${NC}"
-    echo -e "  Forward Port: ${RED}старый${NC} → ${GREEN}$BACKEND_PORT${NC}"
-    echo ""
-    echo -e "${GREEN}Frontend (crm.archeo.kz):${NC}"
-    echo -e "  Forward Port: ${RED}старый${NC} → ${GREEN}$FRONTEND_PORT${NC}"
-    echo ""
-    echo -e "${YELLOW}Тестирование (до переключения):${NC}"
-    echo -e "  Backend:  http://localhost:$BACKEND_PORT/api/health/"
-    echo -e "  Frontend: http://localhost:$FRONTEND_PORT/"
-    echo ""
-    
-    # Сохраняем для отката
-    echo "$active" > ".deployment-state.backup"
-    
-    read -p "Переключили трафик в NPM? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Деплой приостановлен. Новое окружение работает на портах $BACKEND_PORT/$FRONTEND_PORT${NC}"
-        echo -e "${YELLOW}Для продолжения: ./deploy-blue-green.sh switch${NC}"
-        echo -e "${YELLOW}Для отката: docker compose -f $COMPOSE_FILE --profile $inactive down${NC}"
-        exit 0
+        echo -e "${YELLOW}Тестирование (до переключения):${NC}"
+        echo -e "  Backend:  http://localhost:$BACKEND_PORT/api/health/"
+        echo -e "  Frontend: http://localhost:$FRONTEND_PORT/"
+        echo ""
+        
+        read -p "Переключили трафик в NPM? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Деплой приостановлен. Новое окружение работает на портах $BACKEND_PORT/$FRONTEND_PORT${NC}"
+            echo -e "${YELLOW}Для продолжения: ./deploy-blue-green.sh switch${NC}"
+            echo -e "${YELLOW}Для отката: docker compose -f $COMPOSE_FILE --profile $inactive down${NC}"
+            exit 0
+        fi
+    else
+        echo ""
+        echo -e "${GREEN}✓ Трафик переключен автоматически${NC}"
     fi
     
     # Шаг 3: Проверка после переключения
