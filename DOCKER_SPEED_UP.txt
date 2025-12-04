@@ -19,19 +19,16 @@
   ДОПОЛНИТЕЛЬНОЕ УСКОРЕНИЕ (РЕКОМЕНДУЕТСЯ)
 ═══════════════════════════════════════════════════════════════
 
-1️⃣  ВКЛЮЧИТЕ BUILDKIT
+1️⃣  BUILDKIT УЖЕ ВКЛЮЧЕН! ✅
 
-Windows (PowerShell):
-    $env:DOCKER_BUILDKIT=1
-    $env:COMPOSE_DOCKER_CLI_BUILD=1
-
-Linux/Mac:
-    export DOCKER_BUILDKIT=1
-    export COMPOSE_DOCKER_CLI_BUILD=1
-
-Или создайте файл .env в корне проекта:
+BuildKit уже добавлен в .env.prod и .env.dev:
     DOCKER_BUILDKIT=1
     COMPOSE_DOCKER_CLI_BUILD=1
+
+Просто используйте docker compose как обычно!
+
+Если не работает, проверьте:
+    docker buildx version
 
 Ускорение: +50%
 
