@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
@@ -525,18 +526,29 @@ export default function ContractsPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-6 py-4">
-
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">
-                {editingContract ? 'Редактировать договор' : 'Создать договор'}
-              </h2>
-              <form onSubmit={editingContract ? handleUpdate : handleSubmit} className="space-y-4">
+        {/* Модальное окно создания/редактирования договора */}
+        <Modal
+          isOpen={showForm}
+          onClose={() => {
+            setShowForm(false);
+            setFoundEmployer(null);
+            setBinSearched(false);
+            setEditingContract(null);
+            setFormData({
+              employer_bin: '',
+              employer_phone: '',
+              contract_number: '',
+              contract_date: '',
+              amount: '',
+              people_count: '',
+              execution_date: '',
+              notes: '',
+            });
+          }}
+          title={editingContract ? 'Редактировать договор' : 'Создать договор'}
+          size="xl"
+        >
+          <form onSubmit={editingContract ? handleUpdate : handleSubmit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   {!editingContract && (
                     <>
@@ -652,7 +664,7 @@ export default function ContractsPage() {
                     rows={3}
                   />
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 pt-2">
                   <Button type="submit" className="flex-1">
                     {editingContract ? 'Сохранить изменения' : 'Создать и отправить'}
                   </Button>
@@ -676,11 +688,9 @@ export default function ContractsPage() {
                   </Button>
                 </div>
               </form>
-            </Card>
-          </motion.div>
-        )}
+        </Modal>
 
-        <div className="space-y-3">
+        <div>
           {filteredContracts.length === 0 && contracts.length > 0 ? (
             <Card>
               <div className="text-center py-12">
@@ -710,249 +720,335 @@ export default function ContractsPage() {
               </div>
             </Card>
           ) : (
-            <>
-              {paginatedContracts.map((contract) => (
-                <Card key={contract.id} className="hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <h3 className="text-base font-semibold">Договор №{contract.contract_number}</h3>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
-                        {getStatusLabel(contract.status)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Дата договора</p>
-                        <p className="font-medium text-sm">{contract.contract_date}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сумма</p>
-                        <p className="font-medium text-sm">{contract.amount.toLocaleString()} ₸</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сотрудников</p>
-                        <p className="font-medium text-sm">{contract.people_count}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Исполнение</p>
-                        <p className="font-medium text-sm">{contract.execution_date}</p>
-                      </div>
-                      {contract.employer_bin && (
-                        <div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">БИН</p>
-                          <p className="font-medium text-sm">{contract.employer_bin}</p>
-                        </div>
-                      )}
-                      {contract.employer_name && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Работодатель</p>
-                          <p className="font-medium text-sm truncate">{contract.employer_name}</p>
-                        </div>
-                      )}
-                      {contract.notes && (
-                        <div className="col-span-full">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Примечания</p>
-                          <p className="font-medium text-sm">{contract.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2 mt-3 flex-wrap">
-                      {(contract.status === 'draft' || contract.status === 'rejected') && (
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+              {/* Таблица */}
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Номер договора
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Работодатель
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        БИН
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Дата договора
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Сумма
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Сотрудников
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Дата исполнения
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Статус
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Действия
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {paginatedContracts.map((contract, index) => {
+                      const isExpanded = editingContract?.id === contract.id || showHistory === contract.id || showResendForm === contract.id;
+                      
+                      return (
                         <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(contract)}
+                          <motion.tr
+                            key={contract.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: index * 0.02 }}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                              isExpanded ? 'bg-gray-50 dark:bg-gray-800/30' : ''
+                            }`}
                           >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Редактировать
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => setShowResendForm(contract.id)}
-                          >
-                            <Send className="h-4 w-4 mr-2" />
-                            {contract.status === 'rejected' ? 'Отправить повторно' : 'Отправить на согласование'}
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleShowHistory(contract.id)}
-                      >
-                        <History className="h-4 w-4 mr-2" />
-                        История
-                      </Button>
-                    </div>
-
-                    {showResendForm === contract.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
-                      >
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Комментарий (необязательно)
-                            </label>
-                            <textarea
-                              value={resendComment}
-                              onChange={(e) => setResendComment(e.target.value)}
-                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
-                              rows={3}
-                              placeholder="Добавьте комментарий к договору..."
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleResendForApproval(contract.id)}
-                            >
-                              <Send className="h-4 w-4 mr-2" />
-                              Отправить
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setShowResendForm(null);
-                                setResendComment('');
-                              }}
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Отмена
-                            </Button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {showHistory === contract.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">История изменений</h4>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowHistory(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="space-y-3">
-                          {contractHistory.length === 0 ? (
-                            <p className="text-sm text-gray-500">Нет записей в истории</p>
-                          ) : (
-                            contractHistory.map((item) => (
-                              <div key={item.id} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium text-sm">{getActionLabel(item.action)}</span>
-                                      {item.new_status && (
-                                        <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(item.new_status)}`}>
-                                          {getStatusLabel(item.new_status)}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
-                                    </p>
-                                    {item.comment && (
-                                      <p className="text-sm mt-2 text-gray-700 dark:text-gray-300">
-                                        {item.comment}
-                                      </p>
-                                    )}
-                                    {item.changes && Object.keys(item.changes).length > 0 && (
-                                      <div className="mt-2 text-xs">
-                                        <p className="font-medium mb-1">Изменения:</p>
-                                        {Object.entries(item.changes).map(([key, value]: [string, any]) => (
-                                          <p key={key} className="text-gray-600 dark:text-gray-400">
-                                            {key}: {value.old} → {value.new}
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                                    {new Date(item.created_at).toLocaleString('ru-RU')}
-                                  </span>
-                                </div>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                №{contract.contract_number}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                                {contract.employer_name || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.employer_bin || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.contract_date}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {contract.amount.toLocaleString('ru-RU')} ₸
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.people_count}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.execution_date}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
+                                {getStatusLabel(contract.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {(contract.status === 'draft' || contract.status === 'rejected') && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(contract)}
+                                    >
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Редактировать
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => setShowResendForm(contract.id)}
+                                    >
+                                      <Send className="h-4 w-4 mr-1" />
+                                      {contract.status === 'rejected' ? 'Повторно' : 'Отправить'}
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleShowHistory(contract.id)}
+                                >
+                                  <History className="h-4 w-4 mr-1" />
+                                  История
+                                </Button>
                               </div>
-                            ))
+                            </td>
+                          </motion.tr>
+                          
+                          {/* Развернутая информация */}
+                          {isExpanded && (
+                          <tr>
+                            <td colSpan={9} className="px-4 py-3 bg-gray-50 dark:bg-gray-800/30">
+                                <AnimatePresence>
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="space-y-4"
+                                  >
+                                    {/* Форма повторной отправки */}
+                                    {showResendForm === contract.id && (
+                                      <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                                          {contract.status === 'rejected' ? 'Повторная отправка на согласование' : 'Отправка на согласование'}
+                                        </h4>
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                              Комментарий (необязательно)
+                                            </label>
+                                            <textarea
+                                              value={resendComment}
+                                              onChange={(e) => setResendComment(e.target.value)}
+                                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
+                                              rows={3}
+                                              placeholder="Добавьте комментарий к договору..."
+                                            />
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleResendForApproval(contract.id)}
+                                            >
+                                              <Send className="h-4 w-4 mr-2" />
+                                              Отправить
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => {
+                                                setShowResendForm(null);
+                                                setResendComment('');
+                                              }}
+                                            >
+                                              <X className="h-4 w-4 mr-2" />
+                                              Отмена
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </Card>
+                                    )}
+
+                                    {/* История */}
+                                    {showHistory === contract.id && (
+                                      <Card className="p-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="font-semibold text-gray-900 dark:text-white">История изменений</h4>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setShowHistory(null)}
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                                          {contractHistory.length === 0 ? (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                              Нет записей в истории
+                                            </p>
+                                          ) : (
+                                            contractHistory.map((item) => (
+                                              <div key={item.id} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                      {getActionLabel(item.action)}
+                                                    </span>
+                                                    {item.new_status && (
+                                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(item.new_status)}`}>
+                                                        {getStatusLabel(item.new_status)}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                    {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
+                                                  </p>
+                                                  {item.comment && (
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                                      {item.comment}
+                                                    </p>
+                                                  )}
+                                                  {item.changes && Object.keys(item.changes).length > 0 && (
+                                                    <div className="mt-2 text-xs">
+                                                      <p className="font-medium mb-1">Изменения:</p>
+                                                      {Object.entries(item.changes).map(([key, value]: [string, any]) => (
+                                                        <p key={key} className="text-gray-600 dark:text-gray-400">
+                                                          {key}: {value.old} → {value.new}
+                                                        </p>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                                    {new Date(item.created_at).toLocaleString('ru-RU')}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            ))
+                                          )}
+                                        </div>
+                                      </Card>
+                                    )}
+
+                                    {/* Примечания */}
+                                    {contract.notes && (
+                                      <Card className="p-4">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Примечания</h4>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300">{contract.notes}</p>
+                                      </Card>
+                                    )}
+                                  </motion.div>
+                                </AnimatePresence>
+                              </td>
+                            </tr>
                           )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-              ))}
+                        </>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               
               {/* Пагинация */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     Страница {currentPage} из {totalPages}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Назад
-                    </Button>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 text-sm rounded ${
-                              currentPage === pageNum
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">На странице:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                      >
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Вперед
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Назад
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 text-sm rounded transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Вперед
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </main>

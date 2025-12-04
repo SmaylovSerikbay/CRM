@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
 import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, UserCheck, Edit, Trash2 } from 'lucide-react';
 import { workflowStoreAPI, CalendarPlan, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { apiClient } from '@/lib/api/client';
@@ -31,6 +32,7 @@ export default function CalendarPlanPage() {
   const [harmfulFactorsList, setHarmfulFactorsList] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
@@ -303,6 +305,37 @@ export default function CalendarPlanPage() {
     return plan.employeeIds.length;
   };
 
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { label: string; icon: any; colors: string }> = {
+      draft: {
+        label: 'Черновик',
+        icon: Clock,
+        colors: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+      },
+      pending_clinic: {
+        label: 'Ожидает утверждения клиникой',
+        icon: Clock,
+        colors: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+      },
+      pending_employer: {
+        label: 'Ожидает утверждения работодателем',
+        icon: Clock,
+        colors: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+      },
+      approved: {
+        label: 'Утвержден',
+        icon: CheckCircle,
+        colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+      },
+      sent_to_ses: {
+        label: 'Отправлен в СЭС',
+        icon: Download,
+        colors: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+      },
+    };
+    return configs[status] || configs.draft;
+  };
+
   // Пагинация
   const totalPages = Math.ceil(plans.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -364,20 +397,31 @@ export default function CalendarPlanPage() {
           </Card>
         )}
 
-        {/* Form */}
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <Card>
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold mb-2">Создать календарный план</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Заполните форму пошагово для создания календарного плана медосмотров
-                </p>
-              </div>
+        {/* Модальное окно создания календарного плана */}
+        <Modal
+          isOpen={showForm}
+          onClose={() => {
+            setShowForm(false);
+            setCurrentStep(1);
+            setSelectedContractId('');
+            setFormData({ 
+              selectedDepartments: [], 
+              useCommonDates: true,
+              commonStartDate: '', 
+              commonEndDate: '', 
+              departmentDates: {},
+              harmfulFactors: [], 
+              selectedDoctors: [] 
+            });
+          }}
+          title="Создать календарный план"
+          size="xl"
+        >
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Заполните форму пошагово для создания календарного плана медосмотров
+            </p>
+          </div>
 
               {/* Индикатор шагов */}
               <div className="mb-8">
@@ -893,12 +937,10 @@ export default function CalendarPlanPage() {
                   </div>
                 )}
               </form>
-            </Card>
-          </motion.div>
-        )}
+        </Modal>
 
         {/* Plans List */}
-        <div className="space-y-3">
+        <div>
           {plans.length === 0 && !showForm ? (
             <Card>
               <div className="text-center py-12">
@@ -913,186 +955,203 @@ export default function CalendarPlanPage() {
               </div>
             </Card>
           ) : (
-            <>
-              {paginatedPlans.map((plan, index) => (
-            <motion.div
-              key={plan.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="hover:shadow-md transition-shadow">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Основная информация */}
-                  <div className="lg:col-span-2 space-y-3">
-                    {/* Заголовок и статус */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 flex items-center justify-center shadow-md flex-shrink-0">
-                          <Calendar className="h-6 w-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1.5 truncate">{plan.department}</h3>
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            {plan.status === 'draft' && (
-                              <span className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg">
-                                Черновик
-                              </span>
-                            )}
-                            {plan.status === 'pending_clinic' && (
-                              <span className="px-3 py-1.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg flex items-center gap-1.5">
-                                <Clock className="h-3.5 w-3.5" />
-                                Ожидает утверждения клиникой
-                              </span>
-                            )}
-                            {plan.status === 'pending_employer' && (
-                              <span className="px-3 py-1.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg flex items-center gap-1.5">
-                                <Clock className="h-3.5 w-3.5" />
-                                Ожидает утверждения работодателем
-                              </span>
-                            )}
-                            {plan.status === 'approved' && (
-                              <span className="px-3 py-1.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg flex items-center gap-1.5">
-                                <CheckCircle className="h-3.5 w-3.5" />
-                                Утвержден обеими сторонами
-                              </span>
-                            )}
-                            {plan.status === 'sent_to_ses' && (
-                              <span className="px-3 py-1.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg">
-                                Отправлен в СЭС
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Информация о периодах и участках */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 space-y-2">
-                      {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+              {/* Таблица */}
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Объект/Участок
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Период
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Сотрудников
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Договор
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Статус
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Действия
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {paginatedPlans.map((plan, index) => {
+                      const statusConfig = getStatusConfig(plan.status);
+                      const StatusIcon = statusConfig.icon;
+                      
+                      return (
                         <>
-                          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                            <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                            <span>Общий период:</span>
-                            <span className="text-gray-900 dark:text-white">
-                              {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                            </span>
-                          </div>
-                          <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Участки ({plan.departmentsInfo.length}):</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
-                                <div key={idx} className="bg-white dark:bg-gray-900 rounded-md p-3 border border-gray-200 dark:border-gray-700">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{deptInfo.department}</p>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                    {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                  </p>
-                                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                                    <Users className="h-3 w-3" />
-                                    <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                          <motion.tr
+                            key={plan.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: index * 0.02 }}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                              expandedPlan === plan.id ? 'bg-gray-50 dark:bg-gray-800/30' : ''
+                            }`}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-blue-500" />
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {plan.department}
+                                </span>
+                              </div>
+                              {plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
+                                  {plan.departmentsInfo.length} участков
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-purple-500" />
+                                <span className="text-sm text-gray-900 dark:text-white">
+                                  {getEmployeeCount(plan)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {plan.contractNumber ? `№${plan.contractNumber}` : '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${statusConfig.colors}`}>
+                                <StatusIcon className="h-3.5 w-3.5" />
+                                <span>{statusConfig.label}</span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {(plan.status === 'draft' || plan.status === 'pending_clinic') && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(plan.id)}
+                                  >
+                                    Согласовать
+                                  </Button>
+                                )}
+                                {plan.status === 'draft' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(plan)}
+                                    >
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Редактировать
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleDelete(plan.id)}
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Удалить
+                                    </Button>
+                                  </>
+                                )}
+                                {plan.status === 'approved' && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSendToSES(plan.id)}
+                                  >
+                                    Отправить в СЭС
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleGeneratePDF(plan)}
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  PDF
+                                </Button>
+                                {(plan.departmentsInfo && plan.departmentsInfo.length > 1) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
+                                  >
+                                    {expandedPlan === plan.id ? 'Скрыть' : 'Подробнее'}
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </motion.tr>
+                          
+                          {/* Развернутая информация о нескольких участках */}
+                          {expandedPlan === plan.id && plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-3 bg-gray-50 dark:bg-gray-800/30">
+                                <AnimatePresence>
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="space-y-3"
+                                  >
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                                    Детали по участкам:
+                                  </h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
+                                      <Card key={idx} className="p-3">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                          {deptInfo.department}
+                                        </p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                          {new Date(deptInfo.startDate).toLocaleDateString('ru-RU')} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU')}
+                                        </p>
+                                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                          <Users className="h-3 w-3" />
+                                          <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                                        </div>
+                                      </Card>
+                                    ))}
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                                  </motion.div>
+                                </AnimatePresence>
+                              </td>
+                            </tr>
+                          )}
                         </>
-                      ) : (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <span className="text-gray-600 dark:text-gray-400">Период:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Дополнительная информация */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
-                      {plan.contractNumber && (
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">Договор:</span>
-                          <span className="text-gray-900 dark:text-white">№{plan.contractNumber}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        <span className="font-medium">{getEmployeeCount(plan)}</span>
-                        <span>сотрудников</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Действия */}
-                  <div className="lg:col-span-1">
-                    <div className="flex flex-col gap-2 lg:sticky lg:top-20">
-                      {plan.status === 'draft' && (
-                        <>
-                          <Button size="sm" onClick={() => handleApprove(plan.id)} className="w-full">
-                            Согласовано (Клиника)
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleEdit(plan)} className="w-full">
-                            <Edit className="h-4 w-4 mr-2" />
-                            Редактировать
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleDelete(plan.id)} className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Удалить
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Генерировать PDF
-                          </Button>
-                        </>
-                      )}
-                      {plan.status === 'pending_employer' && (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Просмотреть PDF
-                          </Button>
-                        </>
-                      )}
-                      {plan.status === 'approved' && (
-                        <>
-                          <Button size="sm" onClick={() => handleSendToSES(plan.id)} className="w-full">
-                            Отправить в СЭС
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Скачать PDF
-                          </Button>
-                        </>
-                      )}
-                      {plan.status === 'sent_to_ses' && (
-                        <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                          <Download className="h-4 w-4 mr-2" />
-                          Скачать PDF
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-              ))}
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               
               {/* Пагинация */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Страница {currentPage} из {totalPages}
+                  </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Страница {currentPage} из {totalPages}
-                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">На странице:</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">На странице:</span>
                       <select
                         value={itemsPerPage}
                         onChange={(e) => {
                           setItemsPerPage(Number(e.target.value));
                           setCurrentPage(1);
                         }}
-                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900"
+                        className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                       >
                         <option value="5">5</option>
                         <option value="10">10</option>
@@ -1100,55 +1159,55 @@ export default function CalendarPlanPage() {
                         <option value="50">50</option>
                       </select>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Назад
-                    </Button>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 text-sm rounded ${
-                              currentPage === pageNum
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Назад
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 text-sm rounded transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Вперед
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Вперед
-                    </Button>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </main>
