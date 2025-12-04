@@ -58,6 +58,14 @@ coverage/
 Thumbs.db
 *.pem
 
+# SSH Keys
+*.key
+*.pub
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
