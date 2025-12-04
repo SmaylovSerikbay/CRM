@@ -329,7 +329,7 @@ export function DataTable<T extends Record<string, any>>({
                 return (
                   <Button
                     key={pageNum}
-                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                    variant={currentPage === pageNum ? 'primary' : 'outline'}
                     size="sm"
                     onClick={() => setCurrentPage(pageNum)}
                     className="min-w-[2.5rem]"

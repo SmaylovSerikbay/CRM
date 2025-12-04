@@ -1,7 +1,6 @@
 'use client';
 
 import { Sidebar } from './Sidebar';
-import { ToastProvider } from '@/components/ui/Toast';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -10,14 +9,12 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   return (
-    <ToastProvider>
-      <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
-        <Sidebar role={role} />
-        <main className="flex-1 ml-64 min-h-screen bg-gray-50 dark:bg-gray-950">
-          {children}
-        </main>
-      </div>
-    </ToastProvider>
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Sidebar role={role} />
+      <main className="flex-1 ml-64 min-h-screen bg-gray-50 dark:bg-gray-950">
+        {children}
+      </main>
+    </div>
   );
 }
 
