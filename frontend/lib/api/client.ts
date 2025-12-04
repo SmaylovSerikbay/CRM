@@ -23,8 +23,35 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `HTTP error! status: ${response.status}`);
+      let errorMessage = 'Unknown error';
+      try {
+        const errorData = await response.json();
+        console.error('API Error Response:', errorData);
+        
+        // Обрабатываем различные форматы ошибок
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (typeof errorData === 'object') {
+          // Если это объект с полями валидации
+          const errors = Object.entries(errorData)
+            .map(([field, messages]) => {
+              if (Array.isArray(messages)) {
+                return `${field}: ${messages.join(', ')}`;
+              }
+              return `${field}: ${messages}`;
+            })
+            .join('; ');
+          errorMessage = errors || 'Validation error';
+        }
+      } catch (e) {
+        console.error('Failed to parse error response:', e);
+        errorMessage = `HTTP error! status: ${response.status}`;
+      }
+      throw new Error(errorMessage);
     }
 
     // Проверяем, есть ли контент в ответе (для DELETE запросов может быть 204 No Content)

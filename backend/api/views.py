@@ -1189,47 +1189,69 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         user_id = self.request.data.get('user')
         contract_id = self.request.data.get('contract')
         
+        print(f"[CalendarPlan] Creating calendar plan - user_id: {user_id}, contract_id: {contract_id}")
+        print(f"[CalendarPlan] Request data: {self.request.data}")
+        
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                print(f"[CalendarPlan] User found: {user.phone}, role: {user.role}")
                 contract = None
                 
                 # Если указан договор, проверяем его
                 if contract_id:
                     try:
                         contract = Contract.objects.get(id=contract_id)
-                        # Проверяем, что договор подтвержден
-                        if contract.status != 'approved':
-                            raise ValidationError({'contract': 'Договор должен быть подтвержден перед созданием календарного плана'})
+                        print(f"[CalendarPlan] Contract found: {contract.contract_number}, status: {contract.status}")
+                        
+                        # Проверяем, что договор подтвержден или исполнен
+                        if contract.status not in ['approved', 'executed']:
+                            print(f"[CalendarPlan] Contract status invalid: {contract.status}")
+                            raise ValidationError({'contract': f'Договор должен быть подтвержден или исполнен. Текущий статус: {contract.status}'})
+                        
                         # Проверяем, что пользователь связан с договором
-                        if user.role == 'clinic' and contract.clinic != user:
-                            raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
+                        if user.role == 'clinic':
+                            if contract.clinic != user:
+                                print(f"[CalendarPlan] User is not clinic of this contract")
+                                raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
                         elif user.role == 'employer':
                             if contract.employer != user:
                                 # Проверяем по БИН
                                 reg_data = user.registration_data or {}
                                 user_bin = reg_data.get('bin') or reg_data.get('inn')
+                                print(f"[CalendarPlan] Checking BIN: user_bin={user_bin}, contract_bin={contract.employer_bin}")
                                 if not user_bin or str(user_bin).strip() != str(contract.employer_bin or '').strip():
                                     raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
                     except Contract.DoesNotExist:
+                        print(f"[CalendarPlan] Contract not found: {contract_id}")
                         raise ValidationError({'contract': 'Договор не найден'})
                 else:
                     # Если договор не указан, ищем подтвержденный договор
+                    print(f"[CalendarPlan] No contract specified, searching for approved contract")
                     if user.role == 'clinic':
-                        contract = Contract.objects.filter(clinic=user, status='approved').first()
+                        contract = Contract.objects.filter(clinic=user, status__in=['approved', 'executed']).first()
                     elif user.role == 'employer':
                         contract = Contract.objects.filter(
                             Q(employer=user) | Q(employer_bin=user.registration_data.get('bin', '') if user.registration_data else ''),
-                            status='approved'
+                            status__in=['approved', 'executed']
                         ).first()
                     
                     if not contract:
+                        print(f"[CalendarPlan] No approved contract found for user")
                         raise ValidationError({'contract': 'Необходимо выбрать подтвержденный договор для создания календарного плана'})
+                    print(f"[CalendarPlan] Auto-selected contract: {contract.contract_number}")
                 
+                print(f"[CalendarPlan] Saving calendar plan with contract: {contract.contract_number if contract else 'None'}")
                 serializer.save(user=user, contract=contract)
+                print(f"[CalendarPlan] Calendar plan created successfully")
             except User.DoesNotExist:
+                print(f"[CalendarPlan] User not found: {user_id}")
                 raise ValidationError({'user': 'User not found'})
+            except Exception as e:
+                print(f"[CalendarPlan] Unexpected error: {type(e).__name__}: {str(e)}")
+                raise
         else:
+            print(f"[CalendarPlan] No user_id provided, saving without user")
             serializer.save()
 
 

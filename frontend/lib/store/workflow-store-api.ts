@@ -234,7 +234,7 @@ class WorkflowStoreAPI {
 
   async addCalendarPlan(plan: Omit<CalendarPlan, 'id' | 'status' | 'createdAt'> & { contractId?: string; departmentsInfo?: Array<{department: string; startDate: string; endDate: string; employeeIds: string[]}> }, employeeIds: string[]): Promise<void> {
     const userId = this.getUserId();
-    await apiClient.createCalendarPlan({
+    const requestData = {
       user: userId,
       contract: plan.contractId,
       department: plan.department,
@@ -245,7 +245,14 @@ class WorkflowStoreAPI {
       harmful_factors: plan.harmfulFactors || [],
       selected_doctors: plan.selectedDoctors || [],
       status: 'draft',
-    });
+    };
+    console.log('Creating calendar plan with data:', requestData);
+    try {
+      await apiClient.createCalendarPlan(requestData);
+    } catch (error: any) {
+      console.error('Error creating calendar plan:', error);
+      throw error;
+    }
   }
 
   async updateCalendarPlanStatus(id: string, status: CalendarPlan['status']): Promise<void> {
