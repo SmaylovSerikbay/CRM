@@ -45,7 +45,7 @@ if errorlevel 1 (
 echo [4/5] Connecting to server...
 echo [5/5] Updating on server...
 
-ssh -i "%SSH_KEY%" %PROD_USER%@%PROD_HOST% "cd %PROD_PATH% && git pull origin main || git pull origin master && docker compose -f docker-compose.yml build && docker compose -f docker-compose.yml up -d"
+ssh -i "%SSH_KEY%" %PROD_USER%@%PROD_HOST% "cd %PROD_PATH% && git pull origin main || git pull origin master && docker compose -f docker-compose.yml build && docker compose -f docker-compose.yml up -d && docker compose -f docker-compose.yml exec -T backend python manage.py createcachetable"
 
 echo.
 echo ================================

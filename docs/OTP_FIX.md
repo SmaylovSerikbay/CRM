@@ -1,32 +1,37 @@
-# Исправление ошибок с verify_otp (404/400)
+# Исправление проблемы с OTP авторизацией
 
 ## Проблема
-
-При работе в Docker возникали ошибки:
-- `404 (Not Found)` - ресурс не найден
-- `400 (Bad Request)` для `api/users/verify_otp/`
+При попытке отправить OTP код через WhatsApp возникала ошибка:
+```
+Ошибка отправки кода. Попробуйте еще раз.
+```
 
 ## Причина
-
-Основная проблема была в использовании `LocMemCache` для хранения OTP кодов. В Docker с gunicorn запускается несколько worker процессов, и `LocMemCache` хранит данные в памяти каждого процесса отдельно. Это означает, что:
-
-1. Запрос на отправку OTP (`send_otp`) может попасть в worker процесс A
-2. OTP сохраняется в памяти процесса A
-3. Запрос на проверку OTP (`verify_otp`) может попасть в worker процесс B
-4. Процесс B не может найти OTP, так как он хранится в памяти процесса A
+В Django настройках используется database cache для хранения OTP кодов (необходимо для работы с несколькими worker процессами в gunicorn). Таблица `cache_table` не была создана в базе данных.
 
 ## Решение
 
-### 1. Изменена конфигурация кэша
+### 1. Локально (для разработки)
+```bash
+docker-compose exec backend python manage.py createcachetable
+```
 
-Изменен тип кэша с `LocMemCache` на `DatabaseCache`, который использует базу данных PostgreSQL и доступен всем worker процессам.
+### 2. На продакшн сервере
+Используйте скрипт `fix-otp-cache.bat`:
+```bash
+.\fix-otp-cache.bat
+```
 
-**Файл:** `backend/crm_backend/settings.py`
+Или вручную через SSH:
+```bash
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
+docker compose exec backend python manage.py createcachetable
+```
+
+## Настройки кэша в settings.py
 
 ```python
-# Cache configuration (for OTP storage)
-# Используем database cache для работы с несколькими worker процессами в gunicorn
-# LocMemCache не работает с несколькими процессами
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
@@ -35,130 +40,61 @@ CACHES = {
 }
 ```
 
-### 2. Улучшена обработка ошибок
-
-Улучшена обработка ошибок в методе `verify_otp` для более понятных сообщений об ошибках и детального логирования.
-
-**Файл:** `backend/api/views.py`
-
-- Добавлено детальное логирование запросов
-- Улучшена проверка альтернативных форматов номера телефона
-- Добавлены более информативные сообщения об ошибках
-
-### 3. Автоматическое создание таблицы кэша
-
-Обновлены docker-compose файлы для автоматического создания таблицы кэша при запуске контейнера.
-
-**Файлы:** 
-- `docker-compose.yml`
-- `docker-compose.dev.yml`
-
-## Применение исправлений
-
-### Вариант 1: Перезапуск контейнеров (рекомендуется)
-
-1. Остановите контейнеры:
-```bash
-docker-compose down
-```
-
-2. Запустите контейнеры заново (таблица кэша создастся автоматически):
-```bash
-docker-compose up -d
-```
-
-3. Проверьте логи:
-```bash
-docker-compose logs -f backend
-```
-
-### Вариант 2: Создание таблицы кэша вручную
-
-Если вы хотите создать таблицу кэша без перезапуска:
-
-1. Войдите в контейнер backend:
-```bash
-docker-compose exec backend bash
-```
-
-2. Создайте таблицу кэша:
-```bash
-python manage.py createcachetable
-```
-
-3. Выйдите из контейнера:
-```bash
-exit
-```
+**Важно:** Используется database cache вместо LocMemCache, так как LocMemCache не работает с несколькими worker процессами в gunicorn (каждый процесс имеет свою память).
 
 ## Проверка работы
 
-1. Откройте приложение в браузере
-2. Попробуйте отправить OTP код
-3. Проверьте логи backend контейнера:
+### Локально
 ```bash
+curl -X POST http://localhost:8001/api/users/send_otp/ \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+77001234567"}'
+```
+
+### На продакшн
+```bash
+curl -X POST https://crm.archeo.kz/api/users/send_otp/ \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+77001234567"}'
+```
+
+Ожидаемый ответ:
+```json
+{"message":"OTP sent successfully"}
+```
+
+## Логи
+
+Для проверки логов OTP:
+```bash
+# Локально
 docker-compose logs -f backend | grep OTP
+
+# На продакшн
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
+docker compose logs -f backend | grep OTP
 ```
 
-Вы должны увидеть логи вида:
-```
-[OTP] Request received
-[OTP] Generated OTP: 123456
-[OTP VERIFY] Request received
-[OTP VERIFY] OTP verified successfully
-```
+## Автоматическое создание таблицы при деплое
 
-## Дополнительные улучшения
-
-### Логирование
-
-Теперь все операции с OTP логируются с префиксами:
-- `[OTP]` - операции отправки OTP
-- `[OTP VERIFY]` - операции проверки OTP
-
-Это помогает отслеживать проблемы в логах.
-
-### Обработка различных форматов номера
-
-Метод `verify_otp` теперь проверяет несколько вариантов формата номера телефона, что помогает найти OTP даже если номер был сохранен в другом формате.
-
-## Технические детали
-
-### Почему DatabaseCache?
-
-- ✅ Работает с несколькими worker процессами
-- ✅ Использует существующую базу данных PostgreSQL
-- ✅ Автоматически очищает истекшие записи
-- ✅ Не требует дополнительных зависимостей (Redis/Memcached)
-
-### Производительность
-
-DatabaseCache немного медленнее, чем LocMemCache, но для OTP кодов (которые используются редко и на короткое время) это не критично. Если в будущем понадобится более высокая производительность, можно будет перейти на Redis.
-
-## Если проблема сохраняется
-
-1. Проверьте логи backend:
+Скрипт `deploy.bat` теперь автоматически создаёт таблицу кэша при деплое:
 ```bash
-docker-compose logs backend | grep -i "otp\|error\|exception"
+.\deploy.bat "commit message"
 ```
 
-2. Убедитесь, что таблица кэша создана:
-```bash
-docker-compose exec backend python manage.py shell
->>> from django.core.cache import cache
->>> cache.set('test', 'value', 60)
->>> cache.get('test')
-'value'
+## Green API настройки
+
+Убедитесь, что в `.env.prod` указаны правильные настройки Green API:
+```env
+GREEN_API_ID_INSTANCE=7105394320
+GREEN_API_TOKEN=6184c77e6f374ddc8003957d0d3f4ccc7bc1581c600847d889
+GREEN_API_URL=https://7105.api.green-api.com
 ```
 
-3. Проверьте, что номер телефона нормализуется одинаково при отправке и проверке
+## Дополнительная информация
 
-4. Проверьте, что OTP не истек (действует 5 минут)
-
-## Измененные файлы
-
-- `backend/crm_backend/settings.py` - конфигурация кэша
-- `backend/api/views.py` - улучшенная обработка ошибок в verify_otp
-- `docker-compose.yml` - автоматическое создание таблицы кэша
-- `docker-compose.dev.yml` - автоматическое создание таблицы кэша
-
+- OTP коды хранятся в кэше 5 минут (300 секунд)
+- Номера телефонов нормализуются к формату `7XXXXXXXXXX`
+- Коды отправляются через WhatsApp API (Green API)
+- При верификации проверяются альтернативные форматы номера телефона
