@@ -61,11 +61,15 @@ endif
 	@echo "  make clean            - Очистить все контейнеры и volumes"
 	@echo "  make restart-dev      - Перезапустить dev"
 	@echo "  make restart-prod     - Перезапустить prod"
-# Только backend
-docker compose -f docker-compose.yml logs -f backend
 
-# Только frontend
-docker compose -f docker-compose.yml logs -f frontend
+# Логи только backend
+logs-backend: ## Логи только backend
+	docker compose -f docker-compose.yml logs -f backend
+
+# Логи только frontend
+logs-frontend: ## Логи только frontend
+	docker compose -f docker-compose.yml logs -f frontend
+
 # Development команды
 dev: build-dev up-dev ## Полный запуск в dev режиме
 
