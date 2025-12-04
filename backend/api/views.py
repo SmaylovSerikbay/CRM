@@ -33,8 +33,11 @@ import string
 import io
 import json
 import os
+import logging
 from datetime import datetime
 from django.db.models import Q
+
+logger = logging.getLogger('api')
 from .models import (
     User, ContingentEmployee, CalendarPlan, RouteSheet, DoctorExamination, Expertise,
     EmergencyNotification, HealthImprovementPlan, RecommendationTracking, Doctor,
@@ -53,86 +56,177 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-    @action(detail=False, methods=['post'])
+    def _normalize_phone(self, phone):
+        """Нормализует номер телефона для единообразного хранения в кэше"""
+        if not phone:
+            return phone
+        # Убираем все нецифровые символы
+        normalized = ''.join(filter(str.isdigit, str(phone)))
+        # Если начинается с 8, заменяем на 7
+        if normalized.startswith('8'):
+            normalized = '7' + normalized[1:]
+        # Если не начинается с 7 и есть цифры, добавляем 7
+        if normalized and not normalized.startswith('7'):
+            normalized = '7' + normalized
+        return normalized
+
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def send_otp(self, request):
-        print(f"[OTP] Request received")
-        print(f"[OTP] Request body: {request.body}")
-        print(f"[OTP] Request data: {request.data}")
-        print(f"[OTP] Content-Type: {request.content_type}")
+        logger.info(f"[OTP] Request received")
+        logger.debug(f"[OTP] Request body: {request.body}")
+        logger.debug(f"[OTP] Request data: {request.data}")
+        logger.debug(f"[OTP] Content-Type: {request.content_type}")
         
         phone = request.data.get('phone')
         if not phone:
-            print(f"[OTP] Error: Phone number is required")
+            logger.warning(f"[OTP] Error: Phone number is required")
             return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Нормализуем номер телефона
+        normalized_phone = self._normalize_phone(phone)
+        logger.info(f"[OTP] Original phone: {phone}, Normalized: {normalized_phone}")
 
         # Generate OTP
         otp = ''.join(random.choices(string.digits, k=6))
+        logger.info(f"[OTP] Generated OTP: {otp}")
         
-        # Store OTP in cache (expires in 5 minutes)
-        cache_key = f'otp_{phone}'
+        # Store OTP in cache (expires in 5 minutes) - используем нормализованный номер
+        cache_key = f'otp_{normalized_phone}'
         cache.set(cache_key, otp, timeout=300)  # 5 minutes
+        logger.info(f"[OTP] Stored OTP in cache with key: {cache_key}, timeout: 300 seconds")
 
         # Send OTP via Green API
         try:
             url = f"{settings.GREEN_API_URL}/waInstance{settings.GREEN_API_ID_INSTANCE}/sendMessage/{settings.GREEN_API_TOKEN}"
-            # Format phone number for WhatsApp (remove +, spaces, etc.)
-            formatted_phone = phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
-            if not formatted_phone.startswith('7'):
-                formatted_phone = '7' + formatted_phone
+            # Используем нормализованный номер для WhatsApp (уже в формате 7XXXXXXXXXX)
+            formatted_phone = normalized_phone
             
             payload = {
                 "chatId": f"{formatted_phone}@c.us",
                 "message": f"Ваш код подтверждения для входа в CRM: {otp}"
             }
             
-            print(f"[OTP] Sending to {formatted_phone}, URL: {url}")
+            logger.info(f"[OTP] Sending to {formatted_phone}, URL: {url}")
             response = requests.post(url, json=payload, timeout=10)
-            print(f"[OTP] Response status: {response.status_code}, body: {response.text}")
+            logger.info(f"[OTP] Response status: {response.status_code}, body: {response.text}")
             
             if response.status_code == 200:
                 response_data = response.json()
                 if response_data.get('idMessage'):
+                    logger.info(f"[OTP] OTP sent successfully via Green API")
                     return Response({'message': 'OTP sent successfully'}, status=status.HTTP_200_OK)
                 else:
-                    print(f"[OTP] Green API error: {response_data}")
+                    logger.error(f"[OTP] Green API error: {response_data}")
                     return Response({'error': f'Green API error: {response_data.get("message", "Unknown error")}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
-                print(f"[OTP] HTTP error: {response.status_code} - {response.text}")
+                logger.error(f"[OTP] HTTP error: {response.status_code} - {response.text}")
                 return Response({'error': f'Failed to send OTP: {response.text}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-            print(f"[OTP] Exception: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"[OTP] Exception: {str(e)}")
             return Response({'error': f'Error sending OTP: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def verify_otp(self, request):
-        phone = request.data.get('phone')
-        otp = request.data.get('otp')
-        
-        if not phone or not otp:
-            return Response({'error': 'Phone and OTP are required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            logger.info(f"[OTP VERIFY] Request received")
+            logger.info(f"[OTP VERIFY] Request body: {request.body}")
+            logger.info(f"[OTP VERIFY] Request data: {request.data}")
+            logger.info(f"[OTP VERIFY] Content-Type: {request.content_type}")
+            
+            phone = request.data.get('phone')
+            otp = request.data.get('otp')
+            
+            logger.info(f"[OTP VERIFY] Phone: {phone}, OTP: {otp}")
+            
+            if not phone or not otp:
+                error_msg = 'Phone and OTP are required'
+                logger.warning(f"[OTP VERIFY] Error: {error_msg}")
+                return Response({
+                    'error': error_msg,
+                    'details': {
+                        'phone_provided': bool(phone),
+                        'otp_provided': bool(otp)
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get OTP from cache
-        cache_key = f'otp_{phone}'
-        stored_otp = cache.get(cache_key)
-        
-        if not stored_otp:
-            return Response({'error': 'OTP expired or invalid'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if stored_otp != otp:
-            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+            # Нормализуем номер телефона (должен совпадать с форматом при отправке)
+            normalized_phone = self._normalize_phone(phone)
+            logger.info(f"[OTP VERIFY] Original phone: {phone}, Normalized: {normalized_phone}")
 
-        # Clear OTP from cache
-        cache.delete(cache_key)
+            # Get OTP from cache - используем нормализованный номер
+            cache_key = f'otp_{normalized_phone}'
+            stored_otp = cache.get(cache_key)
+            logger.info(f"[OTP VERIFY] Cache key: {cache_key}, Stored OTP: {'***' if stored_otp else 'None'}")
+            
+            # Если OTP не найден, пробуем альтернативные форматы номера
+            if not stored_otp:
+                logger.warning(f"[OTP VERIFY] OTP not found in cache for key: {cache_key}")
+                
+                # Проверяем разные варианты формата номера
+                test_phones = [
+                    phone,
+                    phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', ''),
+                    '7' + phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '').lstrip('7'),
+                    normalized_phone,
+                ]
+                
+                found_key = None
+                for test_phone in set(test_phones):
+                    if not test_phone:
+                        continue
+                    test_normalized = self._normalize_phone(test_phone)
+                    test_key = f'otp_{test_normalized}'
+                    test_otp = cache.get(test_key)
+                    if test_otp:
+                        logger.info(f"[OTP VERIFY] Found OTP with alternative key: {test_key}")
+                        found_key = test_key
+                        stored_otp = test_otp
+                        cache_key = test_key
+                        break
+                
+                if not stored_otp:
+                    logger.warning(f"[OTP VERIFY] OTP not found in cache after checking all formats")
+                    return Response({
+                        'error': 'OTP expired or invalid. Please request a new code.',
+                        'details': {
+                            'cache_key_checked': cache_key,
+                            'phone_normalized': normalized_phone
+                        }
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if stored_otp != otp:
+                logger.warning(f"[OTP VERIFY] OTP mismatch: stored={'***' if stored_otp else 'None'}, provided={otp}")
+                return Response({
+                    'error': 'Invalid OTP code. Please check and try again.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            logger.info(f"[OTP VERIFY] OTP verified successfully")
 
-        # Get or create user
-        user, created = User.objects.get_or_create(phone=phone, defaults={'username': phone})
-        user.last_login_at = timezone.now()
-        user.save()
+            # Clear OTP from cache
+            cache.delete(cache_key)
 
-        serializer = UserSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            # Get or create user - используем нормализованный номер
+            try:
+                user, created = User.objects.get_or_create(phone=normalized_phone, defaults={'username': normalized_phone})
+                user.last_login_at = timezone.now()
+                user.save()
+                logger.info(f"[OTP VERIFY] User {'created' if created else 'found'}: {user.phone}")
+            except Exception as e:
+                logger.error(f"[OTP VERIFY] Error creating/finding user: {str(e)}")
+                return Response({
+                    'error': 'Error processing user account',
+                    'details': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            serializer = UserSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.exception(f"[OTP VERIFY] Unexpected error: {str(e)}")
+            return Response({
+                'error': 'An unexpected error occurred',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
     def login_with_password(self, request):

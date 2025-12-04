@@ -134,10 +134,12 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # Cache configuration (for OTP storage)
+# Используем database cache для работы с несколькими worker процессами в gunicorn
+# LocMemCache не работает с несколькими процессами
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'cache_table',
     }
 }
 
@@ -145,4 +147,42 @@ CACHES = {
 GREEN_API_ID_INSTANCE = os.environ.get('GREEN_API_ID_INSTANCE', '7105394320')
 GREEN_API_TOKEN = os.environ.get('GREEN_API_TOKEN', '6184c77e6f374ddc8003957d0d3f4ccc7bc1581c600847d889')
 GREEN_API_URL = os.environ.get('GREEN_API_URL', 'https://7105.api.green-api.com')
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'api': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
 
