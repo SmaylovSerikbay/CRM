@@ -31,6 +31,7 @@ import random
 import string
 import io
 import json
+import os
 from datetime import datetime
 from django.db.models import Q
 from .models import (
@@ -590,6 +591,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def download_template(self, request):
         """Скачивание шаблона Excel для списка контингента"""
+        # Сначала пытаемся отдать заранее подготовленный статичный шаблон,
+        # в котором уже настроены выпадающие списки, стили и т.п.
+        # Это самый надежный способ, т.к. файл формируется самим пользователем в Excel.
+        static_template_path = os.path.join(
+            settings.BASE_DIR,
+            "backend",
+            "static",
+            "templates",
+            "contingent_template.xlsx",
+        )
+        if os.path.exists(static_template_path):
+            # Комментарий (RU): если файл существует, отдаем его как есть
+            return FileResponse(
+                open(static_template_path, "rb"),
+                as_attachment=True,
+                filename="шаблон_список_контингента.xlsx",
+            )
+
+        # Если статичный файл не найден, генерируем шаблон программно (без сложных списков)
         # Создаем новый Excel-файл
         wb = Workbook()
         ws = wb.active
@@ -606,11 +626,27 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws['A2'].font = Font(size=10)
         ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
 
-        # Подзаголовок квартала
+        # Подзаголовок квартала с выпадающим списком
         ws.merge_cells('H3:I3')
         ws['H3'] = '1 квартал'
         ws['H3'].font = Font(bold=True)
         ws['H3'].alignment = Alignment(horizontal='center')
+        
+        # Добавляем выпадающий список для квартала
+        quarter_validation = DataValidation(
+            type="list",
+            formula1='"1 квартал,2 квартал,3 квартал,4 квартал"',
+            allow_blank=False,
+            showDropDown=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        quarter_validation.error = "❌ Выберите квартал из списка"
+        quarter_validation.errorTitle = "Неверное значение"
+        quarter_validation.prompt = "📋 Выберите квартал:\n• 1 квартал\n• 2 квартал\n• 3 квартал\n• 4 квартал"
+        quarter_validation.promptTitle = "Выбор квартала"
+        ws.add_data_validation(quarter_validation)
+        quarter_validation.add('H3:I3')
 
         # Заголовки колонок
         headers = [
@@ -633,6 +669,38 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
+            
+            # Добавляем комментарии к заголовкам колонок с выпадающими списками
+            if col_idx == 4:  # Колонка "Пол"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📋 ВЫПАДАЮЩИЙ СПИСОК\n\n"
+                    "Кликните на ячейку ниже и выберите значение из списка:\n"
+                    "• мужской\n"
+                    "• женский\n\n"
+                    "⚠️ Не вводите текст вручную!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 120
+                cell.comment = comment
+            elif col_idx == 10:  # Колонка "Профессиональная вредность"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📋 ВЫПАДАЮЩИЙ СПИСОК\n\n"
+                    "Кликните на ячейку ниже и выберите категорию из списка.\n\n"
+                    "Доступно 33 категории согласно приказу № ҚР ДСМ-131/2020:\n"
+                    "п.1 - Химические факторы\n"
+                    "п.2 - Канцерогенные вещества\n"
+                    "п.14 - Работа на ПК\n"
+                    "п.33 - Профессии и работы\n"
+                    "и другие...\n\n"
+                    "⚠️ Не вводите текст вручную!",
+                    "Система"
+                )
+                comment.width = 350
+                comment.height = 180
+                cell.comment = comment
 
         # Пример данных
         example_data = [
@@ -656,25 +724,34 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws.row_dimensions[header_row].height = 40
 
         # --- Выпадающие списки ---
-        # 1) Пол: фиксированный список значений "мужской"/"женский"
-        gender_validation = DataValidation(
-            type="list",
-            formula1='"мужской,женский"',
-            allow_blank=True,
-            showDropDown=True
-        )
-        gender_validation.error = "Пожалуйста, выберите пол из списка"
-        gender_validation.prompt = "Выберите пол: мужской или женский"
-        ws.add_data_validation(gender_validation)
-
-        # Применяем валидацию к колонке "Пол" (D), начиная с первой строки данных и "с запасом" по строкам
+        # Используем именованные диапазоны на скрытых листах, чтобы Excel надёжно видел источники списков
         data_start_row = header_row + 1
         data_end_row = 500  # разумный лимит строк в шаблоне
-        gender_validation.add(f"D{data_start_row}:D{data_end_row}")
 
-        # 2) Профессиональная вредность: справочник на отдельном (скрытом) листе
-        harmful_sheet = wb.create_sheet(title="Справочник_вредностей")
-        harmful_sheet.sheet_state = "hidden"
+        # 1) Пол: используем прямой список (более надежный способ)
+        gender_validation = DataValidation(
+            type="list",
+            formula1='"мужской,женский"',  # Прямой список через запятую
+            allow_blank=True,
+            showDropDown=False,  # False показывает стрелку! (особенность openpyxl)
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        gender_validation.error = "❌ Пожалуйста, выберите пол из выпадающего списка"
+        gender_validation.errorTitle = "Неверное значение"
+        gender_validation.prompt = "📋 Кликните на стрелку ▼ справа и выберите:\n• мужской\n• женский"
+        gender_validation.promptTitle = "Выбор пола"
+        ws.add_data_validation(gender_validation)
+        gender_validation.add(f"D{data_start_row}:D{data_end_row}")
+        
+        # Создаем справочный лист для документации (необязательно для работы списка)
+        gender_sheet = wb.create_sheet(title="Ref_Gender")
+        gender_values = ["мужской", "женский"]
+        for idx, gender in enumerate(gender_values, start=1):
+            gender_sheet.cell(row=idx, column=1, value=gender)
+
+        # 2) Профессиональная вредность: справочник на отдельном листе
+        harmful_sheet = wb.create_sheet(title="Ref_Harm")
 
         # Комментарий (RU): наполняем справочник типовыми формулировками согласно приказу № ҚР ДСМ-131/2020
         harmful_factors = [
@@ -716,22 +793,31 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         for idx, factor in enumerate(harmful_factors, start=1):
             harmful_sheet.cell(row=idx, column=1, value=factor)
 
-        # Диапазон справочника вредностей
+        # Диапазон справочника вредностей и именованный диапазон
         last_row = len(harmful_factors)
-        harmful_range = f"Справочник_вредностей!$A$1:$A${last_row}"
+        harmful_range = f"Ref_Harm!$A$1:$A${last_row}"
 
         harmful_validation = DataValidation(
             type="list",
+            # Для диапазона используем ссылку с '=' — так Excel надёжнее распознаёт источник списка
             formula1=f"={harmful_range}",
             allow_blank=True,
-            showDropDown=True
+            showDropDown=False,  # False показывает стрелку! (особенность openpyxl)
+            showInputMessage=True,
+            showErrorMessage=True
         )
-        harmful_validation.error = "Пожалуйста, выберите профессиональную вредность из списка"
-        harmful_validation.prompt = "Выберите профессиональную вредность согласно приказу"
+        harmful_validation.error = "❌ Пожалуйста, выберите профессиональную вредность из выпадающего списка"
+        harmful_validation.errorTitle = "Неверное значение"
+        harmful_validation.prompt = "📋 Кликните на стрелку справа и выберите категорию профессиональной вредности согласно приказу № ҚР ДСМ-131/2020\n\nДоступно 33 категории (п.1 - п.33)"
+        harmful_validation.promptTitle = "Выбор профессиональной вредности"
         ws.add_data_validation(harmful_validation)
 
         # Колонка "Профессиональная вредность" (J)
         harmful_validation.add(f"J{data_start_row}:J{data_end_row}")
+
+        # Скрываем справочные листы для удобства пользователя
+        gender_sheet.sheet_state = "hidden"
+        harmful_sheet.sheet_state = "hidden"
 
         # Сохраняем в память
         output = io.BytesIO()
