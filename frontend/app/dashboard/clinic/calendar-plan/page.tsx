@@ -31,6 +31,10 @@ export default function CalendarPlanPage() {
   const [harmfulFactorsList, setHarmfulFactorsList] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const loadData = async () => {
@@ -245,6 +249,12 @@ export default function CalendarPlanPage() {
     return plan.employeeIds.length;
   };
 
+  // Пагинация
+  const totalPages = Math.ceil(plans.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPlans = plans.slice(startIndex, endIndex);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -254,30 +264,36 @@ export default function CalendarPlanPage() {
   }
 
   return (
-    <div>
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Sticky Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold">Календарный план</h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Планирование осмотров по потокам. После загрузки списка система предлагает свободные слоты. Менеджер клиники генерирует PDF «Календарный план», обе стороны жмут «Согласовано». После утверждения план отправляется в СЭС.
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Планирование осмотров по потокам
               </p>
             </div>
-            <Button onClick={() => {
-              setShowForm(!showForm);
-              if (!showForm) {
-                setCurrentStep(1);
-              }
-            }} disabled={availableDepartments.length === 0}>
-              <Calendar className="h-4 w-4 mr-2" />
-              Создать план
-            </Button>
+            <div className="flex items-center gap-3 ml-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Планов: {plans.length}
+              </div>
+              <Button onClick={() => {
+                setShowForm(!showForm);
+                if (!showForm) {
+                  setCurrentStep(1);
+                }
+              }} disabled={availableDepartments.length === 0}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Создать план
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto px-6 py-4">
         {availableDepartments.length === 0 && (
           <Card className="mb-8">
             <div className="flex items-center gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
@@ -828,27 +844,42 @@ export default function CalendarPlanPage() {
         )}
 
         {/* Plans List */}
-        <div className="space-y-4">
-          {plans.map((plan, index) => (
+        <div className="space-y-3">
+          {plans.length === 0 && !showForm ? (
+            <Card>
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Календарный план не создан</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Создайте календарный план для планирования осмотров по потокам
+                </p>
+                <Button onClick={() => setShowForm(true)} disabled={availableDepartments.length === 0}>
+                  Создать план
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {paginatedPlans.map((plan, index) => (
             <motion.div
               key={plan.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card className="hover:shadow-lg transition-shadow">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card className="hover:shadow-md transition-shadow">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Основная информация */}
-                  <div className="lg:col-span-2 space-y-4">
+                  <div className="lg:col-span-2 space-y-3">
                     {/* Заголовок и статус */}
                     <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 flex items-center justify-center shadow-md flex-shrink-0">
-                          <Calendar className="h-7 w-7 text-white" />
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 flex items-center justify-center shadow-md flex-shrink-0">
+                          <Calendar className="h-6 w-6 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{plan.department}</h3>
-                          <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1.5 truncate">{plan.department}</h3>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             {plan.status === 'draft' && (
                               <span className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg">
                                 Черновик
@@ -883,7 +914,7 @@ export default function CalendarPlanPage() {
                     </div>
 
                     {/* Информация о периодах и участках */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 space-y-2">
                       {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
                         <>
                           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -923,7 +954,7 @@ export default function CalendarPlanPage() {
                     </div>
 
                     {/* Дополнительная информация */}
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                       {plan.contractNumber && (
                         <div className="flex items-center gap-2">
                           <span className="font-medium">Договор:</span>
@@ -940,7 +971,7 @@ export default function CalendarPlanPage() {
 
                   {/* Действия */}
                   <div className="lg:col-span-1">
-                    <div className="flex flex-col gap-2 lg:sticky lg:top-4">
+                    <div className="flex flex-col gap-2 lg:sticky lg:top-20">
                       {plan.status === 'draft' && (
                         <>
                           <Button size="sm" onClick={() => handleApprove(plan.id)} className="w-full">
@@ -990,23 +1021,82 @@ export default function CalendarPlanPage() {
                 </div>
               </Card>
             </motion.div>
-          ))}
+              ))}
+              
+              {/* Пагинация */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Страница {currentPage} из {totalPages}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">На странице:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900"
+                      >
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Назад
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 text-sm rounded ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
-
-        {plans.length === 0 && !showForm && (
-          <Card>
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Календарный план не создан</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Создайте календарный план для планирования осмотров по потокам
-              </p>
-              <Button onClick={() => setShowForm(true)} disabled={availableDepartments.length === 0}>
-                Создать план
-              </Button>
-            </div>
-          </Card>
-        )}
       </main>
     </div>
   );

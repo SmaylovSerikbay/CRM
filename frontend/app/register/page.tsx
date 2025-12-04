@@ -8,7 +8,7 @@ import { Building2, Stethoscope, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
 import { RegisterForm } from '@/components/auth/RegisterForm';
-import { useToast } from '@/components/ui/Toast';
+import { useToast, ToastProvider } from '@/components/ui/Toast';
 
 function RegisterContent() {
   const { showToast } = useToast();
@@ -119,16 +119,18 @@ function RegisterContent() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Загрузка...</p>
+    <ToastProvider>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Загрузка...</p>
+          </div>
         </div>
-      </div>
-    }>
-      <RegisterContent />
-    </Suspense>
+      }>
+        <RegisterContent />
+      </Suspense>
+    </ToastProvider>
   );
 }
 

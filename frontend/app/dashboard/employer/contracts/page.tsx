@@ -56,6 +56,10 @@ function EmployerContractsContent() {
   const [rejectReason, setRejectReason] = useState('');
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
+  
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   useEffect(() => {
     loadContracts();
@@ -178,6 +182,12 @@ function EmployerContractsContent() {
     return labels[action] || action;
   };
 
+  // Пагинация
+  const totalPages = Math.ceil(contracts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedContracts = contracts.slice(startIndex, endIndex);
+
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       draft: 'Черновик',
@@ -213,21 +223,43 @@ function EmployerContractsContent() {
   }
 
   return (
-    <div>
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Sticky Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">Договоры</h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Просмотр и управление договорами с клиниками
               </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Всего: {contracts.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">На странице:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900"
+                >
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto px-6 py-4">
         {binFromUrl && contracts.length === 0 && (
           <Card className="mb-8 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <div className="p-4">
@@ -238,7 +270,7 @@ function EmployerContractsContent() {
           </Card>
         )}
 
-        <div className="grid gap-6">
+        <div className="space-y-3">
           {contracts.length === 0 ? (
             <Card>
               <div className="text-center py-12">
@@ -250,48 +282,49 @@ function EmployerContractsContent() {
               </div>
             </Card>
           ) : (
-            contracts.map((contract) => (
-              <Card key={contract.id}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold">Договор №{contract.contract_number}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(contract.status)}`}>
+            <>
+              {paginatedContracts.map((contract) => (
+                <Card key={contract.id} className="hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <h3 className="text-base font-semibold">Договор №{contract.contract_number}</h3>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
                         {getStatusLabel(contract.status)}
                       </span>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Дата договора</p>
-                        <p className="font-medium">{contract.contract_date}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Дата договора</p>
+                        <p className="font-medium text-sm">{contract.contract_date}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Сумма</p>
-                        <p className="font-medium">{contract.amount.toLocaleString()} ₸</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сумма</p>
+                        <p className="font-medium text-sm">{contract.amount.toLocaleString()} ₸</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Количество сотрудников</p>
-                        <p className="font-medium">{contract.people_count}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сотрудников</p>
+                        <p className="font-medium text-sm">{contract.people_count}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Дата исполнения</p>
-                        <p className="font-medium">{contract.execution_date}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Исполнение</p>
+                        <p className="font-medium text-sm">{contract.execution_date}</p>
                       </div>
                       {contract.clinic_name && (
-                        <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Клиника</p>
-                          <p className="font-medium">{contract.clinic_name}</p>
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Клиника</p>
+                          <p className="font-medium text-sm truncate">{contract.clinic_name}</p>
                         </div>
                       )}
                       {contract.notes && (
-                        <div className="md:col-span-2">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Примечания</p>
-                          <p className="font-medium">{contract.notes}</p>
+                        <div className="col-span-full">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Примечания</p>
+                          <p className="font-medium text-sm">{contract.notes}</p>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="ml-4 flex flex-col gap-2">
+                  <div className="ml-4 flex flex-col gap-2 flex-shrink-0">
                     {(contract.status === 'sent' || contract.status === 'pending_approval') && !contract.approvedByEmployerAt ? (
                       <>
                         <Button onClick={() => handleApprove(contract.id)}>
@@ -444,7 +477,62 @@ function EmployerContractsContent() {
                   </motion.div>
                 )}
               </Card>
-            ))
+              ))}
+              
+              {/* Пагинация */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Страница {currentPage} из {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Назад
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 text-sm rounded ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

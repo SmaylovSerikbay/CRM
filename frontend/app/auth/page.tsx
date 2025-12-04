@@ -8,7 +8,7 @@ import { PhoneInput } from '@/components/ui/PhoneInput';
 import { Phone, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
-import { useToast } from '@/components/ui/Toast';
+import { useToast, ToastProvider } from '@/components/ui/Toast';
 
 function AuthContent() {
   const { showToast } = useToast();
@@ -244,16 +244,18 @@ function AuthContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Загрузка...</p>
+    <ToastProvider>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Загрузка...</p>
+          </div>
         </div>
-      </div>
-    }>
-      <AuthContent />
-    </Suspense>
+      }>
+        <AuthContent />
+      </Suspense>
+    </ToastProvider>
   );
 }
 

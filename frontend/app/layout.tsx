@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ToastProvider } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
   title: "Медицинская платформа CRM",
@@ -14,11 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className="antialiased">
-        <ToastProvider>
-          {children}
-        </ToastProvider>
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
