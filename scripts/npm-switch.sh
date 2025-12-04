@@ -47,29 +47,36 @@ get_proxy_hosts() {
 # Обновляем порт для proxy host
 update_proxy_port() {
     local host_id=$1
-    local new_port=$2
-    local domain=$3
+    local frontend_port=$2
+    local backend_port=$3
     
-    echo -e "${YELLOW}Обновление $domain → порт $new_port...${NC}"
+    echo -e "${YELLOW}Обновление портов для Proxy Host ID: $host_id...${NC}"
     
     # Получаем текущую конфигурацию
     local config=$(curl -s -X GET "$NPM_HOST/api/nginx/proxy-hosts/$host_id" \
         -H "Authorization: Bearer $TOKEN")
     
-    # Обновляем порт
-    local updated_config=$(echo "$config" | jq ".forward_port = $new_port")
+    # Обновляем frontend порт
+    config=$(echo "$config" | jq ".forward_port = $frontend_port")
+    
+    # Обновляем backend порт в locations
+    if echo "$config" | jq -e '.locations[0]' > /dev/null 2>&1; then
+        config=$(echo "$config" | jq ".locations[0].forward_port = $backend_port")
+        echo -e "${GREEN}✓ Обновлен backend location порт: $backend_port${NC}"
+    fi
     
     # Отправляем обновление
     local result=$(curl -s -X PUT "$NPM_HOST/api/nginx/proxy-hosts/$host_id" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
-        -d "$updated_config")
+        -d "$config")
     
     if echo "$result" | jq -e '.id' > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ $domain обновлен на порт $new_port${NC}"
+        echo -e "${GREEN}✓ Frontend порт обновлен: $frontend_port${NC}"
         return 0
     else
-        echo -e "${RED}✗ Ошибка обновления $domain${NC}"
+        echo -e "${RED}✗ Ошибка обновления${NC}"
+        echo "$result" | jq '.'
         return 1
     fi
 }
@@ -79,46 +86,30 @@ switch_ports() {
     local backend_port=$1
     local frontend_port=$2
     
-    echo -e "${YELLOW}Поиск proxy hosts...${NC}"
+    echo -e "${YELLOW}Поиск proxy host для crm.archeo.kz...${NC}"
     
-    local backend_id=""
-    local frontend_id=""
+    # Ищем proxy host с locations (там и frontend и backend)
+    local hosts=$(curl -s -X GET "$NPM_HOST/api/nginx/proxy-hosts" \
+        -H "Authorization: Bearer $TOKEN")
     
-    # Ищем нужные proxy hosts
-    while IFS='|' read -r id domain port; do
-        if [[ "$domain" == *"crm.archeo.kz"* ]]; then
-            # Проверяем по location или другим признакам
-            local full_config=$(curl -s -X GET "$NPM_HOST/api/nginx/proxy-hosts/$id" \
-                -H "Authorization: Bearer $TOKEN")
-            
-            # Если есть /api в locations - это backend
-            if echo "$full_config" | jq -e '.locations[] | select(.path == "/api")' > /dev/null 2>&1; then
-                backend_id=$id
-                echo -e "${GREEN}Найден Backend API: $domain (ID: $id)${NC}"
-            else
-                frontend_id=$id
-                echo -e "${GREEN}Найден Frontend: $domain (ID: $id)${NC}"
-            fi
-        fi
-    done < <(get_proxy_hosts)
+    local host_id=$(echo "$hosts" | jq -r '.[] | select(.domain_names[] | contains("crm.archeo.kz")) | .id')
     
-    # Обновляем порты
-    local success=true
-    
-    if [ -n "$backend_id" ]; then
-        update_proxy_port "$backend_id" "$backend_port" "Backend API" || success=false
-    else
-        echo -e "${YELLOW}⚠ Backend proxy host не найден${NC}"
+    if [ -z "$host_id" ]; then
+        echo -e "${RED}✗ Proxy host для crm.archeo.kz не найден${NC}"
+        return 1
     fi
     
-    if [ -n "$frontend_id" ]; then
-        update_proxy_port "$frontend_id" "$frontend_port" "Frontend" || success=false
-    else
-        echo -e "${YELLOW}⚠ Frontend proxy host не найден${NC}"
-    fi
+    echo -e "${GREEN}✓ Найден Proxy Host ID: $host_id${NC}"
     
-    if [ "$success" = true ]; then
-        echo -e "${GREEN}✓ Все порты успешно переключены${NC}"
+    # Обновляем оба порта
+    if update_proxy_port "$host_id" "$frontend_port" "$backend_port"; then
+        echo ""
+        echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║  ✓ Переключение завершено успешно!                       ║${NC}"
+        echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "Frontend: ${GREEN}http://82.115.48.40:$frontend_port${NC}"
+        echo -e "Backend:  ${GREEN}http://82.115.48.40:$backend_port${NC}"
         return 0
     else
         return 1
