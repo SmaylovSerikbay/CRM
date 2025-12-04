@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { FileText, CheckCircle, Clock, Send, X, Download, Upload } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Send, X, Download, Upload, History } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 import { useSearchParams } from 'next/navigation';
@@ -17,7 +17,7 @@ interface Contract {
   amount: number;
   people_count: number;
   execution_date: string;
-  status: 'draft' | 'pending_approval' | 'approved' | 'sent' | 'executed' | 'cancelled';
+  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'executed' | 'cancelled';
   employer_bin?: string;
   employer_phone?: string;
   employer_name?: string;
@@ -28,6 +28,19 @@ interface Contract {
   approvedByClinicAt?: string;
   sentAt?: string;
   executedAt?: string;
+  history?: any[];
+}
+
+interface ContractHistoryItem {
+  id: string;
+  action: string;
+  user_role: string;
+  user_name: string;
+  comment: string;
+  old_status: string;
+  new_status: string;
+  changes: any;
+  created_at: string;
 }
 
 function EmployerContractsContent() {
@@ -37,6 +50,10 @@ function EmployerContractsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [showSignForm, setShowSignForm] = useState(false);
+  const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showHistory, setShowHistory] = useState<string | null>(null);
+  const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
 
   useEffect(() => {
     loadContracts();
@@ -105,6 +122,23 @@ function EmployerContractsContent() {
     }
   };
 
+  const handleReject = async (contractId: string) => {
+    if (!rejectReason.trim()) {
+      alert('Пожалуйста, укажите причину отклонения');
+      return;
+    }
+    
+    try {
+      await workflowStoreAPI.rejectContract(contractId, rejectReason);
+      alert('Договор отклонен. Клиника получит уведомление.');
+      setRejectReason('');
+      setShowRejectForm(null);
+      loadContracts();
+    } catch (error: any) {
+      alert(error.message || 'Ошибка отклонения договора');
+    }
+  };
+
   const handleExecute = async (contractId: string) => {
     if (!confirm('Отметить договор как исполненный?')) return;
     
@@ -118,11 +152,36 @@ function EmployerContractsContent() {
     }
   };
 
+  const handleShowHistory = async (contractId: string) => {
+    try {
+      const history = await workflowStoreAPI.getContractHistory(contractId);
+      setContractHistory(history);
+      setShowHistory(contractId);
+    } catch (error: any) {
+      alert(error.message || 'Ошибка загрузки истории');
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      created: 'Создан',
+      updated: 'Обновлен',
+      sent_for_approval: 'Отправлен на согласование',
+      approved: 'Согласован',
+      rejected: 'Отклонен',
+      resent_for_approval: 'Повторно отправлен на согласование',
+      cancelled: 'Отменен',
+      executed: 'Исполнен',
+    };
+    return labels[action] || action;
+  };
+
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       draft: 'Черновик',
       pending_approval: 'Ожидает согласования',
       approved: 'Согласован',
+      rejected: 'Отклонен',
       sent: 'Отправлен',
       executed: 'Исполнен',
       cancelled: 'Отменен',
@@ -135,6 +194,7 @@ function EmployerContractsContent() {
       draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
       pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       sent: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       executed: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
       cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
@@ -231,10 +291,20 @@ function EmployerContractsContent() {
                   </div>
                   <div className="ml-4 flex flex-col gap-2">
                     {(contract.status === 'sent' || contract.status === 'pending_approval') && !contract.approvedByEmployerAt ? (
-                      <Button onClick={() => handleApprove(contract.id)}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Подписать
-                      </Button>
+                      <>
+                        <Button onClick={() => handleApprove(contract.id)}>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Подписать
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setShowRejectForm(showRejectForm === contract.id ? null : contract.id)}
+                          className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Отклонить
+                        </Button>
+                      </>
                     ) : null}
                     {contract.status === 'approved' && (
                       <Button onClick={() => handleExecute(contract.id)} variant="outline">
@@ -248,9 +318,103 @@ function EmployerContractsContent() {
                     >
                       {selectedContract?.id === contract.id ? 'Скрыть' : 'Подробнее'}
                     </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleShowHistory(contract.id)}
+                    >
+                      История
+                    </Button>
                   </div>
                 </div>
                 
+                {showRejectForm === contract.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800"
+                  >
+                    <h4 className="font-semibold mb-3">Причина отклонения</h4>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Укажите причину отклонения договора..."
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
+                      rows={4}
+                      required
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <Button onClick={() => handleReject(contract.id)} className="bg-red-600 hover:bg-red-700">
+                        Отклонить договор
+                      </Button>
+                      <Button variant="outline" onClick={() => { setShowRejectForm(null); setRejectReason(''); }}>
+                        Отмена
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {showHistory === contract.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold">История изменений</h4>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowHistory(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {contractHistory.length === 0 ? (
+                        <p className="text-sm text-gray-500">Нет записей в истории</p>
+                      ) : (
+                        contractHistory.map((item) => (
+                          <div key={item.id} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm">{getActionLabel(item.action)}</span>
+                                  {item.new_status && (
+                                    <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(item.new_status)}`}>
+                                      {getStatusLabel(item.new_status)}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
+                                </p>
+                                {item.comment && (
+                                  <p className="text-sm mt-2 text-gray-700 dark:text-gray-300">
+                                    {item.comment}
+                                  </p>
+                                )}
+                                {item.changes && Object.keys(item.changes).length > 0 && (
+                                  <div className="mt-2 text-xs">
+                                    <p className="font-medium mb-1">Изменения:</p>
+                                    {Object.entries(item.changes).map(([key, value]: [string, any]) => (
+                                      <p key={key} className="text-gray-600 dark:text-gray-400">
+                                        {key}: {value.old} → {value.new}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                                {new Date(item.created_at).toLocaleString('ru-RU')}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
                 {selectedContract?.id === contract.id && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}

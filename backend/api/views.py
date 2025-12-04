@@ -35,14 +35,14 @@ from django.db.models import Q
 from .models import (
     User, ContingentEmployee, CalendarPlan, RouteSheet, DoctorExamination, Expertise,
     EmergencyNotification, HealthImprovementPlan, RecommendationTracking, Doctor,
-    LaboratoryTest, FunctionalTest, Referral, PatientQueue, Contract
+    LaboratoryTest, FunctionalTest, Referral, PatientQueue, Contract, ContractHistory
 )
 from .serializers import (
     UserSerializer, ContingentEmployeeSerializer, CalendarPlanSerializer,
     RouteSheetSerializer, DoctorExaminationSerializer, ExpertiseSerializer,
     EmergencyNotificationSerializer, HealthImprovementPlanSerializer, RecommendationTrackingSerializer,
     DoctorSerializer, LaboratoryTestSerializer, FunctionalTestSerializer, ReferralSerializer,
-    PatientQueueSerializer, ContractSerializer
+    PatientQueueSerializer, ContractSerializer, ContractHistorySerializer
 )
 
 
@@ -2551,6 +2551,22 @@ class ContractViewSet(viewsets.ModelViewSet):
             employer_phone=employer_phone or ''
         )
         
+        # Создаем запись в истории
+        try:
+            user = User.objects.get(id=user_id)
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='created',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                new_status=contract.status,
+                comment=f'Договор создан клиникой'
+            )
+        except User.DoesNotExist:
+            pass
+        
         # Отправляем уведомление работодателю, если указан телефон
         if user_id and employer_phone:
             try:
@@ -2684,6 +2700,19 @@ class ContractViewSet(viewsets.ModelViewSet):
             # Сохраняем изменения
             contract.save()
             
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='approved',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=current_status,
+                new_status=contract.status,
+                comment=f'Договор согласован {"работодателем" if is_employer else "клиникой"}'
+            )
+            
             # Обновляем объект из базы данных, чтобы получить актуальный статус
             contract.refresh_from_db()
             
@@ -2691,6 +2720,197 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Отклонение договора работодателем с указанием причины"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        reason = request.data.get('reason', '')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not reason:
+            return Response({'error': 'reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Проверяем, является ли пользователь работодателем
+            is_employer = False
+            if user.role == 'employer':
+                if contract.employer and user == contract.employer:
+                    is_employer = True
+                elif contract.employer_bin:
+                    reg_data = user.registration_data or {}
+                    user_bin = reg_data.get('bin') or reg_data.get('inn')
+                    if user_bin:
+                        contract_bin_normalized = ''.join(str(contract.employer_bin).strip().split())
+                        user_bin_normalized = ''.join(str(user_bin).strip().split())
+                        if contract_bin_normalized == user_bin_normalized:
+                            is_employer = True
+                            if not contract.employer:
+                                contract.employer = user
+            
+            if not is_employer:
+                return Response({'error': 'Only employer can reject contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            old_status = contract.status
+            contract.status = 'rejected'
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='rejected',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=old_status,
+                new_status='rejected',
+                comment=reason
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['patch'])
+    def update_contract(self, request, pk=None):
+        """Обновление договора клиникой (только в статусах draft или rejected)"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Только клиника может редактировать
+            if user != contract.clinic:
+                return Response({'error': 'Only clinic can update contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Можно редактировать только в статусах draft или rejected
+            if contract.status not in ['draft', 'rejected']:
+                return Response({'error': f'Cannot update contract in status {contract.status}'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Сохраняем старые значения для истории
+            old_values = {
+                'contract_number': contract.contract_number,
+                'contract_date': str(contract.contract_date),
+                'amount': str(contract.amount),
+                'people_count': contract.people_count,
+                'execution_date': str(contract.execution_date),
+            }
+            
+            # Обновляем поля
+            changes = {}
+            if 'contract_number' in request.data and request.data['contract_number'] != contract.contract_number:
+                changes['contract_number'] = {'old': contract.contract_number, 'new': request.data['contract_number']}
+                contract.contract_number = request.data['contract_number']
+            
+            if 'contract_date' in request.data and request.data['contract_date'] != str(contract.contract_date):
+                changes['contract_date'] = {'old': str(contract.contract_date), 'new': request.data['contract_date']}
+                contract.contract_date = request.data['contract_date']
+            
+            if 'amount' in request.data and float(request.data['amount']) != float(contract.amount):
+                changes['amount'] = {'old': str(contract.amount), 'new': str(request.data['amount'])}
+                contract.amount = request.data['amount']
+            
+            if 'people_count' in request.data and int(request.data['people_count']) != contract.people_count:
+                changes['people_count'] = {'old': contract.people_count, 'new': int(request.data['people_count'])}
+                contract.people_count = request.data['people_count']
+            
+            if 'execution_date' in request.data and request.data['execution_date'] != str(contract.execution_date):
+                changes['execution_date'] = {'old': str(contract.execution_date), 'new': request.data['execution_date']}
+                contract.execution_date = request.data['execution_date']
+            
+            if 'notes' in request.data:
+                if request.data['notes'] != contract.notes:
+                    changes['notes'] = {'old': contract.notes, 'new': request.data['notes']}
+                contract.notes = request.data['notes']
+            
+            contract.save()
+            
+            # Создаем запись в истории, если были изменения
+            if changes:
+                user_name = user.registration_data.get('name', '') if user.registration_data else ''
+                ContractHistory.objects.create(
+                    contract=contract,
+                    action='updated',
+                    user=user,
+                    user_role=user.role,
+                    user_name=user_name,
+                    old_status=contract.status,
+                    new_status=contract.status,
+                    changes=changes,
+                    comment='Договор обновлен клиникой'
+                )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def resend_for_approval(self, request, pk=None):
+        """Повторная отправка договора на согласование после доработки"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        comment = request.data.get('comment', '')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Только клиника может отправлять на согласование
+            if user != contract.clinic:
+                return Response({'error': 'Only clinic can resend contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Можно отправить только из статусов draft или rejected
+            if contract.status not in ['draft', 'rejected']:
+                return Response({'error': f'Cannot resend contract in status {contract.status}'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            old_status = contract.status
+            contract.status = 'pending_approval'
+            contract.sent_at = timezone.now()
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='resent_for_approval' if old_status == 'rejected' else 'sent_for_approval',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=old_status,
+                new_status='pending_approval',
+                comment=comment or ('Договор повторно отправлен на согласование после доработки' if old_status == 'rejected' else 'Договор отправлен на согласование')
+            )
+            
+            # Отправляем уведомление работодателю
+            if contract.employer_phone:
+                self._send_contract_notification(contract, contract.employer_phone, contract.employer_bin or '')
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """Получение истории изменений договора"""
+        contract = self.get_object()
+        history_records = contract.history.all()
+        serializer = ContractHistorySerializer(history_records, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):

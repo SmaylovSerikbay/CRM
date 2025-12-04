@@ -6,9 +6,16 @@ ifndef DOCKER_COMPOSE
 	DOCKER_COMPOSE := docker compose
 endif
 
+# Настройки деплоя
+PROD_HOST := 89.207.255.13
+PROD_USER := root
+PROD_PATH := /root/crm-medical
+SSH_KEY := ~/.ssh/id_rsa
+
 # Цвета для вывода
 GREEN=\033[0;32m
 YELLOW=\033[1;33m
+RED=\033[0;31m
 NC=\033[0m # No Color
 
 help: ## Показать справку
@@ -34,6 +41,14 @@ help: ## Показать справку
 	@echo "  make clean            - Очистить все контейнеры и volumes"
 	@echo "  make shell-backend    - Войти в shell backend контейнера"
 	@echo "  make shell-frontend   - Войти в shell frontend контейнера"
+	@echo ""
+	@echo "$(YELLOW)Деплой команды:$(NC)"
+	@echo "  make deploy           - Полный деплой (commit + push + update на сервере)"
+	@echo "  make deploy-quick     - Быстрый деплой (без rebuild образов)"
+	@echo "  make git-push         - Только commit и push"
+	@echo "  make server-update    - Только обновление на сервере"
+	@echo "  make server-logs      - Показать логи с prod сервера"
+	@echo "  make server-status    - Статус контейнеров на prod сервере"
 
 # Development команды
 dev: build-dev up-dev ## Полный запуск в dev режиме
@@ -107,3 +122,62 @@ restart-prod: down-prod up-prod ## Перезапустить prod
 status: ## Показать статус контейнеров
 	@echo "$(GREEN)Статус контейнеров:$(NC)"
 	$(DOCKER_COMPOSE) ps
+
+# ============================================
+# ДЕПЛОЙ КОМАНДЫ
+# ============================================
+
+git-push: ## Commit и push изменений
+	@echo "$(GREEN)Коммит и push изменений...$(NC)"
+	@git add .
+	@read -p "Введите сообщение коммита: " msg; \
+	git commit -m "$$msg" || echo "$(YELLOW)Нет изменений для коммита$(NC)"
+	@git push origin main || git push origin master
+	@echo "$(GREEN)Изменения отправлены в репозиторий!$(NC)"
+
+server-update: ## Обновить код на prod сервере
+	@echo "$(GREEN)Подключение к серверу и обновление...$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
+		cd $(PROD_PATH) && \
+		echo '$(YELLOW)Получение последних изменений...$(NC)' && \
+		git pull origin main || git pull origin master && \
+		echo '$(YELLOW)Пересборка образов...$(NC)' && \
+		docker compose -f docker-compose.yml build && \
+		echo '$(YELLOW)Перезапуск контейнеров...$(NC)' && \
+		docker compose -f docker-compose.yml up -d && \
+		echo '$(GREEN)Деплой завершен!$(NC)'"
+
+server-update-quick: ## Быстрое обновление без rebuild
+	@echo "$(GREEN)Быстрое обновление на сервере...$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
+		cd $(PROD_PATH) && \
+		git pull origin main || git pull origin master && \
+		docker compose -f docker-compose.yml restart && \
+		echo '$(GREEN)Быстрое обновление завершено!$(NC)'"
+
+deploy: git-push server-update ## Полный деплой (commit + push + rebuild на сервере)
+	@echo "$(GREEN)================================$(NC)"
+	@echo "$(GREEN)Деплой успешно завершен!$(NC)"
+	@echo "$(GREEN)================================$(NC)"
+
+deploy-quick: git-push server-update-quick ## Быстрый деплой без rebuild
+	@echo "$(GREEN)================================$(NC)"
+	@echo "$(GREEN)Быстрый деплой завершен!$(NC)"
+	@echo "$(GREEN)================================$(NC)"
+
+server-logs: ## Показать логи с prod сервера
+	@echo "$(GREEN)Логи с prod сервера:$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml logs -f"
+
+server-status: ## Статус контейнеров на prod сервере
+	@echo "$(GREEN)Статус контейнеров на prod:$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose ps"
+
+server-shell: ## SSH подключение к серверу
+	@echo "$(GREEN)Подключение к серверу...$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST)
+
+server-restart: ## Перезапустить контейнеры на сервере
+	@echo "$(YELLOW)Перезапуск контейнеров на сервере...$(NC)"
+	ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml restart"
+	@echo "$(GREEN)Контейнеры перезапущены!$(NC)"

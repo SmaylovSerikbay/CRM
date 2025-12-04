@@ -392,6 +392,7 @@ class Contract(models.Model):
         ('draft', 'Черновик'),
         ('pending_approval', 'Ожидает согласования'),
         ('approved', 'Согласован'),
+        ('rejected', 'Отклонен'),
         ('sent', 'Отправлен'),
         ('executed', 'Исполнен'),
         ('cancelled', 'Отменен'),
@@ -427,4 +428,40 @@ class Contract(models.Model):
     
     def __str__(self):
         return f"Договор №{self.contract_number} от {self.contract_date} ({self.get_status_display()})"
+
+
+class ContractHistory(models.Model):
+    """История изменений договора для журналирования всех действий"""
+    ACTION_CHOICES = [
+        ('created', 'Создан'),
+        ('updated', 'Обновлен'),
+        ('sent_for_approval', 'Отправлен на согласование'),
+        ('approved', 'Согласован'),
+        ('rejected', 'Отклонен'),
+        ('resent_for_approval', 'Повторно отправлен на согласование'),
+        ('cancelled', 'Отменен'),
+        ('executed', 'Исполнен'),
+    ]
+    
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='history', verbose_name='Договор')
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES, verbose_name='Действие')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Пользователь')
+    user_role = models.CharField(max_length=20, blank=True, verbose_name='Роль пользователя')
+    user_name = models.CharField(max_length=255, blank=True, verbose_name='Имя пользователя')
+    comment = models.TextField(blank=True, verbose_name='Комментарий/Причина')
+    old_status = models.CharField(max_length=20, blank=True, verbose_name='Старый статус')
+    new_status = models.CharField(max_length=20, blank=True, verbose_name='Новый статус')
+    changes = models.JSONField(default=dict, blank=True, verbose_name='Изменения', help_text='Детали изменений полей')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата и время')
+    
+    class Meta:
+        verbose_name = 'История договора'
+        verbose_name_plural = 'История договоров'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['contract', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_action_display()} - {self.contract.contract_number} ({self.created_at.strftime('%d.%m.%Y %H:%M')})"
 

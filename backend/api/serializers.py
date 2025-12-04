@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     User, ContingentEmployee, CalendarPlan, RouteSheet, DoctorExamination, Expertise,
     EmergencyNotification, HealthImprovementPlan, RecommendationTracking, Doctor,
-    LaboratoryTest, FunctionalTest, Referral, PatientQueue, Contract
+    LaboratoryTest, FunctionalTest, Referral, PatientQueue, Contract, ContractHistory
 )
 
 
@@ -164,6 +164,13 @@ class PatientQueueSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'queue_number', 'added_at', 'called_at', 'started_at', 'completed_at']
 
 
+class ContractHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContractHistory
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at']
+
+
 class ContractSerializer(serializers.ModelSerializer):
     scan_files = serializers.JSONField(required=False, allow_null=True, default=list)
     employer_name = serializers.CharField(source='employer.registration_data.name', read_only=True, allow_null=True)
@@ -172,6 +179,7 @@ class ContractSerializer(serializers.ModelSerializer):
     employer_phone = serializers.CharField(required=False, allow_blank=True)
     employer = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='employer'), write_only=False)
     clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
+    history = ContractHistorySerializer(many=True, read_only=True)
     
     class Meta:
         model = Contract

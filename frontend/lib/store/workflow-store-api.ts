@@ -719,6 +719,32 @@ class WorkflowStoreAPI {
     await apiClient.approveContract(contractId, userId);
   }
 
+  async rejectContract(contractId: string, reason: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.rejectContract(contractId, userId, reason);
+  }
+
+  async updateContract(contractId: string, data: {
+    contract_number?: string;
+    contract_date?: string;
+    amount?: number;
+    people_count?: number;
+    execution_date?: string;
+    notes?: string;
+  }): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.updateContract(contractId, userId, data);
+  }
+
+  async resendContractForApproval(contractId: string, comment?: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.resendContractForApproval(contractId, userId, comment);
+  }
+
+  async getContractHistory(contractId: string): Promise<any[]> {
+    return await apiClient.getContractHistory(contractId);
+  }
+
   async sendContract(contractId: string): Promise<void> {
     const userId = this.getUserId();
     await apiClient.sendContract(contractId, userId);

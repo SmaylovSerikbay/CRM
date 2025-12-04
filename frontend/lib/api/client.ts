@@ -228,6 +228,38 @@ class ApiClient {
     });
   }
 
+  async rejectContract(contractId: string, userId: string, reason: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, reason }),
+    });
+  }
+
+  async updateContract(contractId: string, userId: string, data: {
+    contract_number?: string;
+    contract_date?: string;
+    amount?: number;
+    people_count?: number;
+    execution_date?: string;
+    notes?: string;
+  }): Promise<any> {
+    return this.request(`/contracts/${contractId}/update_contract/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: userId, ...data }),
+    });
+  }
+
+  async resendContractForApproval(contractId: string, userId: string, comment?: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/resend_for_approval/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, comment }),
+    });
+  }
+
+  async getContractHistory(contractId: string): Promise<any[]> {
+    return this.request(`/contracts/${contractId}/history/`);
+  }
+
   async sendContract(contractId: string, userId: string): Promise<any> {
     return this.request(`/contracts/${contractId}/send/`, {
       method: 'POST',
