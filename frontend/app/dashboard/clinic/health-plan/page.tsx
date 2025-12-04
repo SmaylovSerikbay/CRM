@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { FileText, Download, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStore } from '@/lib/store/workflow-store';
+import { useToast } from '@/components/ui/Toast';
 
 export default function HealthPlanPage() {
+  const { showToast } = useToast();
   const [healthPlan, setHealthPlan] = useState(workflowStore.getHealthPlanItems());
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
@@ -30,7 +32,7 @@ export default function HealthPlanPage() {
     // Симуляция генерации PDF плана оздоровления
     await new Promise(resolve => setTimeout(resolve, 2000));
     setIsGenerating(false);
-    alert('План оздоровления успешно сформирован! PDF готов к скачиванию.');
+    showToast('План оздоровления успешно сформирован! PDF готов к скачиванию.', 'success');
   };
 
   return (

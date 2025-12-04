@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FileText, Download, Users, CheckCircle, AlertCircle, Clock, XCircle, TrendingUp, Calendar } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 export default function SummaryReportPage() {
+  const { showToast } = useToast();
   const [reportData, setReportData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
@@ -106,7 +108,7 @@ export default function SummaryReportPage() {
       );
     } catch (error: any) {
       console.error('Error exporting PDF:', error);
-      alert(`Ошибка экспорта: ${error.message || 'Неизвестная ошибка'}`);
+      showToast(`Ошибка экспорта: ${error.message || 'Неизвестная ошибка'}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +124,7 @@ export default function SummaryReportPage() {
       );
     } catch (error: any) {
       console.error('Error exporting Excel:', error);
-      alert(`Ошибка экспорта: ${error.message || 'Неизвестная ошибка'}`);
+      showToast(`Ошибка экспорта: ${error.message || 'Неизвестная ошибка'}`, 'error');
     } finally {
       setIsLoading(false);
     }

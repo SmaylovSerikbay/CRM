@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Activity, CheckCircle, Clock, AlertCircle, User, Search, Save } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 interface FunctionalTest {
   id: string;
@@ -24,6 +25,7 @@ interface FunctionalTest {
 }
 
 export default function FunctionalTestsPage() {
+  const { showToast } = useToast();
   const [tests, setTests] = useState<FunctionalTest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
@@ -65,7 +67,7 @@ export default function FunctionalTestsPage() {
       setTests(formattedTests);
     } catch (error: any) {
       console.error('Error loading functional tests:', error);
-      alert(`Ошибка загрузки данных: ${error.message || 'Неизвестная ошибка'}`);
+      showToast(`Ошибка загрузки данных: ${error.message || 'Неизвестная ошибка'}`, 'error');
       setTests([]);
     } finally {
       setIsLoading(false);
@@ -99,10 +101,10 @@ export default function FunctionalTestsPage() {
       await loadTests();
       setEditingId(null);
       setEditData({});
-      alert('Результаты сохранены');
+      showToast('Результаты сохранены', 'success');
     } catch (error: any) {
       console.error('Error saving test:', error);
-      alert(error.message || 'Ошибка сохранения');
+      showToast(error.message || 'Ошибка сохранения', 'error');
     }
   };
 

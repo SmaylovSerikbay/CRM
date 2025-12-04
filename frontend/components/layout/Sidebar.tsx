@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { userStore, ClinicUserRole } from '@/lib/store/user-store';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/Toast';
 
 interface MenuItem {
   title: string;
@@ -37,6 +38,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ role }: SidebarProps) {
+  const { showToast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
   const [clinicRole, setClinicRole] = useState<ClinicUserRole | undefined>();
@@ -84,7 +86,7 @@ export function Sidebar({ role }: SidebarProps) {
         // Перезагружаем страницу для обновления меню
         window.location.reload();
       } catch (error: any) {
-        alert(error.message || 'Ошибка изменения роли');
+        showToast(error.message || 'Ошибка изменения роли', 'error');
       }
     }
   };

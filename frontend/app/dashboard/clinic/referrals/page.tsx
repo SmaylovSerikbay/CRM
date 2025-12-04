@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Send, CheckCircle, Clock, AlertCircle, User, Search, XCircle, FileText } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 interface Referral {
   id: string;
@@ -25,6 +26,7 @@ interface Referral {
 }
 
 export default function ReferralsPage() {
+  const { showToast } = useToast();
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
@@ -54,9 +56,9 @@ export default function ReferralsPage() {
     try {
       await workflowStoreAPI.updateReferralStatus(id, newStatus as any);
       await loadReferrals();
-      alert('Статус обновлен');
+      showToast('Статус обновлен', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка обновления статуса');
+      showToast(error.message || 'Ошибка обновления статуса', 'error');
     }
   };
 

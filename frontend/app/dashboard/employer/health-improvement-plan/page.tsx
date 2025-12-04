@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { FileText, Download, Calendar, CheckCircle } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 export default function HealthImprovementPlanPage() {
+  const { showToast } = useToast();
   const [plans, setPlans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -49,9 +51,9 @@ export default function HealthImprovementPlanPage() {
           deadlines: [],
         },
       });
-      alert('План оздоровительных мероприятий создан');
+      showToast('План оздоровительных мероприятий создан', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка создания плана');
+      showToast(error.message || 'Ошибка создания плана', 'error');
     } finally {
       setIsCreating(false);
     }
@@ -62,9 +64,9 @@ export default function HealthImprovementPlanPage() {
       await workflowStoreAPI.updateHealthImprovementPlan(planId, { status: 'pending_tsb' });
       const updated = await workflowStoreAPI.getHealthImprovementPlans();
       setPlans(updated);
-      alert('План отправлен на согласование в ТСБ/СЭБН');
+      showToast('План отправлен на согласование в ТСБ/СЭБН', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка отправки плана');
+      showToast(error.message || 'Ошибка отправки плана', 'error');
     }
   };
 
@@ -145,7 +147,7 @@ export default function HealthImprovementPlanPage() {
                     variant="outline"
                     onClick={() => {
                       // TODO: Генерация PDF
-                      alert('PDF плана будет сгенерирован');
+                      showToast('PDF плана будет сгенерирован', 'info');
                     }}
                   >
                     <Download className="h-4 w-4 mr-2" />

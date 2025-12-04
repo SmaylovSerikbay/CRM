@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { FileText, Download, CheckCircle, Users, AlertCircle, Clock, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 export default function FinalActPage() {
+  const { showToast } = useToast();
   const [stats, setStats] = useState({
     totalExamined: 0,
     healthy: 0,
@@ -59,10 +61,10 @@ export default function FinalActPage() {
       }
       
       setIsGenerating(false);
-      alert('Заключительный акт успешно сформирован и скачан!');
+      showToast('Заключительный акт успешно сформирован и скачан!', 'success');
     } catch (error: any) {
       setIsGenerating(false);
-      alert(error.message || 'Ошибка генерации акта');
+      showToast(error.message || 'Ошибка генерации акта', 'error');
     }
   };
 
@@ -71,10 +73,10 @@ export default function FinalActPage() {
     try {
       await workflowStoreAPI.exportFinalActExcel(selectedDepartment || undefined);
       setIsGenerating(false);
-      alert('Заключительный акт успешно экспортирован в Excel!');
+      showToast('Заключительный акт успешно экспортирован в Excel!', 'success');
     } catch (error: any) {
       setIsGenerating(false);
-      alert(error.message || 'Ошибка экспорта в Excel');
+      showToast(error.message || 'Ошибка экспорта в Excel', 'error');
     }
   };
 

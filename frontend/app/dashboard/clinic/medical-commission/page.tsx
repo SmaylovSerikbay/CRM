@@ -8,8 +8,10 @@ import { Stethoscope, CheckCircle, XCircle, User, AlertCircle, Send } from 'luci
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 import { Input } from '@/components/ui/Input';
+import { useToast } from '@/components/ui/Toast';
 
 export default function MedicalCommissionPage() {
+  const { showToast } = useToast();
   const [routeSheets, setRouteSheets] = useState<any[]>([]);
   const [examinations, setExaminations] = useState<Record<string, any[]>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +75,7 @@ export default function MedicalCommissionPage() {
     doctorSignature: string
   ) => {
     if (!currentUser || !currentDoctor) {
-      alert('Ошибка: информация о враче не найдена');
+      showToast('Ошибка: информация о враче не найдена', 'error');
       return;
     }
     
@@ -111,10 +113,10 @@ export default function MedicalCommissionPage() {
         return newData;
       });
       
-      alert('Заключение сохранено. Кабинет отмечен как пройденный.');
+      showToast('Заключение сохранено. Кабинет отмечен как пройденный.', 'success');
     } catch (error: any) {
       console.error('Error saving examination:', error);
-      alert(error.message || 'Ошибка сохранения заключения');
+      showToast(error.message || 'Ошибка сохранения заключения', 'error');
     }
   };
 
@@ -404,11 +406,11 @@ export default function MedicalCommissionPage() {
                                   });
                                   const data = examinationData[routeSheet.patientId];
                                   if (!data.doctorSignature) {
-                                    alert('Укажите подпись врача');
+                                    showToast('Укажите подпись врача', 'warning');
                                     return;
                                   }
                                   if (data.conclusion === 'unhealthy' && !data.diagnosis) {
-                                    alert('Укажите диагноз');
+                                    showToast('Укажите диагноз', 'warning');
                                     return;
                                   }
                                   handleConclusion(
@@ -488,11 +490,11 @@ export default function MedicalCommissionPage() {
                                       if (notification) {
                                         await workflowStoreAPI.sendEmergencyNotification(notification.id.toString());
                                       }
-                                      alert('Экстренное извещение отправлено в ТСБ/СЭБН и работодателю');
+                                      showToast('Экстренное извещение отправлено в ТСБ/СЭБН и работодателю', 'success');
                                       setShowEmergencyNotification(null);
                                       setEmergencyData({ diseaseType: '', diagnosis: '' });
                                     } catch (error: any) {
-                                      alert(error.message || 'Ошибка отправки извещения');
+                                      showToast(error.message || 'Ошибка отправки извещения', 'error');
                                     }
                                   }}
                                   disabled={!emergencyData.diseaseType || !emergencyData.diagnosis}

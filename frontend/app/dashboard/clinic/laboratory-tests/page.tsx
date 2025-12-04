@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, User, Search, Save } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 interface LaboratoryTest {
   id: string;
@@ -24,6 +25,7 @@ interface LaboratoryTest {
 }
 
 export default function LaboratoryTestsPage() {
+  const { showToast } = useToast();
   const [tests, setTests] = useState<LaboratoryTest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
@@ -65,7 +67,7 @@ export default function LaboratoryTestsPage() {
       setTests(formattedTests);
     } catch (error: any) {
       console.error('Error loading laboratory tests:', error);
-      alert(`Ошибка загрузки данных: ${error.message || 'Неизвестная ошибка'}`);
+      showToast(`Ошибка загрузки данных: ${error.message || 'Неизвестная ошибка'}`, 'error');
       setTests([]);
     } finally {
       setIsLoading(false);
@@ -99,10 +101,10 @@ export default function LaboratoryTestsPage() {
       await loadTests();
       setEditingId(null);
       setEditData({});
-      alert('Результаты сохранены');
+      showToast('Результаты сохранены', 'success');
     } catch (error: any) {
       console.error('Error saving test:', error);
-      alert(error.message || 'Ошибка сохранения');
+      showToast(error.message || 'Ошибка сохранения', 'error');
     }
   };
 

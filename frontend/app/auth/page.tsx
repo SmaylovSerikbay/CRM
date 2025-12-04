@@ -8,8 +8,10 @@ import { PhoneInput } from '@/components/ui/PhoneInput';
 import { Phone, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 function AuthContent() {
+  const { showToast } = useToast();
   const [authMethod, setAuthMethod] = useState<'otp' | 'password'>('otp');
   const [step, setStep] = useState<'phone' | 'otp' | 'password'>('phone');
   const [phone, setPhone] = useState('');
@@ -43,7 +45,7 @@ function AuthContent() {
         setStep('password');
       }
     } catch (error) {
-      alert('Ошибка отправки кода. Попробуйте еще раз.');
+      showToast('Ошибка отправки кода. Попробуйте еще раз.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +62,7 @@ function AuthContent() {
       // Если регистрация завершена, select-role проверит и перенаправит в дашборд
       router.push('/select-role');
     } catch (error: any) {
-      alert(error.message || 'Неверный код. Попробуйте еще раз.');
+      showToast(error.message || 'Неверный код. Попробуйте еще раз.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +88,7 @@ function AuthContent() {
         router.push('/select-role');
       }
     } catch (error: any) {
-      alert(error.message || 'Неверный пароль. Попробуйте еще раз.');
+      showToast(error.message || 'Неверный пароль. Попробуйте еще раз.', 'error');
     } finally {
       setIsLoading(false);
     }

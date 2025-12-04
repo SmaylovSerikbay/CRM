@@ -8,8 +8,10 @@ import { Building2, Stethoscope, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
 import { RegisterForm } from '@/components/auth/RegisterForm';
+import { useToast } from '@/components/ui/Toast';
 
 function RegisterContent() {
+  const { showToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const role = searchParams.get('role') as 'clinic' | 'employer' | null;
@@ -63,7 +65,7 @@ function RegisterContent() {
           router.push('/dashboard/employer');
         }
       } catch (error: any) {
-        alert(error.message || 'Ошибка регистрации. Попробуйте еще раз.');
+        showToast(error.message || 'Ошибка регистрации. Попробуйте еще раз.', 'error');
       }
     }
   };

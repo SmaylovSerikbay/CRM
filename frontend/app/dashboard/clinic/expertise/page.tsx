@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/Input';
 import { AlertTriangle, CheckCircle, XCircle, Clock, User, Send, FlaskConical, Activity, AlertCircle } from 'lucide-react';
 import { workflowStoreAPI, Expertise } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ExpertisePage() {
+  const { showToast } = useToast();
   const [expertises, setExpertises] = useState<Expertise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingVerdict, setEditingVerdict] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export default function ExpertisePage() {
     // Проверяем готовность перед вынесением вердикта
     const readiness = readinessChecks[expertise.patientId];
     if (readiness && !readiness.is_ready) {
-      alert(`Нельзя вынести вердикт. Ошибки:\n${readiness.errors.join('\n')}`);
+      showToast(`Нельзя вынести вердикт. Ошибки: ${readiness.errors.join(', ')}`, 'error', 8000);
       return;
     }
 
@@ -111,8 +113,9 @@ export default function ExpertisePage() {
       setExpertises(updated);
       setEditingVerdict(null);
       setVerdictData({ temporaryUnfitUntil: '', reason: '' });
+      showToast('Вердикт успешно сохранен', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка сохранения вердикта');
+      showToast(error.message || 'Ошибка сохранения вердикта', 'error');
     }
   };
 
@@ -303,12 +306,12 @@ export default function ExpertisePage() {
                               const readiness = await workflowStoreAPI.checkExpertiseReadiness(expertise.patientId);
                               setReadinessChecks(prev => ({ ...prev, [expertise.patientId]: readiness }));
                               if (!readiness.is_ready) {
-                                alert(`Не все исследования завершены:\n${readiness.errors.join('\n')}`);
+                                showToast(`Не все исследования завершены: ${readiness.errors.join(', ')}`, 'warning', 8000);
                               } else {
-                                alert('Все исследования завершены. Можно выносить вердикт.');
+                                showToast('Все исследования завершены. Можно выносить вердикт.', 'success');
                               }
                             } catch (error: any) {
-                              alert(error.message || 'Ошибка проверки готовности');
+                              showToast(error.message || 'Ошибка проверки готовности', 'error');
                             }
                           }}
                         >

@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/Input';
 import { Settings, Save, User, Building2, Mail, Phone, MapPin, Lock } from 'lucide-react';
 import { userStore } from '@/lib/store/user-store';
 import { SetPasswordForm } from '@/components/auth/SetPasswordForm';
+import { useToast } from '@/components/ui/Toast';
 
 export default function SettingsPage() {
+  const { showToast } = useToast();
   const [user, setUser] = useState(userStore.getCurrentUser());
   const [formData, setFormData] = useState({
     name: '',
@@ -48,9 +50,9 @@ export default function SettingsPage() {
         userStore.updateUserRole(user.phone, user.role, user.clinicRole);
       }
       
-      alert('Настройки сохранены');
+      showToast('Настройки сохранены', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка сохранения настроек');
+      showToast(error.message || 'Ошибка сохранения настроек', 'error');
     } finally {
       setIsSaving(false);
     }

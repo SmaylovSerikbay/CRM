@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Clock, User, Stethoscope, CheckCircle, XCircle, AlertCircle, Play, Pause, Phone, Building2 } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 interface QueueEntry {
   id: string;
@@ -27,6 +28,7 @@ interface QueueEntry {
 }
 
 export default function QueuePage() {
+  const { showToast } = useToast();
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -84,7 +86,7 @@ export default function QueuePage() {
       await workflowStoreAPI.callPatient(queueId);
       await loadQueue();
     } catch (error: any) {
-      alert(error.message || 'Ошибка вызова пациента');
+      showToast(error.message || 'Ошибка вызова пациента', 'error');
     }
   };
 
@@ -93,7 +95,7 @@ export default function QueuePage() {
       await workflowStoreAPI.startExamination(queueId);
       await loadQueue();
     } catch (error: any) {
-      alert(error.message || 'Ошибка начала приема');
+      showToast(error.message || 'Ошибка начала приема', 'error');
     }
   };
 
@@ -102,7 +104,7 @@ export default function QueuePage() {
       await workflowStoreAPI.completeExamination(queueId);
       await loadQueue();
     } catch (error: any) {
-      alert(error.message || 'Ошибка завершения приема');
+      showToast(error.message || 'Ошибка завершения приема', 'error');
     }
   };
 
@@ -114,7 +116,7 @@ export default function QueuePage() {
       await workflowStoreAPI.skipPatient(queueId);
       await loadQueue();
     } catch (error: any) {
-      alert(error.message || 'Ошибка пропуска пациента');
+      showToast(error.message || 'Ошибка пропуска пациента', 'error');
     }
   };
 

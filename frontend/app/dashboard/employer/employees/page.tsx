@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Plus, Users, Upload, X, FileSpreadsheet } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { useToast } from '@/components/ui/Toast';
 
 interface Employee {
   id: string;
@@ -19,6 +20,7 @@ interface Employee {
 }
 
 export default function EmployeesPage() {
+  const { showToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([
@@ -62,7 +64,7 @@ export default function EmployeesPage() {
     if (file) {
       // Симуляция загрузки Excel файла
       // В реальности здесь будет парсинг Excel и добавление сотрудников
-      alert('Файл загружен! В реальном приложении здесь будет парсинг Excel и добавление сотрудников.');
+      showToast('Файл загружен! В реальном приложении здесь будет парсинг Excel и добавление сотрудников.', 'info');
       setShowUpload(false);
     }
   };

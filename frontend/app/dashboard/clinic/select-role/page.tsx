@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { User, Stethoscope, CheckCircle, FileText, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { userStore, ClinicUserRole } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ClinicSelectRolePage() {
+  const { showToast } = useToast();
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(userStore.getCurrentUser());
 
@@ -45,7 +47,7 @@ export default function ClinicSelectRolePage() {
         );
         router.push('/dashboard/clinic');
       } catch (error: any) {
-        alert(error.message || 'Ошибка сохранения роли. Попробуйте еще раз.');
+        showToast(error.message || 'Ошибка сохранения роли. Попробуйте еще раз.', 'error');
       }
     }
   };

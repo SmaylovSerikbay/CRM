@@ -9,6 +9,7 @@ import { QrCode, Search, FileText, Printer, CheckCircle, AlertCircle, User, Cale
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
+import { useToast } from '@/components/ui/Toast';
 
 interface RouteSheet {
   id: string;
@@ -30,6 +31,7 @@ interface RouteSheet {
 }
 
 export default function RouteSheetPage() {
+  const { showToast } = useToast();
   const [searchValue, setSearchValue] = useState('');
   const [routeSheets, setRouteSheets] = useState<RouteSheet[]>([]);
   const [selectedRouteSheet, setSelectedRouteSheet] = useState<RouteSheet | null>(null);
@@ -196,7 +198,7 @@ export default function RouteSheetPage() {
 
     // Проверка прав доступа на фронтенде
     if (!canEditService(service)) {
-      alert('Вы можете отмечать только услуги по вашей специализации. Клиника может только просматривать статус.');
+      showToast('Вы можете отмечать только услуги по вашей специализации. Клиника может только просматривать статус.', 'warning');
       return;
     }
 
@@ -225,7 +227,7 @@ export default function RouteSheetPage() {
     } catch (error: any) {
       console.error('Error updating service status:', error);
       const errorMessage = error?.response?.data?.error || error?.message || 'Ошибка обновления статуса услуги';
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -234,9 +236,9 @@ export default function RouteSheetPage() {
     
     try {
       await workflowStoreAPI.addToQueueFromRouteSheet(selectedRouteSheet.id, serviceId);
-      alert('Пациент добавлен в очередь');
+      showToast('Пациент добавлен в очередь', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка добавления в очередь');
+      showToast(error.message || 'Ошибка добавления в очередь', 'error');
     }
   };
 

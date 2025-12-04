@@ -756,7 +756,7 @@ export default function ContingentPage() {
                                           setQrCodeModal({ employeeId: employee.id, qrUrl });
                                         } catch (error) {
                                           console.error('Error generating QR code:', error);
-                                          alert('Ошибка при генерации QR-кода');
+                                          showToast('Ошибка при генерации QR-кода', 'error');
                                         }
                                       }}
                                       className="p-1 text-green-600 hover:text-green-700"

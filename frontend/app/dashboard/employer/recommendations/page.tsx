@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { CheckCircle, Clock, XCircle, AlertCircle, User } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 export default function RecommendationsPage() {
+  const { showToast } = useToast();
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -33,7 +35,7 @@ export default function RecommendationsPage() {
       const updated = await workflowStoreAPI.getRecommendations();
       setRecommendations(updated);
     } catch (error: any) {
-      alert(error.message || 'Ошибка обновления статуса');
+      showToast(error.message || 'Ошибка обновления статуса', 'error');
     }
   };
 

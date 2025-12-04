@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Plus, UserPlus, Edit2, Trash2, X, Save } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 interface Doctor {
   id: string;
@@ -87,6 +88,7 @@ const formatPhone = (value: string): string => {
 };
 
 export default function DoctorsPage() {
+  const { showToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -182,11 +184,11 @@ export default function DoctorsPage() {
     
     // Валидация обязательных полей
     if (!formData.name.trim()) {
-      alert('Укажите ФИО врача');
+      showToast('Укажите ФИО врача', 'warning');
       return;
     }
     if (!formData.specialization) {
-      alert('Выберите специализацию');
+      showToast('Выберите специализацию', 'warning');
       return;
     }
 
@@ -215,10 +217,10 @@ export default function DoctorsPage() {
 
       if (editingId) {
         await workflowStoreAPI.updateDoctor(editingId, doctorData);
-        alert('Врач успешно обновлен');
+        showToast('Врач успешно обновлен', 'success');
       } else {
         await workflowStoreAPI.createDoctor(doctorData);
-        alert('Врач успешно добавлен');
+        showToast('Врач успешно добавлен', 'success');
       }
 
       // Перезагружаем список врачей
@@ -242,7 +244,7 @@ export default function DoctorsPage() {
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -254,10 +256,10 @@ export default function DoctorsPage() {
       await workflowStoreAPI.deleteDoctor(id);
       const updated = await workflowStoreAPI.getDoctors();
       setDoctors(updated);
-      alert('Врач успешно удален');
+      showToast('Врач успешно удален', 'success');
     } catch (error: any) {
       console.error('Error deleting doctor:', error);
-      alert(error.message || 'Ошибка удаления врача');
+      showToast(error.message || 'Ошибка удаления врача', 'error');
     }
   };
 
