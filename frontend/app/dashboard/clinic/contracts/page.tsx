@@ -50,7 +50,8 @@ export default function ContractsPage() {
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
   const [formData, setFormData] = useState({
     employer_bin: '',
     employer_phone: '',
@@ -282,19 +283,22 @@ export default function ContractsPage() {
     // Фильтр по статусу
     const matchesStatus = statusFilter === 'all' || contract.status === statusFilter;
 
-    // Фильтр по дате
+    // Фильтр по диапазону дат
     let matchesDate = true;
-    if (dateFilter !== 'all') {
+    if (dateFromFilter || dateToFilter) {
       const contractDate = new Date(contract.createdAt);
-      const now = new Date();
-      const daysDiff = Math.floor((now.getTime() - contractDate.getTime()) / (1000 * 60 * 60 * 24));
+      contractDate.setHours(0, 0, 0, 0);
       
-      if (dateFilter === 'today') {
-        matchesDate = daysDiff === 0;
-      } else if (dateFilter === 'week') {
-        matchesDate = daysDiff <= 7;
-      } else if (dateFilter === 'month') {
-        matchesDate = daysDiff <= 30;
+      if (dateFromFilter) {
+        const fromDate = new Date(dateFromFilter);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && contractDate >= fromDate;
+      }
+      
+      if (dateToFilter) {
+        const toDate = new Date(dateToFilter);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && contractDate <= toDate;
       }
     }
 
@@ -304,7 +308,8 @@ export default function ContractsPage() {
   const resetFilters = () => {
     setSearchQuery('');
     setStatusFilter('all');
-    setDateFilter('all');
+    setDateFromFilter('');
+    setDateToFilter('');
   };
 
   if (isLoading) {
@@ -370,22 +375,30 @@ export default function ContractsPage() {
                 </select>
               </div>
 
-              {/* Фильтр по дате */}
+              {/* Фильтр по дате от */}
               <div className="w-full md:w-48">
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as any)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-                >
-                  <option value="all">Все даты</option>
-                  <option value="today">Сегодня</option>
-                  <option value="week">За неделю</option>
-                  <option value="month">За месяц</option>
-                </select>
+                <Input
+                  type="date"
+                  value={dateFromFilter}
+                  onChange={(e) => setDateFromFilter(e.target.value)}
+                  placeholder="Дата от"
+                  className="w-full"
+                />
+              </div>
+
+              {/* Фильтр по дате до */}
+              <div className="w-full md:w-48">
+                <Input
+                  type="date"
+                  value={dateToFilter}
+                  onChange={(e) => setDateToFilter(e.target.value)}
+                  placeholder="Дата до"
+                  className="w-full"
+                />
               </div>
 
               {/* Кнопка сброса */}
-              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
+              {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
                 <Button
                   variant="outline"
                   onClick={resetFilters}
@@ -402,9 +415,24 @@ export default function ContractsPage() {
               <span>
                 Найдено: {filteredContracts.length} из {contracts.length}
               </span>
-              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
+              {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
                 <span className="text-blue-600 dark:text-blue-400">
                   Применены фильтры
+                  {dateFromFilter && dateToFilter && (
+                    <span className="ml-2">
+                      ({new Date(dateFromFilter).toLocaleDateString('ru-RU')} - {new Date(dateToFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
+                  {dateFromFilter && !dateToFilter && (
+                    <span className="ml-2">
+                      (с {new Date(dateFromFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
+                  {!dateFromFilter && dateToFilter && (
+                    <span className="ml-2">
+                      (до {new Date(dateToFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
                 </span>
               )}
             </div>
