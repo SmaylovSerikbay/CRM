@@ -255,8 +255,30 @@ auto_deploy() {
     echo -e "Активный: ${GREEN}$active${NC} → Деплой в: ${YELLOW}$inactive${NC}"
     echo ""
     
+    # Шаг 0: Git pull
+    echo -e "${BLUE}[0/4] Обновление кода из Git...${NC}"
+    if [ -d ".git" ]; then
+        echo -e "${YELLOW}Выполняется git pull...${NC}"
+        git pull
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}✗ Ошибка при git pull${NC}"
+            read -p "Продолжить деплой? (y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}Деплой отменен${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${GREEN}✓ Код обновлен${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ Git репозиторий не найден, пропускаем git pull${NC}"
+    fi
+    echo ""
+    
     # Шаг 1: Деплой
-    echo -e "${BLUE}[1/4] Деплой новой версии...${NC}"
+    echo -e "${BLUE}[1/5] Деплой новой версии...${NC}"
     echo -e "${YELLOW}Шаг 1.1: Сборка $inactive окружения...${NC}"
     docker compose -f "$COMPOSE_FILE" --profile "$inactive" build --no-cache
     
@@ -290,7 +312,7 @@ auto_deploy() {
     echo ""
     
     # Шаг 2: Переключение трафика
-    echo -e "${BLUE}[2/4] Переключение трафика...${NC}"
+    echo -e "${BLUE}[2/5] Переключение трафика...${NC}"
     
     # Определяем порты
     if [ "$inactive" = "green" ]; then
@@ -331,7 +353,7 @@ auto_deploy() {
     
     # Шаг 3: Проверка после переключения
     echo ""
-    echo -e "${BLUE}[3/4] Проверка работы сайта...${NC}"
+    echo -e "${BLUE}[3/5] Проверка работы сайта...${NC}"
     echo -e "${YELLOW}Откройте https://crm.archeo.kz и проверьте работу${NC}"
     echo ""
     
@@ -372,7 +394,7 @@ auto_deploy() {
     
     # Шаг 4: Очистка
     echo ""
-    echo -e "${BLUE}[4/4] Очистка старого окружения...${NC}"
+    echo -e "${BLUE}[4/5] Очистка старого окружения...${NC}"
     set_active_color "$inactive"
     rm -f ".deployment-state.backup"
     

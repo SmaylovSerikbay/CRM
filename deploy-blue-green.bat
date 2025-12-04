@@ -294,8 +294,29 @@ goto :usage
     echo Активный: %ACTIVE_COLOR% -^> Деплой в: %INACTIVE_COLOR%
     echo.
     
+    REM Шаг 0: Git pull
+    echo [0/5] Обновление кода из Git...
+    if exist ".git" (
+        echo Выполняется git pull...
+        git pull
+        
+        if !ERRORLEVEL! neq 0 (
+            echo [ОШИБКА] Ошибка при git pull
+            set /p CONFIRM="Продолжить деплой? (y/n): "
+            if /i not "!CONFIRM!"=="y" (
+                echo Деплой отменен
+                exit /b 1
+            )
+        ) else (
+            echo [OK] Код обновлен
+        )
+    ) else (
+        echo [ВНИМАНИЕ] Git репозиторий не найден, пропускаем git pull
+    )
+    echo.
+    
     REM Шаг 1: Деплой
-    echo [1/4] Деплой новой версии...
+    echo [1/5] Деплой новой версии...
     echo Шаг 1.1: Сборка %INACTIVE_COLOR% окружения...
     
     if "%INACTIVE_COLOR%"=="green" (
@@ -348,7 +369,7 @@ goto :usage
     echo.
     
     REM Шаг 2: Переключение трафика
-    echo [2/4] Переключение трафика...
+    echo [2/5] Переключение трафика...
     
     if "%INACTIVE_COLOR%"=="green" (
         set BACKEND_PORT=%BACKEND_GREEN_PORT%
@@ -387,7 +408,7 @@ goto :usage
     
     REM Шаг 3: Проверка
     echo.
-    echo [3/4] Проверка работы сайта...
+    echo [3/5] Проверка работы сайта...
     echo Откройте https://crm.archeo.kz и проверьте работу
     echo.
     
@@ -424,7 +445,7 @@ goto :usage
     
     REM Шаг 4: Очистка
     echo.
-    echo [4/4] Очистка старого окружения...
+    echo [4/5] Очистка старого окружения...
     echo %INACTIVE_COLOR%>%STATE_FILE%
     del .deployment-state.backup
     
