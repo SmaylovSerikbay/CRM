@@ -1,14 +1,61 @@
+# Python cache
 __pycache__
 *.pyc
 *.pyo
 *.pyd
 .Python
+*.so
+
+# Virtual environments
 env/
 venv/
 .venv
+ENV/
+env.bak/
+venv.bak/
+
+# Database
 *.db
 *.sqlite3
+db.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vscode
+.idea
+
+# OS
 .DS_Store
-.git
+Thumbs.db
+*.log
+
+# Git
+.git/
 .gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Media and static (if not needed in build)
+media/
+staticfiles/
 

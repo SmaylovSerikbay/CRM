@@ -3,15 +3,22 @@ FROM node:20-alpine AS base
 
 # Устанавливаем зависимости только при необходимости
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat curl
 WORKDIR /app
 
-# Копируем файлы зависимостей
-COPY package.json ./
-RUN npm config set fetch-retry-maxtimeout 120000 && \
-    npm config set fetch-retry-mintimeout 15000 && \
-    npm config set fetch-retries 5 && \
-    npm install --production=false --legacy-peer-deps
+# Копируем файлы зависимостей (package.json и package-lock.json)
+COPY package.json package-lock.json* ./
+
+# Используем npm ci для более быстрой установки из lock файла
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -f package-lock.json ]; then \
+        npm ci --legacy-peer-deps; \
+    else \
+        npm config set fetch-retry-maxtimeout 120000 && \
+        npm config set fetch-retry-mintimeout 15000 && \
+        npm config set fetch-retries 5 && \
+        npm install --production=false --legacy-peer-deps; \
+    fi
 
 # Собираем приложение
 FROM base AS builder
