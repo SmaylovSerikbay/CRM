@@ -6,8 +6,11 @@ WORKDIR /app
 # Копируем package файлы
 COPY package.json package-lock.json* ./
 
-# Устанавливаем зависимости
-RUN npm install
+# Устанавливаем зависимости с увеличенным таймаутом и retry
+RUN npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retry-mintimeout 15000 && \
+    npm config set fetch-retries 5 && \
+    npm install --legacy-peer-deps --verbose
 
 # Копируем остальные файлы
 COPY . .
