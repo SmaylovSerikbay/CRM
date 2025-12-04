@@ -10,6 +10,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, letter
@@ -589,27 +590,28 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def download_template(self, request):
         """Скачивание шаблона Excel для списка контингента"""
+        # Создаем новый Excel-файл
         wb = Workbook()
         ws = wb.active
         ws.title = "Список контингента"
-        
+
         # Заголовок документа
         ws.merge_cells('A1:K1')
         ws['A1'] = 'СПИСОК лиц, подлежащих обязательному медицинскому осмотру в 2025 году'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-        
+
         ws.merge_cells('A2:K2')
         ws['A2'] = 'согласно приказу и.о. Министра здравоохранения Республики Казахстан от 15 октября 2020 года № ҚР ДСМ-131/2020'
         ws['A2'].font = Font(size=10)
         ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
-        
+
         # Подзаголовок квартала
         ws.merge_cells('H3:I3')
         ws['H3'] = '1 квартал'
         ws['H3'].font = Font(bold=True)
         ws['H3'].alignment = Alignment(horizontal='center')
-        
+
         # Заголовки колонок
         headers = [
             '№ п/п',
@@ -624,45 +626,123 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             'Профессиональная вредность',
             'Примечание'
         ]
-        
+
         header_row = 4
         for col_idx, header in enumerate(headers, start=1):
             cell = ws.cell(row=header_row, column=col_idx, value=header)
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
-        
+
         # Пример данных
         example_data = [
             ['1', 'Иванов Иван Иванович', '29.03.1976', 'мужской', 'ТОО "Компания" - Отдел', 'Оператор', '20', '18', '22.01.2024г', 'п.33 «Профессии и работы»', ''],
             ['2', 'Петрова Мария Петровна', '15.05.1985', 'женский', 'ТОО "Компания" - Офис', 'Бухгалтер', '15', '10', '24.01.2024г', 'п.14 «Работа на ПК»', '']
         ]
-        
+
         for row_idx, row_data in enumerate(example_data, start=header_row + 1):
             for col_idx, value in enumerate(row_data, start=1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-        
+
         # Настройка ширины колонок
         column_widths = [8, 30, 15, 10, 30, 25, 12, 25, 20, 40, 20]
         for col_idx, width in enumerate(column_widths, start=1):
             ws.column_dimensions[get_column_letter(col_idx)].width = width
-        
+
         # Высота строк
         ws.row_dimensions[1].height = 30
         ws.row_dimensions[2].height = 20
         ws.row_dimensions[header_row].height = 40
-        
+
+        # --- Выпадающие списки ---
+        # 1) Пол: фиксированный список значений "мужской"/"женский"
+        gender_validation = DataValidation(
+            type="list",
+            formula1='"мужской,женский"',
+            allow_blank=True,
+            showDropDown=True
+        )
+        gender_validation.error = "Пожалуйста, выберите пол из списка"
+        gender_validation.prompt = "Выберите пол: мужской или женский"
+        ws.add_data_validation(gender_validation)
+
+        # Применяем валидацию к колонке "Пол" (D), начиная с первой строки данных и "с запасом" по строкам
+        data_start_row = header_row + 1
+        data_end_row = 500  # разумный лимит строк в шаблоне
+        gender_validation.add(f"D{data_start_row}:D{data_end_row}")
+
+        # 2) Профессиональная вредность: справочник на отдельном (скрытом) листе
+        harmful_sheet = wb.create_sheet(title="Справочник_вредностей")
+        harmful_sheet.sheet_state = "hidden"
+
+        # Комментарий (RU): наполняем справочник типовыми формулировками согласно приказу № ҚР ДСМ-131/2020
+        harmful_factors = [
+            "п.1 «Работы, связанные с воздействием химических факторов»",
+            "п.2 «Работы с канцерогенными веществами»",
+            "п.3 «Работы с пестицидами и агрохимикатами»",
+            "п.4 «Работы, связанные с воздействием биологических факторов»",
+            "п.5 «Работы, выполняемые в условиях повышенного шума»",
+            "п.6 «Работы, выполняемые в условиях вибрации»",
+            "п.7 «Работы, выполняемые в условиях ионизирующего излучения»",
+            "п.8 «Работы, выполняемые в условиях неионизирующих излучений»",
+            "п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»",
+            "п.10 «Работы в замкнутых пространствах»",
+            "п.11 «Работы на высоте»",
+            "п.12 «Работы, связанные с подъемом и перемещением тяжестей»",
+            "п.13 «Работы в ночное время»",
+            "п.14 «Работа на ПК»",
+            "п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»",
+            "п.16 «Работы, связанные с повышенной ответственностью»",
+            "п.17 «Работы вахтовым методом»",
+            "п.18 «Подземные работы»",
+            "п.19 «Работы на транспорте»",
+            "п.20 «Работы, связанные с воздействием пыли»",
+            "п.21 «Работы с горюче-смазочными материалами»",
+            "п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»",
+            "п.23 «Работы в условиях повышенной загазованности»",
+            "п.24 «Работы в условиях недостатка кислорода»",
+            "п.25 «Работы в условиях повышенной влажности»",
+            "п.26 «Работы, связанные с виброинструментом»",
+            "п.27 «Работы на конвейерах»",
+            "п.28 «Работы на строительных площадках»",
+            "п.29 «Работы в металлургическом производстве»",
+            "п.30 «Работы в горнодобывающей промышленности»",
+            "п.31 «Работы в деревообрабатывающем производстве»",
+            "п.32 «Работы в текстильной и швейной промышленности»",
+            "п.33 «Профессии и работы»"
+        ]
+
+        for idx, factor in enumerate(harmful_factors, start=1):
+            harmful_sheet.cell(row=idx, column=1, value=factor)
+
+        # Диапазон справочника вредностей
+        last_row = len(harmful_factors)
+        harmful_range = f"Справочник_вредностей!$A$1:$A${last_row}"
+
+        harmful_validation = DataValidation(
+            type="list",
+            formula1=f"={harmful_range}",
+            allow_blank=True,
+            showDropDown=True
+        )
+        harmful_validation.error = "Пожалуйста, выберите профессиональную вредность из списка"
+        harmful_validation.prompt = "Выберите профессиональную вредность согласно приказу"
+        ws.add_data_validation(harmful_validation)
+
+        # Колонка "Профессиональная вредность" (J)
+        harmful_validation.add(f"J{data_start_row}:J{data_end_row}")
+
         # Сохраняем в память
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        
+
         response = HttpResponse(
             output.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = 'attachment; filename="шаблон_список_контингента.xlsx"'
+        response['Content-Disposition'] = 'attachment; filename=\"шаблон_список_контингента.xlsx\"'
         return response
 
     @action(detail=False, methods=['delete'])
