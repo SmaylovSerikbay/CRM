@@ -1027,6 +1027,8 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         
         try:
             plan = self.get_object()
+            print(f"[PDF Export] Generating PDF for plan {plan.id}: {plan.department}")
+            print(f"[PDF Export] Plan data - departments_info: {plan.departments_info}")
             
             # Создание PDF
             buffer = io.BytesIO()
@@ -1102,11 +1104,17 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 
                 dept_data = [['№', 'Объект/участок', 'Период', 'Сотрудников']]
                 for idx, dept_info in enumerate(plan.departments_info, 1):
+                    # Поддержка как camelCase, так и snake_case ключей
+                    department = dept_info.get('department', '')
+                    start_date = dept_info.get('startDate') or dept_info.get('start_date', '')
+                    end_date = dept_info.get('endDate') or dept_info.get('end_date', '')
+                    employee_ids = dept_info.get('employeeIds') or dept_info.get('employee_ids', [])
+                    
                     dept_data.append([
                         str(idx),
-                        dept_info.get('department', ''),
-                        f"{dept_info.get('startDate', '')} - {dept_info.get('endDate', '')}",
-                        str(len(dept_info.get('employeeIds', [])))
+                        department,
+                        f"{start_date} - {end_date}",
+                        str(len(employee_ids))
                     ])
                 
                 dept_table = Table(dept_data, colWidths=[0.5*inch, 2.5*inch, 2*inch, 1.5*inch])
@@ -1192,13 +1200,24 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             buffer.seek(0)
             
             response = HttpResponse(buffer.read(), content_type='application/pdf')
-            filename = f"calendar_plan_{plan.department.replace(' ', '_')}_{plan.start_date.strftime('%Y%m%d')}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            # Безопасное имя файла (только латиница, цифры и подчеркивания)
+            safe_department = ''.join(c if c.isalnum() or c in (' ', '_') else '_' for c in plan.department)
+            safe_department = safe_department.replace(' ', '_')
+            filename = f"calendar_plan_{safe_department}_{plan.start_date.strftime('%Y%m%d')}.pdf"
+            # Используем URL-кодирование для поддержки русских символов
+            from urllib.parse import quote
+            encoded_filename = quote(filename)
+            response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
+            print(f"[PDF Export] PDF generated successfully: {filename}")
             
             return response
             
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"[PDF Export] Error generating PDF: {str(e)}")
+            print(f"[PDF Export] Traceback:\n{error_trace}")
+            return Response({'error': str(e), 'details': error_trace}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _get_status_text(self, status_code):
         """Получить текстовое описание статуса"""
@@ -1218,7 +1237,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(id=user_id)
                 # Если пользователь - клиника, показываем планы, созданные этой клиникой
                 if user.role == 'clinic':
-                    return CalendarPlan.objects.filter(user=user)
+                    return CalendarPlan.objects.filter(user=user).order_by('-created_at')
                 # Если пользователь - работодатель, показываем планы по договорам, где он является стороной
                 elif user.role == 'employer':
                     user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
@@ -1226,12 +1245,12 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                         Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
                         status='approved'
                     )
-                    return CalendarPlan.objects.filter(contract__in=contracts)
+                    return CalendarPlan.objects.filter(contract__in=contracts).order_by('-created_at')
                 else:
-                    return CalendarPlan.objects.filter(user=user)
+                    return CalendarPlan.objects.filter(user=user).order_by('-created_at')
             except User.DoesNotExist:
                 return CalendarPlan.objects.none()
-        return CalendarPlan.objects.all()
+        return CalendarPlan.objects.all().order_by('-created_at')
     
     def perform_update(self, serializer):
         """Обновление календарного плана - только клиника может редактировать свои планы"""

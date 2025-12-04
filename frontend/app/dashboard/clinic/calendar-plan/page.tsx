@@ -247,33 +247,54 @@ export default function CalendarPlanPage() {
       // Получаем API URL
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       
+      console.log(`[PDF] Generating PDF for plan ${plan.id}`);
+      
       // Вызываем API для генерации PDF
       const response = await fetch(`${API_URL}/api/calendar-plans/${plan.id}/export_pdf/`, {
         method: 'GET',
         credentials: 'include',
       });
       
+      console.log(`[PDF] Response status: ${response.status}`);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Ошибка генерации PDF' }));
-        throw new Error(errorData.error || 'Ошибка генерации PDF');
+        let errorMessage = 'Ошибка генерации PDF';
+        try {
+          const errorData = await response.json();
+          console.error('[PDF] Error response:', errorData);
+          errorMessage = errorData.error || errorData.detail || errorMessage;
+          if (errorData.details) {
+            console.error('[PDF] Error details:', errorData.details);
+          }
+        } catch (e) {
+          console.error('[PDF] Failed to parse error response:', e);
+        }
+        throw new Error(errorMessage);
       }
       
       // Получаем blob
       const blob = await response.blob();
+      console.log(`[PDF] Blob size: ${blob.size} bytes`);
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой PDF файл');
+      }
       
       // Создаем ссылку для скачивания
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `calendar_plan_${plan.department.replace(/[^a-zA-Z0-9]/g, '_')}_${plan.startDate}.pdf`);
+      const filename = `calendar_plan_${plan.department.replace(/[^a-zA-Z0-9а-яА-Я]/g, '_')}_${plan.startDate}.pdf`;
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
       
+      console.log(`[PDF] PDF downloaded: ${filename}`);
       showToast('PDF успешно сгенерирован и скачан', 'success');
     } catch (error: any) {
-      console.error('Error generating PDF:', error);
+      console.error('[PDF] Error generating PDF:', error);
       showToast(error.message || 'Ошибка генерации PDF', 'error');
     }
   };
