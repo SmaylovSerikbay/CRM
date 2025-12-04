@@ -291,8 +291,34 @@ auto_deploy() {
     
     # Шаг 1: Деплой
     echo -e "${BLUE}[1/5] Деплой новой версии...${NC}"
-    echo -e "${YELLOW}Шаг 1.1: Сборка $inactive окружения...${NC}"
-    docker compose -f "$COMPOSE_FILE" --profile "$inactive" build --no-cache
+    
+    # Определяем тип сборки
+    # Можно задать через переменную окружения: FAST_BUILD=1 make bg-auto
+    if [ "$FAST_BUILD" = "1" ]; then
+        BUILD_TYPE="1"
+        echo -e "${GREEN}Используется быстрая сборка (FAST_BUILD=1)${NC}"
+    elif [ "$FULL_BUILD" = "1" ]; then
+        BUILD_TYPE="2"
+        echo -e "${YELLOW}Используется полная пересборка (FULL_BUILD=1)${NC}"
+    else
+        # Спрашиваем нужна ли полная пересборка
+        echo -e "${YELLOW}Тип сборки:${NC}"
+        echo "  1) Быстрая (использует кэш, только изменения кода) - рекомендуется"
+        echo "  2) Полная (--no-cache, пересборка всего) - если изменились зависимости"
+        echo ""
+        echo -e "${YELLOW}Совет: Используйте FAST_BUILD=1 make bg-auto для автоматического выбора${NC}"
+        echo ""
+        read -p "Выберите тип сборки (1/2, Enter=1): " -n 1 -r BUILD_TYPE
+        echo ""
+    fi
+    
+    if [ -z "$BUILD_TYPE" ] || [ "$BUILD_TYPE" = "1" ]; then
+        echo -e "${YELLOW}Шаг 1.1: Быстрая сборка $inactive окружения (с кэшем)...${NC}"
+        docker compose -f "$COMPOSE_FILE" --profile "$inactive" build
+    else
+        echo -e "${YELLOW}Шаг 1.1: Полная пересборка $inactive окружения (без кэша)...${NC}"
+        docker compose -f "$COMPOSE_FILE" --profile "$inactive" build --no-cache
+    fi
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}✗ Ошибка сборки. Деплой отменен.${NC}"

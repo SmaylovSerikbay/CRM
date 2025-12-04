@@ -75,7 +75,9 @@ endif
 	@echo "  make rebuild-frontend-prod- Пересборка только frontend (prod)"
 	@echo ""
 	@echo "$(YELLOW)Blue-Green Deployment (Zero Downtime):$(NC)"
-	@echo "  make bg-auto              - 🚀 АВТОМАТИЧЕСКИЙ полный деплой (все в одной команде)"
+	@echo "  make bg-auto              - 🚀 АВТОМАТИЧЕСКИЙ деплой (спросит тип сборки)"
+	@echo "  make bg-auto-fast         - ⚡ БЫСТРЫЙ деплой (с кэшем, ~2-3 мин)"
+	@echo "  make bg-auto-full         - 🔄 ПОЛНЫЙ деплой (без кэша, ~10-15 мин)"
 	@echo "  make bg-deploy            - Деплой новой версии в неактивное окружение"
 	@echo "  make bg-switch            - Переключить трафик (инструкция для NPM)"
 	@echo "  make bg-rollback          - Откатить к предыдущей версии"
@@ -258,6 +260,14 @@ rebuild-frontend-prod: ## Пересборка только frontend (prod)
 bg-auto: ## 🚀 АВТОМАТИЧЕСКИЙ полный деплой (deploy + switch + cleanup)
 	@echo "$(GREEN)Blue-Green Deployment: Автоматический деплой...$(NC)"
 	@bash deploy-blue-green.sh auto
+
+bg-auto-fast: ## 🚀 БЫСТРЫЙ деплой (с кэшем Docker, только изменения кода)
+	@echo "$(GREEN)Blue-Green Deployment: Быстрый деплой...$(NC)"
+	@FAST_BUILD=1 bash deploy-blue-green.sh auto
+
+bg-auto-full: ## 🚀 ПОЛНЫЙ деплой (без кэша, пересборка всего)
+	@echo "$(GREEN)Blue-Green Deployment: Полная пересборка...$(NC)"
+	@FULL_BUILD=1 bash deploy-blue-green.sh auto
 
 bg-deploy: ## Деплой новой версии (blue-green)
 	@echo "$(GREEN)Blue-Green Deployment: Деплой новой версии...$(NC)"
