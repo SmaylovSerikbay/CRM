@@ -2114,13 +2114,118 @@ class DoctorViewSet(viewsets.ModelViewSet):
             raise ValidationError({'user_id': 'user_id is required'})
         
         try:
-            user = User.objects.get(id=user_id)
+            clinic_user = User.objects.get(id=user_id)
             # Проверяем, что это клиника
-            if user.role != 'clinic':
+            if clinic_user.role != 'clinic':
                 raise ValidationError({'user': 'Only clinics can add doctors'})
-            serializer.save(user=user)
+            
+            # Сохраняем врача
+            doctor = serializer.save(user=clinic_user)
+            
+            # Создаем или получаем User для врача, если указан телефон
+            doctor_user = None
+            if doctor.phone:
+                # Нормализуем телефон: убираем все символы, оставляем только цифры
+                phone_cleaned = doctor.phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+                # Если начинается с 8, заменяем на 7
+                if phone_cleaned.startswith('8'):
+                    phone_cleaned = '7' + phone_cleaned[1:]
+                # Если не начинается с 7, добавляем 7
+                if not phone_cleaned.startswith('7'):
+                    phone_cleaned = '7' + phone_cleaned
+                # Ограничиваем до 11 цифр
+                phone_cleaned = phone_cleaned[:11]
+                
+                # Форматируем в стандартный формат: +7 (XXX) XXX-XX-XX
+                if len(phone_cleaned) == 11:
+                    phone_formatted = f"+{phone_cleaned[0]} ({phone_cleaned[1:4]}) {phone_cleaned[4:7]}-{phone_cleaned[7:9]}-{phone_cleaned[9:11]}"
+                    
+                    try:
+                        doctor_user = User.objects.get(phone=phone_formatted)
+                        # Обновляем роль, если нужно
+                        if doctor_user.role != 'clinic' or doctor_user.clinic_role != 'doctor':
+                            doctor_user.role = 'clinic'
+                            doctor_user.clinic_role = 'doctor'
+                            doctor_user.registration_data = {
+                                'name': doctor.name,
+                                'specialization': doctor.specialization,
+                                'doctor_id': doctor.id,
+                                'clinic_id': clinic_user.id,
+                            }
+                            doctor_user.registration_completed = True
+                            doctor_user.save()
+                    except User.DoesNotExist:
+                        # Создаем нового пользователя для врача
+                        doctor_user = User.objects.create_user(
+                            username=phone_formatted,
+                            phone=phone_formatted,
+                            role='clinic',
+                            clinic_role='doctor',
+                            registration_completed=True,
+                            registration_data={
+                                'name': doctor.name,
+                                'specialization': doctor.specialization,
+                                'doctor_id': doctor.id,
+                                'clinic_id': clinic_user.id,
+                            }
+                        )
+            
+            # Отправляем уведомление врачу
+            if doctor_user and doctor.phone:
+                self._send_doctor_notification(doctor, clinic_user, doctor_user.phone)
+                
         except User.DoesNotExist:
             raise ValidationError({'user': 'User not found'})
+    
+    def _send_doctor_notification(self, doctor, clinic_user, phone):
+        """Отправка уведомления врачу о добавлении в платформу через WhatsApp"""
+        try:
+            from django.conf import settings
+            import requests
+            
+            # Форматируем телефон
+            formatted_phone = phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+            if not formatted_phone.startswith('7'):
+                formatted_phone = '7' + formatted_phone
+            
+            # Формируем сообщение
+            clinic_name = clinic_user.registration_data.get('name', 'Клиника')
+            frontend_url = settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else 'http://localhost:3000'
+            
+            message = f"""Добрый день, {doctor.name}!
+
+Вас добавили в платформу MedCRM от {clinic_name}.
+
+Ваша специализация: {doctor.specialization}
+{f'Кабинет: {doctor.cabinet}' if doctor.cabinet else ''}
+
+Теперь вы можете войти в личный кабинет врача, используя свой номер телефона:
+{phone}
+
+Для входа перейдите по ссылке:
+{frontend_url}/auth
+
+Войдите используя номер телефона {phone} и код из WhatsApp.
+
+Добро пожаловать в платформу!"""
+            
+            # Отправляем через Green API
+            url = f"{settings.GREEN_API_URL}/waInstance{settings.GREEN_API_ID_INSTANCE}/sendMessage/{settings.GREEN_API_TOKEN}"
+            payload = {
+                "chatId": f"{formatted_phone}@c.us",
+                "message": message
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            
+            if response.status_code != 200:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to send doctor notification: {response.status_code}")
+        except Exception as e:
+            # Логируем ошибку, но не прерываем создание врача
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send doctor notification: {str(e)}")
 
 
 class LaboratoryTestViewSet(viewsets.ModelViewSet):
