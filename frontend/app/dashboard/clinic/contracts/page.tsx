@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
@@ -50,9 +50,18 @@ export default function ContractsPage() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
+  // Временные состояния для фильтров (до применения)
+  const [tempSearchQuery, setTempSearchQuery] = useState('');
+  const [tempStatusFilter, setTempStatusFilter] = useState<string>('all');
+  const [tempDateFromFilter, setTempDateFromFilter] = useState('');
+  const [tempDateToFilter, setTempDateToFilter] = useState('');
+  
+  // Примененные фильтры (используются для фильтрации)
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
+  
   const [formData, setFormData] = useState({
     employer_bin: '',
     employer_phone: '',
@@ -302,30 +311,51 @@ export default function ContractsPage() {
     // Фильтр по статусу
     const matchesStatus = statusFilter === 'all' || contract.status === statusFilter;
 
-    // Фильтр по дате
+    // Фильтр по диапазону дат
     let matchesDate = true;
-    if (dateFilter !== 'all') {
+    if (dateFromFilter || dateToFilter) {
       const contractDate = new Date(contract.createdAt);
-      const now = new Date();
-      const daysDiff = Math.floor((now.getTime() - contractDate.getTime()) / (1000 * 60 * 60 * 24));
+      contractDate.setHours(0, 0, 0, 0);
       
-      if (dateFilter === 'today') {
-        matchesDate = daysDiff === 0;
-      } else if (dateFilter === 'week') {
-        matchesDate = daysDiff <= 7;
-      } else if (dateFilter === 'month') {
-        matchesDate = daysDiff <= 30;
+      if (dateFromFilter) {
+        const fromDate = new Date(dateFromFilter);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && contractDate >= fromDate;
+      }
+      
+      if (dateToFilter) {
+        const toDate = new Date(dateToFilter);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && contractDate <= toDate;
       }
     }
 
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  const applyFilters = () => {
+    setSearchQuery(tempSearchQuery);
+    setStatusFilter(tempStatusFilter);
+    setDateFromFilter(tempDateFromFilter);
+    setDateToFilter(tempDateToFilter);
+  };
+
   const resetFilters = () => {
+    setTempSearchQuery('');
+    setTempStatusFilter('all');
+    setTempDateFromFilter('');
+    setTempDateToFilter('');
     setSearchQuery('');
     setStatusFilter('all');
-    setDateFilter('all');
+    setDateFromFilter('');
+    setDateToFilter('');
   };
+
+  const hasUnappliedFilters = 
+    tempSearchQuery !== searchQuery ||
+    tempStatusFilter !== statusFilter ||
+    tempDateFromFilter !== dateFromFilter ||
+    tempDateToFilter !== dateToFilter;
 
   if (isLoading) {
     return (
@@ -358,25 +388,26 @@ export default function ContractsPage() {
         {/* Панель поиска и фильтров */}
         <Card className="mb-6">
           <div className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               {/* Поиск */}
-              <div className="flex-1">
+              <div className="md:col-span-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Поиск по номеру, БИН, названию или примечаниям..."
+                    value={tempSearchQuery}
+                    onChange={(e) => setTempSearchQuery(e.target.value)}
+                    placeholder="Поиск по номеру, БИН, названию..."
                     className="pl-10"
+                    onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                   />
                 </div>
               </div>
 
               {/* Фильтр по статусу */}
-              <div className="w-full md:w-48">
+              <div className="md:col-span-2">
                 <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  value={tempStatusFilter}
+                  onChange={(e) => setTempStatusFilter(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
                 >
                   <option value="all">Все статусы</option>
@@ -390,31 +421,59 @@ export default function ContractsPage() {
                 </select>
               </div>
 
-              {/* Фильтр по дате */}
-              <div className="w-full md:w-48">
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as any)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+              {/* Фильтр по дате от */}
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Input
+                    type="date"
+                    value={tempDateFromFilter}
+                    onChange={(e) => setTempDateFromFilter(e.target.value)}
+                    className="w-full pl-10"
+                    title="Дата от"
+                  />
+                </div>
+              </div>
+
+              {/* Фильтр по дате до */}
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Input
+                    type="date"
+                    value={tempDateToFilter}
+                    onChange={(e) => setTempDateToFilter(e.target.value)}
+                    className="w-full pl-10"
+                    title="Дата до"
+                  />
+                </div>
+              </div>
+
+              {/* Кнопка применить */}
+              <div className="md:col-span-1">
+                <Button
+                  onClick={applyFilters}
+                  className="w-full h-full"
+                  title="Применить фильтры"
+                  disabled={!hasUnappliedFilters}
                 >
-                  <option value="all">Все даты</option>
-                  <option value="today">Сегодня</option>
-                  <option value="week">За неделю</option>
-                  <option value="month">За месяц</option>
-                </select>
+                  <Search className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* Кнопка сброса */}
-              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
-                <Button
-                  variant="outline"
-                  onClick={resetFilters}
-                  className="w-full md:w-auto"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Сбросить
-                </Button>
-              )}
+              <div className="md:col-span-1">
+                {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
+                  <Button
+                    variant="outline"
+                    onClick={resetFilters}
+                    className="w-full h-full"
+                    title="Сбросить фильтры"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Счетчик результатов */}
@@ -422,9 +481,24 @@ export default function ContractsPage() {
               <span>
                 Найдено: {filteredContracts.length} из {contracts.length}
               </span>
-              {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
+              {(searchQuery || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
                 <span className="text-blue-600 dark:text-blue-400">
                   Применены фильтры
+                  {dateFromFilter && dateToFilter && (
+                    <span className="ml-2">
+                      ({new Date(dateFromFilter).toLocaleDateString('ru-RU')} - {new Date(dateToFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
+                  {dateFromFilter && !dateToFilter && (
+                    <span className="ml-2">
+                      (с {new Date(dateFromFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
+                  {!dateFromFilter && dateToFilter && (
+                    <span className="ml-2">
+                      (до {new Date(dateToFilter).toLocaleDateString('ru-RU')})
+                    </span>
+                  )}
                 </span>
               )}
             </div>
