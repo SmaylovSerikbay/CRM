@@ -30,13 +30,13 @@ setup-ssh.bat
 
 2. **Скопировать ключ на сервер:**
    ```powershell
-   type %USERPROFILE%\.ssh\id_rsa.pub | ssh root@89.207.255.13 "cat >> ~/.ssh/authorized_keys"
+   type %USERPROFILE%\.ssh\id_rsa.pub | ssh ubuntu@82.115.48.40 "cat >> ~/.ssh/authorized_keys"
    ```
-   Введите пароль: `r6aQ-osxs0GERy8=`
+   Введите пароль: `q+I/U9UzOPuXexTC8jbyHgs=`
 
 3. **Проверить:**
    ```cmd
-   ssh root@89.207.255.13
+   ssh ubuntu@82.115.48.40
    ```
    Должно подключиться без пароля ✅
 
@@ -79,13 +79,13 @@ deploy-quick.bat "описание изменений"
 
 2. **Скопировать на сервер:**
    ```bash
-   ssh-copy-id root@89.207.255.13
+   ssh-copy-id ubuntu@82.115.48.40
    ```
-   Пароль: `r6aQ-osxs0GERy8=`
+   Пароль: `q+I/U9UzOPuXexTC8jbyHgs=`
 
 3. **Проверить:**
    ```bash
-   ssh root@89.207.255.13
+   ssh ubuntu@82.115.48.40
    ```
 
 ### Использование
@@ -172,8 +172,8 @@ git remote add origin ВАШ_РЕПОЗИТОРИЙ_URL
 
 ### Контейнеры не запускаются
 ```bash
-ssh root@89.207.255.13
-cd /root/crm-medical
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
 docker compose logs
 ```
 
@@ -189,6 +189,6 @@ docker compose logs
 
 ## Сервер
 
-- **IP:** 89.207.255.13
-- **User:** root
-- **Путь:** /root/crm-medical
+- **IP:** 82.115.48.40
+- **User:** ubuntu
+- **Путь:** /home/ubuntu/projects/CRM

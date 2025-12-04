@@ -6,8 +6,8 @@ echo Настройка SSH для деплоя
 echo ================================
 echo.
 
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
 set SSH_DIR=%USERPROFILE%\.ssh
 set SSH_KEY=%SSH_DIR%\id_rsa
 

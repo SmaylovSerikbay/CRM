@@ -12,14 +12,14 @@ setup-ssh.bat
 **Linux/Mac:**
 ```bash
 ssh-keygen -t rsa -b 4096
-ssh-copy-id root@89.207.255.13
+ssh-copy-id ubuntu@82.115.48.40
 ```
 
 ### Шаг 2: Настройка проекта на сервере
 
 ```bash
 # Подключиться к серверу
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # Установить Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -162,7 +162,7 @@ make server-logs
 
 2. **На сервере:**
    ```bash
-   cd /root/crm-medical
+   cd /home/ubuntu/projects/CRM
    nano .env
    # Внести изменения
    
@@ -205,7 +205,7 @@ make server-logs
 server-connect.bat
 
 # На сервере
-cd /root/crm-medical
+cd /home/ubuntu/projects/CRM
 docker compose ps
 docker compose logs --tail=50
 ```
@@ -254,8 +254,8 @@ make server-logs
 
 3. **Применить миграции на сервере:**
    ```bash
-   ssh root@89.207.255.13
-   cd /root/crm-medical
+   ssh ubuntu@82.115.48.40
+   cd /home/ubuntu/projects/CRM
    docker compose exec backend python manage.py migrate
    ```
 
@@ -296,19 +296,19 @@ make dev
 
 ```bash
 # Проверить статус
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose ps"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose ps"
 
 # Проверить логи
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose logs --tail=100"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose logs --tail=100"
 
 # Проверить использование ресурсов
-ssh root@89.207.255.13 "docker stats --no-stream"
+ssh ubuntu@82.115.48.40 "docker stats --no-stream"
 ```
 
 ### Очистка на сервере
 
 ```bash
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # Очистить неиспользуемые образы
 docker system prune -a
@@ -344,8 +344,8 @@ git push
 
 **Решение:**
 ```bash
-ssh root@89.207.255.13
-cd /root/crm-medical
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
 docker compose logs
 # Исправить проблему
 docker compose up -d
@@ -355,7 +355,7 @@ docker compose up -d
 
 **Решение:**
 ```bash
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 docker compose down
 docker compose up -d
 ```
@@ -393,7 +393,7 @@ docker compose up -d
 crontab -e
 
 # Добавить (деплой каждый день в 3 ночи)
-0 3 * * * cd /root/crm-medical && git pull && docker compose up -d --build
+0 3 * * * cd /home/ubuntu/projects/CRM && git pull && docker compose up -d --build
 ```
 
 ---

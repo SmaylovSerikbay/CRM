@@ -119,7 +119,7 @@ setup-ssh.bat
 **Linux/Mac:**
 ```bash
 ssh-keygen -t rsa -b 4096
-ssh-copy-id root@89.207.255.13
+ssh-copy-id ubuntu@82.115.48.40
 ```
 
 ### Каждый день (деплой)
@@ -151,18 +151,18 @@ make deploy-quick
 ### В Makefile (Linux/Mac)
 
 ```makefile
-PROD_HOST := 89.207.255.13
-PROD_USER := root
-PROD_PATH := /root/crm-medical
+PROD_HOST := 82.115.48.40
+PROD_USER := ubuntu
+PROD_PATH := /home/ubuntu/projects/CRM
 SSH_KEY := ~/.ssh/id_rsa
 ```
 
 ### В .bat файлах (Windows)
 
 ```batch
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
-set PROD_PATH=/root/crm-medical
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
+set PROD_PATH=/home/ubuntu/projects/CRM
 set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 ```
 
@@ -219,7 +219,7 @@ make server-status
 
 **Windows:**
 ```cmd
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose ps"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose ps"
 ```
 
 ## Troubleshooting
@@ -242,8 +242,8 @@ git remote add origin URL_РЕПОЗИТОРИЯ
 
 **Решение:**
 ```bash
-ssh root@89.207.255.13
-cd /root/crm-medical
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
 docker compose logs
 ```
 
@@ -259,9 +259,9 @@ docker compose logs
 
 ## Сервер
 
-- **IP:** 89.207.255.13
-- **User:** root
-- **Path:** /root/crm-medical
+- **IP:** 82.115.48.40
+- **User:** ubuntu
+- **Path:** /home/ubuntu/projects/CRM
 - **Пароль:** r6aQ-osxs0GERy8= (только для первой настройки SSH!)
 
 ## Безопасность

@@ -7,9 +7,9 @@ ifndef DOCKER_COMPOSE
 endif
 
 # Настройки деплоя
-PROD_HOST := 89.207.255.13
-PROD_USER := root
-PROD_PATH := /root/projects/CRM
+PROD_HOST := 82.115.48.40
+PROD_USER := ubuntu
+PROD_PATH := /home/ubuntu/projects/CRM
 SSH_KEY := ~/.ssh/id_rsa
 
 # Colors (disabled on Windows due to encoding issues)
@@ -25,40 +25,40 @@ else
 	NC=\033[0m
 endif
 
-help: ## Show help
-	@echo "CRM Medical Platform - Makefile commands"
+help: ## Показать справку
+	@echo "$(GREEN)CRM Medical Platform - Makefile команды$(NC)"
 	@echo ""
-	@echo "WINDOWS USERS: Use .bat scripts instead of make!"
+	@echo "$(YELLOW)ПОЛЬЗОВАТЕЛИ WINDOWS: Используйте .bat скрипты вместо make!$(NC)"
 	@echo "  deploy.bat, deploy-quick.bat, server-logs.bat"
 	@echo ""
-	@echo "Development:"
-	@echo "  make dev              - Start dev environment"
-	@echo "  make build-dev        - Build dev images"
-	@echo "  make up-dev           - Start dev containers"
-	@echo "  make down-dev         - Stop dev containers"
-	@echo "  make logs-dev         - Show dev logs"
+	@echo "$(YELLOW)Development команды:$(NC)"
+	@echo "  make dev              - Запустить проект в dev режиме"
+	@echo "  make build-dev        - Собрать образы для dev"
+	@echo "  make up-dev           - Запустить dev контейнеры"
+	@echo "  make down-dev         - Остановить dev контейнеры"
+	@echo "  make logs-dev         - Показать логи dev"
 	@echo ""
-	@echo "Production:"
-	@echo "  make prod             - Start prod environment"
-	@echo "  make build-prod       - Build prod images"
-	@echo "  make up-prod          - Start prod containers"
-	@echo "  make down-prod        - Stop prod containers"
-	@echo "  make logs-prod        - Show prod logs"
+	@echo "$(YELLOW)Production команды:$(NC)"
+	@echo "  make prod             - Запустить проект в prod режиме"
+	@echo "  make build-prod       - Собрать образы для prod"
+	@echo "  make up-prod          - Запустить prod контейнеры"
+	@echo "  make down-prod        - Остановить prod контейнеры"
+	@echo "  make logs-prod        - Показать логи prod"
 	@echo ""
-	@echo "Utils:"
-	@echo "  make migrate          - Apply migrations"
-	@echo "  make createsuperuser  - Create superuser"
-	@echo "  make clean            - Clean containers and volumes"
-	@echo "  make shell-backend    - Backend shell"
-	@echo "  make shell-frontend   - Frontend shell"
+	@echo "$(YELLOW)Утилиты:$(NC)"
+	@echo "  make migrate          - Применить миграции"
+	@echo "  make createsuperuser  - Создать суперпользователя"
+	@echo "  make clean            - Очистить все контейнеры и volumes"
+	@echo "  make shell-backend    - Войти в shell backend контейнера"
+	@echo "  make shell-frontend   - Войти в shell frontend контейнера"
 	@echo ""
-	@echo "Deploy (Linux/Mac only - Windows use .bat):"
-	@echo "  make deploy           - Full deploy"
-	@echo "  make deploy-quick     - Quick deploy"
-	@echo "  make git-push         - Git commit and push"
-	@echo "  make server-update    - Update on server"
-	@echo "  make server-logs      - Show server logs"
-	@echo "  make server-status    - Server containers status"
+	@echo "$(YELLOW)Деплой команды (Linux/Mac, Windows используйте .bat):$(NC)"
+	@echo "  make deploy           - Полный деплой (commit + push + rebuild)"
+	@echo "  make deploy-quick     - Быстрый деплой (без rebuild)"
+	@echo "  make git-push         - Только commit и push"
+	@echo "  make server-update    - Только обновление на сервере"
+	@echo "  make server-logs      - Показать логи с prod сервера"
+	@echo "  make server-status    - Статус контейнеров на prod сервере"
 
 # Development команды
 dev: build-dev up-dev ## Полный запуск в dev режиме
@@ -137,56 +137,56 @@ status: ## Показать статус контейнеров
 # ДЕПЛОЙ КОМАНДЫ
 # ============================================
 
-git-push: ## Commit and push changes
-	@echo "Committing and pushing changes..."
+git-push: ## Коммит и push изменений
+	@echo "$(GREEN)Коммит и push изменений...$(NC)"
 	@git add .
-	@git commit -m "Auto deploy" || echo "No changes to commit"
-	@git push origin main || git push origin master
-	@echo "Changes pushed to repository!"
+	@git commit -m "Auto deploy" || echo "$(YELLOW)Нет изменений для коммита$(NC)"
+	@git push upstream main || git push upstream master || git push origin main || git push origin master
+	@echo "$(GREEN)Изменения отправлены в репозиторий!$(NC)"
 
-server-update: ## Update code on prod server
-	@echo "Connecting to server and updating..."
+server-update: ## Обновить код на prod сервере
+	@echo "$(GREEN)Подключение к серверу и обновление...$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
 		cd $(PROD_PATH) && \
-		echo 'Pulling latest changes...' && \
+		echo '$(YELLOW)Получение последних изменений...$(NC)' && \
 		git pull origin main || git pull origin master && \
-		echo 'Building images...' && \
+		echo '$(YELLOW)Пересборка образов...$(NC)' && \
 		docker compose -f docker-compose.yml build && \
-		echo 'Restarting containers...' && \
+		echo '$(YELLOW)Перезапуск контейнеров...$(NC)' && \
 		docker compose -f docker-compose.yml up -d && \
-		echo 'Deploy completed!'"
+		echo '$(GREEN)Деплой завершен!$(NC)'"
 
-server-update-quick: ## Quick update without rebuild
-	@echo "Quick update on server..."
+server-update-quick: ## Быстрое обновление без rebuild
+	@echo "$(GREEN)Быстрое обновление на сервере...$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
 		cd $(PROD_PATH) && \
 		git pull origin main || git pull origin master && \
 		docker compose -f docker-compose.yml restart && \
-		echo 'Quick update completed!'"
+		echo '$(GREEN)Быстрое обновление завершено!$(NC)'"
 
-deploy: git-push server-update ## Full deploy (commit + push + rebuild)
-	@echo "================================"
-	@echo "Deploy completed successfully!"
-	@echo "================================"
+deploy: git-push server-update ## Полный деплой (commit + push + rebuild)
+	@echo "$(GREEN)================================$(NC)"
+	@echo "$(GREEN)Деплой успешно завершен!$(NC)"
+	@echo "$(GREEN)================================$(NC)"
 
-deploy-quick: git-push server-update-quick ## Quick deploy without rebuild
-	@echo "================================"
-	@echo "Quick deploy completed!"
-	@echo "================================"
+deploy-quick: git-push server-update-quick ## Быстрый деплой без rebuild
+	@echo "$(GREEN)================================$(NC)"
+	@echo "$(GREEN)Быстрый деплой завершен!$(NC)"
+	@echo "$(GREEN)================================$(NC)"
 
-server-logs: ## Show logs from prod server
-	@echo "Logs from prod server:"
+server-logs: ## Показать логи с prod сервера
+	@echo "$(GREEN)Логи с prod сервера:$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml logs -f"
 
-server-status: ## Server containers status
-	@echo "Containers status on prod:"
+server-status: ## Статус контейнеров на prod сервере
+	@echo "$(GREEN)Статус контейнеров на prod:$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose ps"
 
-server-shell: ## SSH connection to server
-	@echo "Connecting to server..."
+server-shell: ## SSH подключение к серверу
+	@echo "$(GREEN)Подключение к серверу...$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST)
 
-server-restart: ## Restart containers on server
-	@echo "Restarting containers on server..."
+server-restart: ## Перезапустить контейнеры на сервере
+	@echo "$(YELLOW)Перезапуск контейнеров на сервере...$(NC)"
 	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml restart"
-	@echo "Containers restarted!"
+	@echo "$(GREEN)Контейнеры перезапущены!$(NC)"

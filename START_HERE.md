@@ -169,14 +169,14 @@ deploy.bat "описание изменений"
 
 Найдите и замените:
 ```batch
-set PROD_HOST=89.207.255.13
+set PROD_HOST=82.115.48.40
 ```
 
 ### Изменить путь на сервере
 
 Найдите и замените:
 ```batch
-set PROD_PATH=/root/crm-medical
+set PROD_PATH=/home/ubuntu/projects/CRM
 ```
 
 ---
@@ -215,7 +215,7 @@ git remote add origin URL_РЕПОЗИТОРИЯ
 ### Контейнеры не запускаются
 ```cmd
 server-connect.bat
-cd /root/crm-medical
+cd /home/ubuntu/projects/CRM
 docker compose logs
 ```
 
@@ -229,9 +229,9 @@ docker compose logs
 
 ## 📞 Контакты сервера
 
-- **IP:** 89.207.255.13
-- **User:** root
-- **Path:** /root/crm-medical
+- **IP:** 82.115.48.40
+- **User:** ubuntu
+- **Path:** /home/ubuntu/projects/CRM
 - **Пароль:** r6aQ-osxs0GERy8= (только для первой настройки!)
 
 ---

@@ -30,7 +30,7 @@ ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
 
 **Вариант 1: Автоматически (рекомендуется)**
 ```bash
-ssh-copy-id root@89.207.255.13
+ssh-copy-id ubuntu@82.115.48.40
 ```
 
 **Вариант 2: Вручную**
@@ -39,7 +39,7 @@ ssh-copy-id root@89.207.255.13
 cat ~/.ssh/id_rsa.pub
 
 # Подключиться к серверу с паролем
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # На сервере добавить ключ
 mkdir -p ~/.ssh
@@ -52,7 +52,7 @@ exit
 ### Шаг 3: Проверка подключения
 
 ```bash
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 ```
 
 Если подключается без пароля - всё готово!
@@ -63,7 +63,7 @@ ssh root@89.207.255.13
 
 ```bash
 # Подключиться к серверу
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # Установить Docker (если еще не установлен)
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -107,9 +107,9 @@ make server-shell       # SSH подключение к серверу
 Если нужно изменить параметры (IP, путь, пользователь), отредактируйте в `Makefile`:
 
 ```makefile
-PROD_HOST := 89.207.255.13
-PROD_USER := root
-PROD_PATH := /root/crm-medical
+PROD_HOST := 82.115.48.40
+PROD_USER := ubuntu
+PROD_PATH := /home/ubuntu/projects/CRM
 SSH_KEY := ~/.ssh/id_rsa
 ```
 
@@ -184,7 +184,7 @@ make server-logs
 
 ```bash
 make server-shell
-cd /root/crm-medical
+cd /home/ubuntu/projects/CRM
 docker compose ps
 docker compose logs
 ```
@@ -195,7 +195,7 @@ docker compose logs
 2. Используйте SSH ключи вместо паролей
 3. Регулярно обновляйте систему на сервере:
    ```bash
-   ssh root@89.207.255.13 "apt update && apt upgrade -y"
+   ssh ubuntu@82.115.48.40 "apt update && apt upgrade -y"
    ```
 
 ## Автоматизация через CI/CD (опционально)

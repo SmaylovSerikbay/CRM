@@ -38,8 +38,8 @@
 ┌──────────────────────────────────────────────────────────────┐
 │  ШАГ 3: SSH ПОДКЛЮЧЕНИЕ                                      │
 │  ───────────────────────                                     │
-│  • ssh root@89.207.255.13                                    │
-│  • cd /root/crm-medical                                      │
+│  • ssh ubuntu@82.115.48.40                                   │
+│  • cd /home/ubuntu/projects/CRM                              │
 └──────┬───────────────────────────────────────────────────────┘
        │
        ▼
@@ -81,10 +81,10 @@ git commit -m "описание"
 git push origin main
 
 # 2. Подключение к серверу
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # 3. На сервере
-cd /root/crm-medical
+cd /home/ubuntu/projects/CRM
 git pull origin main
 docker compose -f docker-compose.yml build
 docker compose -f docker-compose.yml up -d
@@ -185,9 +185,9 @@ deploy.bat "описание"
                    ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    PROD СЕРВЕР (VDS)                         │
-│  IP: 89.207.255.13                                           │
+│  IP: 82.115.48.40                                            │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  /root/crm-medical/                                    │  │
+│  │  /home/ubuntu/projects/CRM/                            │  │
 │  │  ├─ frontend/                                          │  │
 │  │  ├─ backend/                                           │  │
 │  │  ├─ docker-compose.yml                                 │  │
@@ -221,14 +221,14 @@ deploy.bat "описание"
                     ▼
 2. КОПИРОВАНИЕ НА СЕРВЕР
    ┌─────────────────────────────────────────┐
-   │  ssh-copy-id root@89.207.255.13         │
+   │  ssh-copy-id ubuntu@82.115.48.40        │
    │  Публичный ключ → ~/.ssh/authorized_keys│
    └─────────────────────────────────────────┘
                     │
                     ▼
 3. ПОДКЛЮЧЕНИЕ БЕЗ ПАРОЛЯ
    ┌─────────────────────────────────────────┐
-   │  ssh root@89.207.255.13                 │
+   │  ssh ubuntu@82.115.48.40                │
    │  Аутентификация через приватный ключ    │
    │  Пароль больше не нужен! ✅             │
    └─────────────────────────────────────────┘
@@ -298,8 +298,8 @@ deploy.bat
    deploy.bat "Откат"         # Автоматически обновит
 
 3. АЛЬТЕРНАТИВА (на сервере напрямую)
-   ssh root@89.207.255.13
-   cd /root/crm-medical
+   ssh ubuntu@82.115.48.40
+   cd /home/ubuntu/projects/CRM
    git reset --hard HASH
    docker compose restart
 ```
