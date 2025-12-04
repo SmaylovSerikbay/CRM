@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
 from django.conf import settings
 from django.utils import timezone
@@ -3419,3 +3420,36 @@ class ContractViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(contract)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+
+# Health check endpoint для blue-green deployment
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Health check endpoint для мониторинга состояния сервиса.
+    Используется в blue-green deployment для проверки готовности сервиса.
+    """
+    try:
+        # Проверяем подключение к БД
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        
+        # Проверяем что можем получить данные из БД
+        user_count = User.objects.count()
+        
+        return Response({
+            'status': 'healthy',
+            'timestamp': timezone.now().isoformat(),
+            'database': 'connected',
+            'users_count': user_count,
+            'deployment_color': os.environ.get('DEPLOYMENT_COLOR', 'unknown')
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'status': 'unhealthy',
+            'timestamp': timezone.now().isoformat(),
+            'error': str(e),
+            'deployment_color': os.environ.get('DEPLOYMENT_COLOR', 'unknown')
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)

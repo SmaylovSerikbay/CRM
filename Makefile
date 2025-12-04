@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -73,6 +73,14 @@ endif
 	@echo "  make rebuild-frontend-dev - Пересборка только frontend (dev)"
 	@echo "  make rebuild-backend-prod - Пересборка только backend (prod)"
 	@echo "  make rebuild-frontend-prod- Пересборка только frontend (prod)"
+	@echo ""
+	@echo "$(YELLOW)Blue-Green Deployment (Zero Downtime):$(NC)"
+	@echo "  make bg-auto              - 🚀 АВТОМАТИЧЕСКИЙ полный деплой (все в одной команде)"
+	@echo "  make bg-deploy            - Деплой новой версии в неактивное окружение"
+	@echo "  make bg-switch            - Переключить трафик (инструкция для NPM)"
+	@echo "  make bg-rollback          - Откатить к предыдущей версии"
+	@echo "  make bg-cleanup           - Остановить неактивное окружение"
+	@echo "  make bg-status            - Статус blue-green окружений"
 
 # Логи только backend
 logs-backend: ## Логи только backend
@@ -245,3 +253,28 @@ rebuild-frontend-prod: ## Пересборка только frontend (prod)
 	$(DOCKER_COMPOSE) -f docker-compose.yml build --no-cache frontend
 	$(DOCKER_COMPOSE) -f docker-compose.yml up -d frontend
 	@echo "$(GREEN)Frontend пересобран и запущен!$(NC)"
+
+# Blue-Green Deployment команды
+bg-auto: ## 🚀 АВТОМАТИЧЕСКИЙ полный деплой (deploy + switch + cleanup)
+	@echo "$(GREEN)Blue-Green Deployment: Автоматический деплой...$(NC)"
+	@bash deploy-blue-green.sh auto
+
+bg-deploy: ## Деплой новой версии (blue-green)
+	@echo "$(GREEN)Blue-Green Deployment: Деплой новой версии...$(NC)"
+	@bash deploy-blue-green.sh deploy
+
+bg-switch: ## Переключить трафик на новую версию
+	@echo "$(YELLOW)Blue-Green Deployment: Переключение трафика...$(NC)"
+	@bash deploy-blue-green.sh switch
+
+bg-rollback: ## Откатить к предыдущей версии
+	@echo "$(RED)Blue-Green Deployment: Откат...$(NC)"
+	@bash deploy-blue-green.sh rollback
+
+bg-cleanup: ## Остановить неактивное окружение
+	@echo "$(YELLOW)Blue-Green Deployment: Очистка...$(NC)"
+	@bash deploy-blue-green.sh cleanup
+
+bg-status: ## Статус blue-green окружений
+	@echo "$(GREEN)Blue-Green Deployment: Статус...$(NC)"
+	@bash deploy-blue-green.sh status

@@ -5,7 +5,7 @@ from .views import (
     RouteSheetViewSet, DoctorExaminationViewSet, ExpertiseViewSet,
     EmergencyNotificationViewSet, HealthImprovementPlanViewSet, RecommendationTrackingViewSet,
     DoctorViewSet, LaboratoryTestViewSet, FunctionalTestViewSet, ReferralViewSet,
-    PatientQueueViewSet, ContractViewSet
+    PatientQueueViewSet, ContractViewSet, health_check
 )
 
 router = DefaultRouter()
@@ -27,5 +27,6 @@ router.register(r'contracts', ContractViewSet, basename='contract')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('health/', health_check, name='health-check'),
 ]
 
