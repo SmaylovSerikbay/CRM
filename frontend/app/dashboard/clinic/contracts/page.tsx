@@ -79,10 +79,28 @@ export default function ContractsPage() {
 
   const loadContracts = async () => {
     try {
-      const data = await workflowStoreAPI.getContracts();
-      setContracts(data);
+      const data: any[] = await workflowStoreAPI.getContracts();
+      // Маппим данные из API в наш интерфейс
+      const mappedContracts: Contract[] = data.map((c: any) => ({
+        id: c.id.toString(),
+        contract_number: c.contract_number,
+        contract_date: c.contract_date,
+        amount: typeof c.amount === 'string' ? parseFloat(c.amount) : c.amount,
+        people_count: c.people_count,
+        execution_date: c.execution_date,
+        status: c.status,
+        employer_bin: c.employer_bin,
+        employer_phone: c.employer_phone,
+        employer_name: c.employer_name,
+        clinic_name: c.clinic_name,
+        notes: c.notes,
+        createdAt: c.created_at,
+        history: c.history,
+      }));
+      setContracts(mappedContracts);
     } catch (error) {
       console.error('Error loading contracts:', error);
+      showToast('Ошибка загрузки договоров', 'error');
     } finally {
       setIsLoading(false);
     }
