@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate createsuperuser
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -6,13 +6,7 @@ ifndef DOCKER_COMPOSE
 	DOCKER_COMPOSE := docker compose
 endif
 
-# Настройки деплоя
-PROD_HOST := 82.115.48.40
-PROD_USER := ubuntu
-PROD_PATH := /home/ubuntu/projects/CRM
-SSH_KEY := ~/.ssh/id_rsa
-
-# Colors (disabled on Windows due to encoding issues)
+# Цвета для вывода (отключены на Windows из-за проблем с кодировкой)
 ifeq ($(OS),Windows_NT)
 	GREEN=
 	YELLOW=
@@ -26,39 +20,47 @@ else
 endif
 
 help: ## Показать справку
-	@echo "$(GREEN)CRM Medical Platform - Makefile команды$(NC)"
+ifeq ($(OS),Windows_NT)
+	@chcp 65001 >nul 2>&1
+endif
+	@echo "$(GREEN)CRM Medical Platform - Команды Makefile$(NC)"
 	@echo ""
+ifeq ($(OS),Windows_NT)
 	@echo "$(YELLOW)ПОЛЬЗОВАТЕЛИ WINDOWS: Используйте .bat скрипты вместо make!$(NC)"
-	@echo "  deploy.bat, deploy-quick.bat, server-logs.bat"
 	@echo ""
-	@echo "$(YELLOW)Development команды:$(NC)"
+endif
+	@echo "$(YELLOW)Команды для Development:$(NC)"
 	@echo "  make dev              - Запустить проект в dev режиме"
-	@echo "  make build-dev        - Собрать образы для dev"
+	@echo "  make build-dev        - Собрать dev образы"
 	@echo "  make up-dev           - Запустить dev контейнеры"
 	@echo "  make down-dev         - Остановить dev контейнеры"
 	@echo "  make logs-dev         - Показать логи dev"
 	@echo ""
-	@echo "$(YELLOW)Production команды:$(NC)"
+	@echo "$(YELLOW)Команды для Production:$(NC)"
 	@echo "  make prod             - Запустить проект в prod режиме"
-	@echo "  make build-prod       - Собрать образы для prod"
+	@echo "  make build-prod       - Собрать prod образы"
 	@echo "  make up-prod          - Запустить prod контейнеры"
 	@echo "  make down-prod        - Остановить prod контейнеры"
 	@echo "  make logs-prod        - Показать логи prod"
 	@echo ""
-	@echo "$(YELLOW)Утилиты:$(NC)"
-	@echo "  make migrate          - Применить миграции"
-	@echo "  make createsuperuser  - Создать суперпользователя"
-	@echo "  make clean            - Очистить все контейнеры и volumes"
-	@echo "  make shell-backend    - Войти в shell backend контейнера"
-	@echo "  make shell-frontend   - Войти в shell frontend контейнера"
+	@echo "$(YELLOW)Утилиты (Development):$(NC)"
+	@echo "  make migrate-dev          - Применить миграции (dev)"
+	@echo "  make createsuperuser-dev  - Создать суперпользователя (dev)"
+	@echo "  make shell-backend-dev    - Войти в shell backend (dev)"
+	@echo "  make shell-frontend-dev   - Войти в shell frontend (dev)"
+	@echo "  make status-dev           - Статус контейнеров (dev)"
 	@echo ""
-	@echo "$(YELLOW)Деплой команды (Linux/Mac, Windows используйте .bat):$(NC)"
-	@echo "  make deploy           - Полный деплой (commit + push + rebuild)"
-	@echo "  make deploy-quick     - Быстрый деплой (без rebuild)"
-	@echo "  make git-push         - Только commit и push"
-	@echo "  make server-update    - Только обновление на сервере"
-	@echo "  make server-logs      - Показать логи с prod сервера"
-	@echo "  make server-status    - Статус контейнеров на prod сервере"
+	@echo "$(YELLOW)Утилиты (Production):$(NC)"
+	@echo "  make migrate-prod         - Применить миграции (prod)"
+	@echo "  make createsuperuser-prod - Создать суперпользователя (prod)"
+	@echo "  make shell-backend-prod   - Войти в shell backend (prod)"
+	@echo "  make shell-frontend-prod  - Войти в shell frontend (prod)"
+	@echo "  make status-prod          - Статус контейнеров (prod)"
+	@echo ""
+	@echo "$(YELLOW)Общие утилиты:$(NC)"
+	@echo "  make clean            - Очистить все контейнеры и volumes"
+	@echo "  make restart-dev      - Перезапустить dev"
+	@echo "  make restart-prod     - Перезапустить prod"
 
 # Development команды
 dev: build-dev up-dev ## Полный запуск в dev режиме
@@ -71,8 +73,8 @@ up-dev: ## Запустить dev контейнеры
 	@echo "$(GREEN)Запуск dev контейнеров...$(NC)"
 	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d
 	@echo "$(GREEN)Dev сервисы запущены!$(NC)"
-	@echo "Frontend: http://localhost:3000"
-	@echo "Backend: http://localhost:8000"
+	@echo "Frontend: http://localhost:3001"
+	@echo "Backend: http://localhost:8001"
 
 down-dev: ## Остановить dev контейнеры
 	@echo "$(YELLOW)Остановка dev контейнеров...$(NC)"
@@ -102,21 +104,45 @@ down-prod: ## Остановить prod контейнеры
 logs-prod: ## Показать логи prod
 	$(DOCKER_COMPOSE) -f docker-compose.yml logs -f
 
-# Утилиты
-migrate: ## Применить миграции Django
-	@echo "$(GREEN)Применение миграций...$(NC)"
-	$(DOCKER_COMPOSE) exec backend python manage.py makemigrations
-	$(DOCKER_COMPOSE) exec backend python manage.py migrate
+# Утилиты для Development
+migrate-dev: ## Применить миграции Django (dev)
+	@echo "$(GREEN)Применение миграций (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec backend python manage.py makemigrations
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec backend python manage.py migrate
 
-createsuperuser: ## Создать суперпользователя Django
-	@echo "$(GREEN)Создание суперпользователя...$(NC)"
-	$(DOCKER_COMPOSE) exec backend python manage.py createsuperuser
+createsuperuser-dev: ## Создать суперпользователя Django (dev)
+	@echo "$(GREEN)Создание суперпользователя (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec backend python manage.py createsuperuser
 
-shell-backend: ## Войти в shell backend контейнера
-	$(DOCKER_COMPOSE) exec backend /bin/sh
+shell-backend-dev: ## Войти в shell backend контейнера (dev)
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec backend /bin/sh
 
-shell-frontend: ## Войти в shell frontend контейнера
-	$(DOCKER_COMPOSE) exec frontend /bin/sh
+shell-frontend-dev: ## Войти в shell frontend контейнера (dev)
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec frontend /bin/sh
+
+status-dev: ## Показать статус контейнеров (dev)
+	@echo "$(GREEN)Статус dev контейнеров:$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml ps
+
+# Утилиты для Production
+migrate-prod: ## Применить миграции Django (prod)
+	@echo "$(GREEN)Применение миграций (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml exec backend python manage.py makemigrations
+	$(DOCKER_COMPOSE) -f docker-compose.yml exec backend python manage.py migrate
+
+createsuperuser-prod: ## Создать суперпользователя Django (prod)
+	@echo "$(GREEN)Создание суперпользователя (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml exec backend python manage.py createsuperuser
+
+shell-backend-prod: ## Войти в shell backend контейнера (prod)
+	$(DOCKER_COMPOSE) -f docker-compose.yml exec backend /bin/sh
+
+shell-frontend-prod: ## Войти в shell frontend контейнера (prod)
+	$(DOCKER_COMPOSE) -f docker-compose.yml exec frontend /bin/sh
+
+status-prod: ## Показать статус контейнеров (prod)
+	@echo "$(GREEN)Статус prod контейнеров:$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml ps
 
 clean: ## Очистить все контейнеры и volumes
 	@echo "$(YELLOW)Очистка контейнеров и volumes...$(NC)"
@@ -128,65 +154,3 @@ clean: ## Очистить все контейнеры и volumes
 restart-dev: down-dev up-dev ## Перезапустить dev
 
 restart-prod: down-prod up-prod ## Перезапустить prod
-
-status: ## Показать статус контейнеров
-	@echo "$(GREEN)Статус контейнеров:$(NC)"
-	$(DOCKER_COMPOSE) ps
-
-# ============================================
-# ДЕПЛОЙ КОМАНДЫ
-# ============================================
-
-git-push: ## Коммит и push изменений
-	@echo "$(GREEN)Коммит и push изменений...$(NC)"
-	@git add .
-	@git commit -m "Auto deploy" || echo "$(YELLOW)Нет изменений для коммита$(NC)"
-	@git push upstream main || git push upstream master || git push origin main || git push origin master
-	@echo "$(GREEN)Изменения отправлены в репозиторий!$(NC)"
-
-server-update: ## Обновить код на prod сервере
-	@echo "$(GREEN)Подключение к серверу и обновление...$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
-		cd $(PROD_PATH) && \
-		echo '$(YELLOW)Получение последних изменений...$(NC)' && \
-		git pull origin main || git pull origin master && \
-		echo '$(YELLOW)Пересборка образов...$(NC)' && \
-		docker compose -f docker-compose.yml build && \
-		echo '$(YELLOW)Перезапуск контейнеров...$(NC)' && \
-		docker compose -f docker-compose.yml up -d && \
-		echo '$(GREEN)Деплой завершен!$(NC)'"
-
-server-update-quick: ## Быстрое обновление без rebuild
-	@echo "$(GREEN)Быстрое обновление на сервере...$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "\
-		cd $(PROD_PATH) && \
-		git pull origin main || git pull origin master && \
-		docker compose -f docker-compose.yml restart && \
-		echo '$(GREEN)Быстрое обновление завершено!$(NC)'"
-
-deploy: git-push server-update ## Полный деплой (commit + push + rebuild)
-	@echo "$(GREEN)================================$(NC)"
-	@echo "$(GREEN)Деплой успешно завершен!$(NC)"
-	@echo "$(GREEN)================================$(NC)"
-
-deploy-quick: git-push server-update-quick ## Быстрый деплой без rebuild
-	@echo "$(GREEN)================================$(NC)"
-	@echo "$(GREEN)Быстрый деплой завершен!$(NC)"
-	@echo "$(GREEN)================================$(NC)"
-
-server-logs: ## Показать логи с prod сервера
-	@echo "$(GREEN)Логи с prod сервера:$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml logs -f"
-
-server-status: ## Статус контейнеров на prod сервере
-	@echo "$(GREEN)Статус контейнеров на prod:$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose ps"
-
-server-shell: ## SSH подключение к серверу
-	@echo "$(GREEN)Подключение к серверу...$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST)
-
-server-restart: ## Перезапустить контейнеры на сервере
-	@echo "$(YELLOW)Перезапуск контейнеров на сервере...$(NC)"
-	@ssh -i $(SSH_KEY) $(PROD_USER)@$(PROD_HOST) "cd $(PROD_PATH) && docker compose -f docker-compose.yml restart"
-	@echo "$(GREEN)Контейнеры перезапущены!$(NC)"
