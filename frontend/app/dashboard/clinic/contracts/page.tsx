@@ -44,6 +44,7 @@ export default function ContractsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchingBin, setSearchingBin] = useState(false);
   const [foundEmployer, setFoundEmployer] = useState<any>(null);
+  const [binSearched, setBinSearched] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
@@ -73,31 +74,47 @@ export default function ContractsPage() {
     }
   };
 
-  const handleSearchBin = async () => {
-    if (!formData.employer_bin.trim()) {
-      alert('Введите БИН организации');
+  const handleSearchBin = async (bin: string) => {
+    if (!bin.trim() || bin.length < 12) {
+      setFoundEmployer(null);
+      setBinSearched(false);
       return;
     }
 
     setSearchingBin(true);
+    setBinSearched(false);
     try {
-      const result = await workflowStoreAPI.findEmployerByBin(formData.employer_bin);
+      const result = await workflowStoreAPI.findEmployerByBin(bin);
+      setBinSearched(true);
       if (result.found) {
         setFoundEmployer(result.user);
         if (result.user.phone) {
           setFormData({ ...formData, employer_phone: result.user.phone });
         }
-        alert(`Найден работодатель: ${result.user.registration_data?.name || 'Не указано'}`);
       } else {
         setFoundEmployer(null);
-        alert('Работодатель с таким БИН не найден. Договор будет создан, и работодатель получит уведомление для регистрации.');
       }
     } catch (error: any) {
-      alert(error.message || 'Ошибка поиска');
+      console.error('Ошибка поиска БИН:', error);
+      setFoundEmployer(null);
+      setBinSearched(true);
     } finally {
       setSearchingBin(false);
     }
   };
+
+  // Дебаунс для динамического поиска
+  useEffect(() => {
+    if (formData.employer_bin.length === 12) {
+      const timer = setTimeout(() => {
+        handleSearchBin(formData.employer_bin);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setFoundEmployer(null);
+      setBinSearched(false);
+    }
+  }, [formData.employer_bin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,7 +312,7 @@ export default function ContractsPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           БИН организации работодателя *
                         </label>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <Input
                             value={formData.employer_bin}
                             onChange={(e) => {
@@ -306,15 +323,46 @@ export default function ContractsPage() {
                             maxLength={12}
                             placeholder="123456789012"
                             required
-                            className="flex-1"
+                            className={`pr-10 ${
+                              binSearched && !foundEmployer && formData.employer_bin.length === 12
+                                ? 'border-red-500 dark:border-red-500'
+                                : foundEmployer
+                                ? 'border-green-500 dark:border-green-500'
+                                : ''
+                            }`}
                           />
-                          <Button type="button" onClick={handleSearchBin} disabled={searchingBin}>
-                            <Search className="h-4 w-4" />
-                          </Button>
+                          {searchingBin && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900 dark:border-white"></div>
+                            </div>
+                          )}
+                          {!searchingBin && foundEmployer && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            </div>
+                          )}
+                          {!searchingBin && binSearched && !foundEmployer && formData.employer_bin.length === 12 && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                            </div>
+                          )}
                         </div>
+                        {searchingBin && (
+                          <p className="text-sm text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
+                            <Search className="h-3 w-3 animate-pulse" />
+                            Поиск организации...
+                          </p>
+                        )}
                         {foundEmployer && (
-                          <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                            ✓ Найден: {foundEmployer.registration_data?.name || 'Не указано'}
+                          <p className="text-sm text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Найдена организация: {foundEmployer.registration_data?.name || 'Не указано'}
+                          </p>
+                        )}
+                        {binSearched && !foundEmployer && formData.employer_bin.length === 12 && (
+                          <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                            <XCircle className="h-3 w-3" />
+                            Данная организация не зарегистрирована в системе. Договор будет создан, и работодатель получит уведомление для регистрации.
                           </p>
                         )}
                       </div>
@@ -379,6 +427,7 @@ export default function ContractsPage() {
                   <Button type="button" variant="outline" onClick={() => { 
                     setShowForm(false); 
                     setFoundEmployer(null); 
+                    setBinSearched(false);
                     setEditingContract(null);
                     setFormData({
                       employer_bin: '',
