@@ -49,6 +49,30 @@ class UserStore {
     return user;
   }
 
+  async loginWithPassword(phone: string, password: string): Promise<User> {
+    const userData: any = await apiClient.loginWithPassword(phone, password);
+    const user: User = {
+      id: String(userData.id ?? ''),
+      phone: userData.phone,
+      role: userData.role,
+      clinicRole: userData.clinic_role,
+      registrationCompleted: userData.registration_completed,
+      registrationData: userData.registration_data,
+      createdAt: userData.created_at,
+      lastLoginAt: userData.last_login_at,
+    };
+    this.currentUser = user;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userPhone', phone);
+      localStorage.setItem('userData', JSON.stringify(user));
+    }
+    return user;
+  }
+
+  async setPassword(phone: string, newPassword: string, oldPassword?: string): Promise<void> {
+    await apiClient.setPassword(phone, newPassword, oldPassword);
+  }
+
   async completeRegistration(
     phone: string,
     role: UserRole,

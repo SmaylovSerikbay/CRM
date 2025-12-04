@@ -65,10 +65,34 @@ class ApiClient {
     });
   }
 
-  async completeRegistration(phone: string, role: string, registrationData: any, clinicRole?: string) {
+  async loginWithPassword(phone: string, password: string) {
+    return this.request('/users/login_with_password/', {
+      method: 'POST',
+      body: JSON.stringify({ phone, password }),
+    });
+  }
+
+  async setPassword(phone: string, newPassword: string, oldPassword?: string) {
+    return this.request('/users/set_password/', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        phone, 
+        new_password: newPassword,
+        ...(oldPassword && { old_password: oldPassword })
+      }),
+    });
+  }
+
+  async completeRegistration(phone: string, role: string, registrationData: any, clinicRole?: string, password?: string) {
     return this.request('/users/complete_registration/', {
       method: 'POST',
-      body: JSON.stringify({ phone, role, registration_data: registrationData, clinic_role: clinicRole }),
+      body: JSON.stringify({ 
+        phone, 
+        role, 
+        registration_data: registrationData, 
+        clinic_role: clinicRole,
+        ...(password && { password })
+      }),
     });
   }
 

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
 from django.http import HttpResponse, FileResponse
+from django.contrib.auth.hashers import make_password, check_password
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -113,11 +114,71 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
+    def login_with_password(self, request):
+        """Авторизация через телефон и пароль"""
+        phone = request.data.get('phone')
+        password = request.data.get('password')
+        
+        if not phone or not password:
+            return Response({'error': 'Phone and password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(phone=phone)
+            
+            # Проверяем, установлен ли пароль
+            if not user.password:
+                return Response({'error': 'Password not set for this user. Please use OTP login.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем пароль
+            if check_password(password, user.password):
+                user.last_login_at = timezone.now()
+                user.save()
+                
+                serializer = UserSerializer(user)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Invalid password'}, status=status.HTTP_401_UNAUTHORIZED)
+                
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'])
+    def set_password(self, request):
+        """Установка/изменение пароля для пользователя"""
+        phone = request.data.get('phone')
+        new_password = request.data.get('new_password')
+        old_password = request.data.get('old_password')  # Опционально, для изменения существующего пароля
+        
+        if not phone or not new_password:
+            return Response({'error': 'Phone and new_password are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(new_password) < 6:
+            return Response({'error': 'Password must be at least 6 characters long'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(phone=phone)
+            
+            # Если у пользователя уже есть пароль, требуем старый пароль для изменения
+            if user.password and old_password:
+                if not check_password(old_password, user.password):
+                    return Response({'error': 'Invalid old password'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Устанавливаем новый пароль
+            user.password = make_password(new_password)
+            user.save()
+            
+            return Response({'message': 'Password set successfully'}, status=status.HTTP_200_OK)
+                
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'])
     def complete_registration(self, request):
         phone = request.data.get('phone')
         role = request.data.get('role')
         registration_data = request.data.get('registration_data', {})
         clinic_role = request.data.get('clinic_role')
+        password = request.data.get('password')  # Опциональный пароль при регистрации
 
         try:
             user = User.objects.get(phone=phone)
@@ -126,6 +187,11 @@ class UserViewSet(viewsets.ModelViewSet):
             user.registration_completed = True
             if role == 'clinic' and clinic_role:
                 user.clinic_role = clinic_role
+            
+            # Если передан пароль при регистрации, устанавливаем его
+            if password and len(password) >= 6:
+                user.password = make_password(password)
+            
             user.save()
             
             serializer = UserSerializer(user)

@@ -9,9 +9,11 @@ import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
 
 function AuthContent() {
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [authMethod, setAuthMethod] = useState<'otp' | 'password'>('otp');
+  const [step, setStep] = useState<'phone' | 'otp' | 'password'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -33,8 +35,12 @@ function AuthContent() {
     setIsLoading(true);
     
     try {
-      await userStore.sendOTP(phone);
-      setStep('otp');
+      if (authMethod === 'otp') {
+        await userStore.sendOTP(phone);
+        setStep('otp');
+      } else {
+        setStep('password');
+      }
     } catch (error) {
       alert('Ошибка отправки кода. Попробуйте еще раз.');
     } finally {
@@ -59,6 +65,32 @@ function AuthContent() {
     }
   };
 
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      const user = await userStore.loginWithPassword(phone, password);
+      
+      // Проверяем, завершена ли регистрация
+      if (user.registrationCompleted) {
+        // Перенаправляем в соответствующий дашборд
+        if (user.role === 'clinic') {
+          router.push('/dashboard/clinic');
+        } else if (user.role === 'employer') {
+          router.push('/dashboard/employer');
+        }
+      } else {
+        // Если регистрация не завершена, переходим к выбору роли
+        router.push('/select-role');
+      }
+    } catch (error: any) {
+      alert(error.message || 'Неверный пароль. Попробуйте еще раз.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-6">
       <motion.div
@@ -75,17 +107,49 @@ function AuthContent() {
             <h1 className="text-3xl font-bold mb-2">
               {step === 'phone' 
                 ? 'Вход в систему' 
-                : 'Подтверждение'}
+                : step === 'otp'
+                ? 'Подтверждение'
+                : 'Введите пароль'}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               {step === 'phone' 
-                ? 'Введите номер телефона для получения кода через WhatsApp' 
-                : 'Введите код подтверждения из WhatsApp'}
+                ? authMethod === 'otp'
+                  ? 'Введите номер телефона для получения кода через WhatsApp'
+                  : 'Введите номер телефона для входа'
+                : step === 'otp'
+                ? 'Введите код подтверждения из WhatsApp'
+                : 'Введите ваш пароль для входа'}
             </p>
           </div>
 
           {step === 'phone' && (
             <form onSubmit={handlePhoneSubmit} className="space-y-6">
+              {/* Выбор метода авторизации */}
+              <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setAuthMethod('otp')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    authMethod === 'otp'
+                      ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  Код через WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMethod('password')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    authMethod === 'password'
+                      ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  Пароль
+                </button>
+              </div>
+
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Номер телефона
@@ -107,7 +171,7 @@ function AuthContent() {
                 className="w-full"
                 isLoading={isLoading}
               >
-                Отправить код
+                {authMethod === 'otp' ? 'Отправить код' : 'Продолжить'}
               </Button>
             </form>
           )}
@@ -137,6 +201,46 @@ function AuthContent() {
               >
                 Изменить номер телефона
               </button>
+            </form>
+          )}
+
+          {step === 'password' && (
+            <form onSubmit={handlePasswordSubmit} className="space-y-6">
+              <Input
+                type="password"
+                label="Пароль"
+                placeholder="Введите пароль"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                isLoading={isLoading}
+              >
+                Войти
+              </Button>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('otp');
+                    setStep('phone');
+                  }}
+                  className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                >
+                  Войти через код WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('phone')}
+                  className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                >
+                  Изменить номер телефона
+                </button>
+              </div>
             </form>
           )}
         </div>

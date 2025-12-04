@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Settings, Save, User, Building2, Mail, Phone, MapPin } from 'lucide-react';
+import { Settings, Save, User, Building2, Mail, Phone, MapPin, Lock } from 'lucide-react';
 import { userStore } from '@/lib/store/user-store';
+import { SetPasswordForm } from '@/components/auth/SetPasswordForm';
 
 export default function SettingsPage() {
   const [user, setUser] = useState(userStore.getCurrentUser());
@@ -125,6 +126,15 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          </Card>
+
+          {/* Security Settings */}
+          <Card>
+            <div className="flex items-center gap-3 mb-6">
+              <Lock className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <h2 className="text-xl font-semibold">Безопасность</h2>
+            </div>
+            <SetPasswordForm phone={user.phone} hasPassword={false} />
           </Card>
 
           {/* Organization Info */}
