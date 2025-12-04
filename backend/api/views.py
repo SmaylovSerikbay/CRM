@@ -3254,9 +3254,21 @@ class ContractViewSet(viewsets.ModelViewSet):
             
             # Отправляем уведомление клинике о отклонении договора
             if contract.clinic:
-                clinic_phone = contract.clinic.registration_data.get('phone', '') if contract.clinic.registration_data else ''
+                # Пытаемся получить телефон из разных источников
+                clinic_phone = ''
+                if contract.clinic.registration_data:
+                    clinic_phone = contract.clinic.registration_data.get('phone', '')
+                # Если нет в registration_data, проверяем другие поля
+                if not clinic_phone and hasattr(contract.clinic, 'phone'):
+                    clinic_phone = contract.clinic.phone
+                
                 if clinic_phone:
                     self._send_contract_rejection_notification(contract, clinic_phone, reason)
+                else:
+                    # Логируем, если не удалось найти телефон
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not find phone for clinic {contract.clinic.id} to send rejection notification")
             
             serializer = self.get_serializer(contract)
             return Response(serializer.data, status=status.HTTP_200_OK)
