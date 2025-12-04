@@ -101,7 +101,7 @@ class ApiClient {
     return this.request(`/contingent-employees/?user_id=${userId}`);
   }
 
-  async uploadExcelContingent(userId: string, file: File): Promise<{
+  async uploadExcelContingent(userId: string, file: File, contractId?: string): Promise<{
     created: number;
     skipped: number;
     skipped_reasons?: {
@@ -114,6 +114,9 @@ class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', userId);
+    if (contractId) {
+      formData.append('contract_id', contractId);
+    }
     
     const response = await fetch(`${this.baseUrl}/contingent-employees/upload_excel/`, {
       method: 'POST',
@@ -314,6 +317,19 @@ class ApiClient {
     return this.request(`/calendar-plans/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  }
+
+  async updateCalendarPlan(id: string, data: any) {
+    return this.request(`/calendar-plans/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCalendarPlan(id: string, userId: string) {
+    return this.request(`/calendar-plans/${id}/?user_id=${userId}`, {
+      method: 'DELETE',
     });
   }
 

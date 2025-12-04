@@ -17,10 +17,20 @@ export interface ContingentEmployee {
 
 export interface CalendarPlan {
   id: string;
+  contractId?: string;
+  contractNumber?: string;
   department: string;
   startDate: string;
   endDate: string;
   employeeIds: string[];
+  departmentsInfo?: Array<{
+    department: string;
+    startDate: string;
+    endDate: string;
+    employeeIds: string[];
+  }>;
+  harmfulFactors?: string[];
+  selectedDoctors?: string[];
   status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'sent_to_ses';
   clinicName?: string;
   clinicDirector?: string;

@@ -14,6 +14,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ContingentEmployeeSerializer(serializers.ModelSerializer):
+    contract_number = serializers.SerializerMethodField()
+    employer_name = serializers.SerializerMethodField()
+    
     def validate_iin(self, value):
         """Валидация ИИН: должен содержать ровно 12 цифр или быть пустым"""
         if value:
@@ -23,24 +26,48 @@ class ContingentEmployeeSerializer(serializers.ModelSerializer):
             return cleaned
         return value
     
+    def get_contract_number(self, obj):
+        if obj.contract:
+            return obj.contract.contract_number
+        return None
+    
+    def get_employer_name(self, obj):
+        if obj.contract:
+            if obj.contract.employer:
+                return obj.contract.employer.registration_data.get('name') if obj.contract.employer.registration_data else None
+            return obj.contract.employer_name
+        return None
+    
     class Meta:
         model = ContingentEmployee
         fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'user')
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name']
 
 
 class CalendarPlanSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(read_only=True)
     harmful_factors = serializers.JSONField(required=False, allow_null=True)
     selected_doctors = serializers.JSONField(required=False, allow_null=True)
+    departments_info = serializers.JSONField(required=False, allow_null=True)
+    contract_number = serializers.SerializerMethodField()
+    employer_name_field = serializers.SerializerMethodField()
+    
+    def get_contract_number(self, obj):
+        if obj.contract:
+            return obj.contract.contract_number
+        return None
+    
+    def get_employer_name_field(self, obj):
+        if obj.contract and obj.contract.employer:
+            return obj.contract.employer.registration_data.get('name') if obj.contract.employer.registration_data else None
+        return None
     
     class Meta:
         model = CalendarPlan
-        fields = ['id', 'user', 'department', 'start_date', 'end_date', 'employee_ids', 'harmful_factors', 'selected_doctors', 'status',
+        fields = ['id', 'user', 'contract', 'contract_number', 'department', 'start_date', 'end_date', 'employee_ids', 'departments_info', 'harmful_factors', 'selected_doctors', 'status',
                   'clinic_name', 'clinic_director', 'employer_name', 'employer_representative',
-                  'ses_representative', 'created_at', 'approved_by_clinic_at', 'approved_by_employer_at', 'sent_to_ses_at']
-        read_only_fields = ['id', 'created_at']
+                  'ses_representative', 'created_at', 'approved_by_clinic_at', 'approved_by_employer_at', 'sent_to_ses_at', 'employer_name_field']
+        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name_field']
 
 
 class RouteSheetSerializer(serializers.ModelSerializer):

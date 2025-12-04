@@ -20,14 +20,25 @@ export interface ContingentEmployee {
   positionExperienceYears?: number;
   notes?: string;
   quarter?: string;
+  contractId?: string;
+  contractNumber?: string;
+  employerName?: string;
 }
 
 export interface CalendarPlan {
   id: string;
+  contractId?: string;
+  contractNumber?: string;
   department: string;
   startDate: string;
   endDate: string;
   employeeIds: string[];
+  departmentsInfo?: Array<{
+    department: string;
+    startDate: string;
+    endDate: string;
+    employeeIds: string[];
+  }>;
   harmfulFactors?: string[];
   selectedDoctors?: string[];
   status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'sent_to_ses';
@@ -123,6 +134,9 @@ class WorkflowStoreAPI {
       positionExperienceYears: emp.position_experience_years,
       notes: emp.notes,
       quarter: emp.quarter,
+      contractId: emp.contract ? emp.contract.toString() : undefined,
+      contractNumber: emp.contract_number || undefined,
+      employerName: emp.employer_name || undefined,
     }));
   }
 
@@ -140,7 +154,7 @@ class WorkflowStoreAPI {
     return await apiClient.findEmployeeByQR(qrData);
   }
 
-  async uploadExcelContingent(file: File): Promise<{ 
+  async uploadExcelContingent(file: File, contractId?: string): Promise<{ 
     created: number; 
     skipped: number; 
     skipped_reasons?: {
@@ -150,7 +164,7 @@ class WorkflowStoreAPI {
     };
   }> {
     const userId = this.getUserId();
-    return await apiClient.uploadExcelContingent(userId, file);
+    return await apiClient.uploadExcelContingent(userId, file, contractId);
   }
 
   async downloadContingentTemplate(): Promise<void> {
@@ -196,16 +210,19 @@ class WorkflowStoreAPI {
     const results = Array.isArray(data) ? data : (data.results || []);
     return results.map((plan: any) => ({
       id: plan.id.toString(),
+      contractId: plan.contract ? plan.contract.toString() : undefined,
+      contractNumber: plan.contract_number || undefined,
       department: plan.department,
       startDate: plan.start_date,
       endDate: plan.end_date,
       employeeIds: plan.employee_ids || [],
+      departmentsInfo: plan.departments_info || undefined,
       harmfulFactors: plan.harmful_factors || [],
       selectedDoctors: plan.selected_doctors || [],
       status: plan.status,
       clinicName: plan.clinic_name,
       clinicDirector: plan.clinic_director,
-      employerName: plan.employer_name,
+      employerName: plan.employer_name || plan.employer_name_field || undefined,
       employerRepresentative: plan.employer_representative,
       sesRepresentative: plan.ses_representative,
       createdAt: plan.created_at,
@@ -215,14 +232,16 @@ class WorkflowStoreAPI {
     }));
   }
 
-  async addCalendarPlan(plan: Omit<CalendarPlan, 'id' | 'status' | 'createdAt'>, employeeIds: string[]): Promise<void> {
+  async addCalendarPlan(plan: Omit<CalendarPlan, 'id' | 'status' | 'createdAt'> & { contractId?: string; departmentsInfo?: Array<{department: string; startDate: string; endDate: string; employeeIds: string[]}> }, employeeIds: string[]): Promise<void> {
     const userId = this.getUserId();
     await apiClient.createCalendarPlan({
       user: userId,
+      contract: plan.contractId,
       department: plan.department,
       start_date: plan.startDate,
       end_date: plan.endDate,
       employee_ids: employeeIds,
+      departments_info: plan.departmentsInfo || [],
       harmful_factors: plan.harmfulFactors || [],
       selected_doctors: plan.selectedDoctors || [],
       status: 'draft',
@@ -231,6 +250,26 @@ class WorkflowStoreAPI {
 
   async updateCalendarPlanStatus(id: string, status: CalendarPlan['status']): Promise<void> {
     await apiClient.updateCalendarPlanStatus(id, status);
+  }
+
+  async updateCalendarPlan(id: string, plan: Partial<Omit<CalendarPlan, 'id' | 'status' | 'createdAt'>> & { contractId?: string; departmentsInfo?: Array<{department: string; startDate: string; endDate: string; employeeIds: string[]}> }): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.updateCalendarPlan(id, {
+      user: userId,
+      contract: plan.contractId,
+      department: plan.department,
+      start_date: plan.startDate,
+      end_date: plan.endDate,
+      employee_ids: plan.employeeIds,
+      departments_info: plan.departmentsInfo || [],
+      harmful_factors: plan.harmfulFactors || [],
+      selected_doctors: plan.selectedDoctors || [],
+    });
+  }
+
+  async deleteCalendarPlan(id: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.deleteCalendarPlan(id, userId);
   }
 
   async getRouteSheets(): Promise<RouteSheet[]> {

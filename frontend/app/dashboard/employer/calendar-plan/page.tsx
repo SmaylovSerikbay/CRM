@@ -16,7 +16,7 @@ export default function EmployerCalendarPlanPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Получаем доступные отделы из загруженного контингента
+        // Получаем доступные объекты/участки из загруженного контингента
         const contingent = await workflowStoreAPI.getContingent();
         const departments = [...new Set(contingent.map(emp => emp.department))];
         setAvailableDepartments(departments);
@@ -99,37 +99,82 @@ export default function EmployerCalendarPlanPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                            <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <Card className="hover:shadow-lg transition-shadow">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Основная информация */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-600 dark:from-yellow-600 dark:to-yellow-700 flex items-center justify-center shadow-md flex-shrink-0">
+                            <Calendar className="h-7 w-7 text-white" />
                           </div>
-                          <div>
-                            <h3 className="text-lg font-semibold">{plan.department}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <Users className="h-4 w-4" />
-                            {getEmployeeCount(plan)} сотрудников
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{plan.department}</h3>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg">
+                              <Clock className="h-3.5 w-3.5" />
+                              Ожидает утверждения работодателем
+                            </span>
                           </div>
                         </div>
-                        <span className="px-3 py-1 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-full flex items-center gap-2 w-fit">
-                          <Clock className="h-4 w-4" />
-                          Ожидает утверждения работодателем
-                        </span>
+
+                        {/* Информация о периодах и участках */}
+                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
+                          {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
+                            <>
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                                <span>Общий период:</span>
+                                <span className="text-gray-900 dark:text-white">
+                                  {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </span>
+                              </div>
+                              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Участки ({plan.departmentsInfo.length}):</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
+                                    <div key={idx} className="bg-white dark:bg-gray-900 rounded-md p-3 border border-gray-200 dark:border-gray-700">
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{deptInfo.department}</p>
+                                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                        {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                      </p>
+                                      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <Users className="h-3 w-3" />
+                                        <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                              <span className="text-gray-600 dark:text-gray-400">Период:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Дополнительная информация */}
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <Users className="h-4 w-4" />
+                          <span className="font-medium">{getEmployeeCount(plan)}</span>
+                          <span>сотрудников</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <Button size="sm" onClick={() => handleApprove(plan.id)}>
-                          Согласовано (Работодатель)
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Просмотреть PDF
-                        </Button>
+
+                      {/* Действия */}
+                      <div className="lg:col-span-1">
+                        <div className="flex flex-col gap-2 lg:sticky lg:top-4">
+                          <Button size="sm" onClick={() => handleApprove(plan.id)} className="w-full">
+                            Согласовано (Работодатель)
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
+                            <Download className="h-4 w-4 mr-2" />
+                            Просмотреть PDF
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -151,39 +196,88 @@ export default function EmployerCalendarPlanPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                            <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <Card className="hover:shadow-lg transition-shadow">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Основная информация */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 flex items-center justify-center shadow-md flex-shrink-0">
+                            <Calendar className="h-7 w-7 text-white" />
                           </div>
-                          <div>
-                            <h3 className="text-lg font-semibold">{plan.department}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <Users className="h-4 w-4" />
-                            {getEmployeeCount(plan)} сотрудников
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{plan.department}</h3>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {plan.status === 'approved' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Утвержден обеими сторонами
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg">
+                                  Отправлен в СЭС
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        {plan.status === 'approved' ? (
-                          <span className="px-3 py-1 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full flex items-center gap-2 w-fit">
-                            <CheckCircle className="h-4 w-4" />
-                            Утвержден обеими сторонами
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full w-fit">
-                            Отправлен в СЭС
-                          </span>
-                        )}
+
+                        {/* Информация о периодах и участках */}
+                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
+                          {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
+                            <>
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <Calendar className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <span>Общий период:</span>
+                                <span className="text-gray-900 dark:text-white">
+                                  {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </span>
+                              </div>
+                              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Участки ({plan.departmentsInfo.length}):</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
+                                    <div key={idx} className="bg-white dark:bg-gray-900 rounded-md p-3 border border-gray-200 dark:border-gray-700">
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{deptInfo.department}</p>
+                                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                        {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                      </p>
+                                      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <Users className="h-3 w-3" />
+                                        <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <span className="text-gray-600 dark:text-gray-400">Период:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Дополнительная информация */}
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <Users className="h-4 w-4" />
+                          <span className="font-medium">{getEmployeeCount(plan)}</span>
+                          <span>сотрудников</span>
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Скачать PDF
-                      </Button>
+
+                      {/* Действия */}
+                      <div className="lg:col-span-1">
+                        <div className="flex flex-col gap-2 lg:sticky lg:top-4">
+                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
+                            <Download className="h-4 w-4 mr-2" />
+                            Скачать PDF
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 </motion.div>

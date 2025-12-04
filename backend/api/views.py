@@ -257,9 +257,24 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     return ContingentEmployee.objects.filter(
                         Q(user__role='employer') | Q(user=user)
                     )
-                # Если пользователь - работодатель, возвращаем только его контингент
+                # Если пользователь - работодатель, возвращаем его контингент И контингент, загруженный клиникой по договору
                 elif user.role == 'employer':
-                    return ContingentEmployee.objects.filter(user=user)
+                    # Контингент, загруженный самим работодателем
+                    employer_contingent = ContingentEmployee.objects.filter(user=user)
+                    # Контингент, загруженный клиникой по договору, где работодатель является стороной
+                    # Находим все утвержденные договоры с этим работодателем
+                    user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
+                    contracts = Contract.objects.filter(
+                        Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
+                        status='approved'
+                    )
+                    # Контингент, загруженный клиникой по этим договорам
+                    clinic_contingent = ContingentEmployee.objects.filter(
+                        contract__in=contracts,
+                        user__role='clinic'
+                    )
+                    # Объединяем оба запроса
+                    return (employer_contingent | clinic_contingent).distinct()
                 else:
                     return ContingentEmployee.objects.filter(user=user)
             except User.DoesNotExist:
@@ -367,6 +382,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         """Загрузка Excel файла со списком контингента"""
         try:
             user_id = request.data.get('user_id')
+            contract_id = request.data.get('contract_id')  # ID договора
             excel_file = request.FILES.get('file')
             
             if not excel_file:
@@ -379,6 +395,45 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(id=user_id)
             except User.DoesNotExist:
                 return Response({'error': f'User with id {user_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Проверяем наличие подтвержденного договора
+            contract = None
+            if contract_id:
+                try:
+                    contract = Contract.objects.get(id=contract_id)
+                    # Проверяем, что договор подтвержден
+                    if contract.status != 'approved':
+                        return Response({'error': 'Договор должен быть подтвержден перед загрузкой контингента'}, status=status.HTTP_400_BAD_REQUEST)
+                    # Проверяем, что пользователь связан с договором
+                    if user.role == 'employer':
+                        if contract.employer != user:
+                            # Проверяем по БИН
+                            reg_data = user.registration_data or {}
+                            user_bin = reg_data.get('bin') or reg_data.get('inn')
+                            if not user_bin or str(user_bin).strip() != str(contract.employer_bin or '').strip():
+                                return Response({'error': 'Вы не являетесь стороной этого договора'}, status=status.HTTP_403_FORBIDDEN)
+                    elif user.role == 'clinic':
+                        if contract.clinic != user:
+                            return Response({'error': 'Вы не являетесь стороной этого договора'}, status=status.HTTP_403_FORBIDDEN)
+                except Contract.DoesNotExist:
+                    return Response({'error': 'Договор не найден'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                # Если договор не указан, ищем подтвержденный договор между пользователем и его партнером
+                if user.role == 'employer':
+                    contracts = Contract.objects.filter(
+                        Q(employer=user) | Q(employer_bin=user.registration_data.get('bin', '') if user.registration_data else ''),
+                        status='approved'
+                    ).first()
+                    if contracts:
+                        contract = contracts
+                    else:
+                        return Response({'error': 'Необходимо выбрать подтвержденный договор для загрузки контингента'}, status=status.HTTP_400_BAD_REQUEST)
+                elif user.role == 'clinic':
+                    contracts = Contract.objects.filter(clinic=user, status='approved').first()
+                    if contracts:
+                        contract = contracts
+                    else:
+                        return Response({'error': 'Необходимо выбрать подтвержденный договор для загрузки контингента'}, status=status.HTTP_400_BAD_REQUEST)
             workbook = load_workbook(excel_file)
             worksheet = workbook.active
             
@@ -549,6 +604,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 
                 employee = ContingentEmployee.objects.create(
                     user=user,
+                    contract=contract,
                     name=name,
                     birth_date=birth_date,
                     gender=gender,
@@ -689,26 +745,111 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
-                # Если пользователь - клиника, показываем все планы
-                # Если пользователь - работодатель, показываем планы, созданные для него клиниками
+                # Если пользователь - клиника, показываем планы, созданные этой клиникой
                 if user.role == 'clinic':
                     return CalendarPlan.objects.filter(user=user)
+                # Если пользователь - работодатель, показываем планы по договорам, где он является стороной
                 elif user.role == 'employer':
-                    # Работодатель видит планы, где employee_ids содержат его сотрудников
-                    return CalendarPlan.objects.all()
+                    user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
+                    contracts = Contract.objects.filter(
+                        Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
+                        status='approved'
+                    )
+                    return CalendarPlan.objects.filter(contract__in=contracts)
                 else:
                     return CalendarPlan.objects.filter(user=user)
             except User.DoesNotExist:
                 return CalendarPlan.objects.none()
         return CalendarPlan.objects.all()
+    
+    def perform_update(self, serializer):
+        """Обновление календарного плана - только клиника может редактировать свои планы"""
+        user_id = self.request.data.get('user') or self.request.query_params.get('user_id')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                plan = self.get_object()
+                # Только клиника, создавшая план, может его редактировать
+                if user.role == 'clinic' and plan.user == user:
+                    # Можно редактировать только черновики
+                    if plan.status != 'draft':
+                        from rest_framework.exceptions import ValidationError
+                        raise ValidationError({'status': 'Можно редактировать только черновики'})
+                    serializer.save()
+                else:
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError({'user': 'У вас нет прав на редактирование этого плана'})
+            except User.DoesNotExist:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'user': 'User not found'})
+        else:
+            serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Удаление календарного плана - только клиника может удалять свои планы"""
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                # Только клиника, создавшая план, может его удалить
+                if user.role == 'clinic' and instance.user == user:
+                    # Можно удалять только черновики
+                    if instance.status != 'draft':
+                        from rest_framework.exceptions import ValidationError
+                        raise ValidationError({'status': 'Можно удалять только черновики'})
+                    instance.delete()
+                else:
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError({'user': 'У вас нет прав на удаление этого плана'})
+            except User.DoesNotExist:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'user': 'User not found'})
+        else:
+            instance.delete()
 
     def perform_create(self, serializer):
         # Получаем user_id из данных запроса или из текущего пользователя
         user_id = self.request.data.get('user')
+        contract_id = self.request.data.get('contract')
+        
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
-                serializer.save(user=user)
+                contract = None
+                
+                # Если указан договор, проверяем его
+                if contract_id:
+                    try:
+                        contract = Contract.objects.get(id=contract_id)
+                        # Проверяем, что договор подтвержден
+                        if contract.status != 'approved':
+                            raise ValidationError({'contract': 'Договор должен быть подтвержден перед созданием календарного плана'})
+                        # Проверяем, что пользователь связан с договором
+                        if user.role == 'clinic' and contract.clinic != user:
+                            raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
+                        elif user.role == 'employer':
+                            if contract.employer != user:
+                                # Проверяем по БИН
+                                reg_data = user.registration_data or {}
+                                user_bin = reg_data.get('bin') or reg_data.get('inn')
+                                if not user_bin or str(user_bin).strip() != str(contract.employer_bin or '').strip():
+                                    raise ValidationError({'contract': 'Вы не являетесь стороной этого договора'})
+                    except Contract.DoesNotExist:
+                        raise ValidationError({'contract': 'Договор не найден'})
+                else:
+                    # Если договор не указан, ищем подтвержденный договор
+                    if user.role == 'clinic':
+                        contract = Contract.objects.filter(clinic=user, status='approved').first()
+                    elif user.role == 'employer':
+                        contract = Contract.objects.filter(
+                            Q(employer=user) | Q(employer_bin=user.registration_data.get('bin', '') if user.registration_data else ''),
+                            status='approved'
+                        ).first()
+                    
+                    if not contract:
+                        raise ValidationError({'contract': 'Необходимо выбрать подтвержденный договор для создания календарного плана'})
+                
+                serializer.save(user=user, contract=contract)
             except User.DoesNotExist:
                 raise ValidationError({'user': 'User not found'})
         else:
