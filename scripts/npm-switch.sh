@@ -2,7 +2,12 @@
 
 # Скрипт для автоматического переключения портов в Nginx Proxy Manager через API
 
-# Конфигурация NPM API
+# Загружаем переменные из .env.prod если не установлены
+if [ -z "$NPM_HOST" ] && [ -f ".env.prod" ]; then
+    export $(grep -E '^NPM_' .env.prod | xargs)
+fi
+
+# Конфигурация NPM API (с дефолтными значениями)
 NPM_HOST="${NPM_HOST:-http://localhost:81}"
 NPM_EMAIL="${NPM_EMAIL:-admin@example.com}"
 NPM_PASSWORD="${NPM_PASSWORD:-changeme}"

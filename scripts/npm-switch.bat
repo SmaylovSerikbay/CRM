@@ -4,7 +4,16 @@ setlocal enabledelayedexpansion
 
 REM Скрипт для автоматического переключения портов в Nginx Proxy Manager через API
 
-REM Конфигурация NPM API
+REM Загружаем переменные из .env.prod если не установлены
+if "%NPM_HOST%"=="" (
+    if exist ".env.prod" (
+        for /f "tokens=1,2 delims==" %%a in ('findstr /B "NPM_" .env.prod') do (
+            set %%a=%%b
+        )
+    )
+)
+
+REM Конфигурация NPM API (с дефолтными значениями)
 if "%NPM_HOST%"=="" set NPM_HOST=http://localhost:81
 if "%NPM_EMAIL%"=="" set NPM_EMAIL=admin@example.com
 if "%NPM_PASSWORD%"=="" set NPM_PASSWORD=changeme

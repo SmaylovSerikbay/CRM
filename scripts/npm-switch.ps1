@@ -8,7 +8,17 @@ param(
     [int]$FrontendPort
 )
 
-# Конфигурация NPM API
+# Загружаем переменные из .env.prod если не установлены
+if (-not $env:NPM_HOST -and (Test-Path ".env.prod")) {
+    Get-Content ".env.prod" | ForEach-Object {
+        if ($_ -match '^NPM_' -and $_ -match '=') {
+            $parts = $_ -split '=', 2
+            [Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim(), "Process")
+        }
+    }
+}
+
+# Конфигурация NPM API (с дефолтными значениями)
 $NPM_HOST = if ($env:NPM_HOST) { $env:NPM_HOST } else { "http://localhost:81" }
 $NPM_EMAIL = if ($env:NPM_EMAIL) { $env:NPM_EMAIL } else { "admin@example.com" }
 $NPM_PASSWORD = if ($env:NPM_PASSWORD) { $env:NPM_PASSWORD } else { "changeme" }

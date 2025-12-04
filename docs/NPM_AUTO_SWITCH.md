@@ -18,36 +18,23 @@
 
 NPM API включен по умолчанию на порту 81.
 
-### 2. Настройте credentials
+### 2. Настройте credentials в .env.prod
 
-Скопируйте и отредактируйте `.env.npm`:
+Отредактируйте `.env.prod` и укажите свои данные NPM:
 
 ```bash
-cp .env.npm .env.npm.local
-nano .env.npm.local
-```
-
-Укажите свои данные:
-```bash
+# Nginx Proxy Manager API
 NPM_HOST=http://localhost:81
-NPM_EMAIL=ваш-email@example.com
-NPM_PASSWORD=ваш-пароль
+NPM_EMAIL=ваш-email@npm.com
+NPM_PASSWORD=ваш-реальный-пароль
 ```
 
-### 3. Загрузите переменные
+**Важно:** Замените `admin@example.com` и `changeme` на реальные данные!
 
-```bash
-# Linux/Mac
-export $(grep -v '^#' .env.npm.local | xargs)
+### 3. Готово!
 
-# Windows PowerShell
-Get-Content .env.npm.local | ForEach-Object {
-    if ($_ -notmatch '^#' -and $_ -match '=') {
-        $parts = $_ -split '=', 2
-        [Environment]::SetEnvironmentVariable($parts[0], $parts[1])
-    }
-}
-```
+Скрипты автоматически загрузят переменные из `.env.prod`.  
+Никаких дополнительных действий не требуется!
 
 ## Использование
 
@@ -144,19 +131,21 @@ brew install jq
 
 ### Не коммитьте пароли!
 
-Добавьте в `.gitignore`:
-```
-.env.npm.local
-.env.npm
-```
+`.env.prod` уже в `.gitignore`, но убедитесь что:
+1. Не коммитите `.env.prod` с реальными паролями
+2. Используйте разные пароли для dev и prod
+3. На сервере создайте `.env.prod` с реальными данными
 
 ### Используйте переменные окружения
 
-Вместо файла можно экспортировать переменные:
+Можно переопределить через переменные окружения:
 ```bash
 export NPM_HOST=http://localhost:81
 export NPM_EMAIL=admin@example.com
 export NPM_PASSWORD=secure-password
+
+# Теперь скрипт использует эти значения
+bash scripts/npm-switch.sh 8002 3002
 ```
 
 ### Ограничьте доступ к API
@@ -264,25 +253,24 @@ brew install jq
 ```bash
 #!/bin/bash
 
-# 1. Загружаем NPM credentials
-export $(grep -v '^#' .env.npm.local | xargs)
-
-# 2. Деплоим новую версию
+# 1. Деплоим новую версию
 make bg-deploy
 
-# 3. Тестируем
+# 2. Тестируем
 curl http://localhost:8002/api/health/
 curl http://localhost:3002/
 
-# 4. Автоматически переключаем NPM
+# 3. Автоматически переключаем NPM (читает из .env.prod)
 bash scripts/npm-switch.sh 8002 3002
 
-# 5. Проверяем production
+# 4. Проверяем production
 curl https://crm.archeo.kz/api/health/
 
-# 6. Если OK - очищаем старое окружение
+# 5. Если OK - очищаем старое окружение
 make bg-cleanup
 ```
+
+Скрипт автоматически загрузит NPM credentials из `.env.prod`!
 
 ## Итог
 
