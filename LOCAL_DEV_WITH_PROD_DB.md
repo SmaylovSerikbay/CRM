@@ -42,17 +42,28 @@
 
 ## Быстрый старт (Вариант 1 - Прямое подключение)
 
-### 1. Проверьте файл `.env.local`
+### 1. Откройте файл `.env.dev`
 
-Файл уже создан с настройками:
+Раскомментируйте настройки продакшн БД и закомментируйте локальную:
 
 ```env
+# PostgreSQL Database
+# Вариант 1: Локальная БД для разработки (безопасно)
+# POSTGRES_DB=crm_db_dev
+# POSTGRES_USER=admin
+# POSTGRES_PASSWORD=Postgres9007
+# POSTGRES_HOST=postgres
+# POSTGRES_PORT=5432
+
+# Вариант 2: Продакшн БД (ОСТОРОЖНО! Реальные данные)
 POSTGRES_DB=postgres
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=P0sTgReS9007
 POSTGRES_HOST=82.115.48.40
 POSTGRES_PORT=5432
 ```
+
+**Текущее состояние:** Уже настроено на продакшн БД!
 
 ### 2. Проверьте доступность БД
 
@@ -71,11 +82,11 @@ docker run --rm postgres:15 psql -h 82.115.48.40 -U admin -d postgres -c "SELECT
 # Остановите текущие контейнеры (если запущены)
 docker-compose -f docker-compose.dev.yml down
 
-# Запустите с продакшн БД
-docker-compose -f docker-compose.local.yml up -d
+# Запустите с продакшн БД (используем обычный dev режим)
+docker-compose -f docker-compose.dev.yml up -d
 
 # Просмотр логов
-docker-compose -f docker-compose.local.yml logs -f
+docker-compose -f docker-compose.dev.yml logs -f
 ```
 
 ### 4. Проверьте подключение
@@ -100,7 +111,7 @@ ssh -i ~/.ssh/your_key -L 5433:localhost:5432 user@82.115.48.40 -N
 
 Туннель будет перенаправлять локальный порт 5433 на удаленный порт 5432.
 
-### 2. Обновите `.env.local`
+### 2. Обновите `.env.dev`
 
 ```env
 # Измените настройки БД:
@@ -111,7 +122,7 @@ POSTGRES_PORT=5433
 ### 3. Запустите разработку
 
 ```bash
-docker-compose -f docker-compose.local.yml up -d
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 ## Полезные команды
@@ -120,64 +131,80 @@ docker-compose -f docker-compose.local.yml up -d
 
 ```bash
 # Количество пользователей
-docker-compose -f docker-compose.local.yml exec backend python manage.py shell -c "from api.models import User; print(f'Users: {User.objects.count()}')"
+docker-compose -f docker-compose.dev.yml exec backend python manage.py shell -c "from api.models import User; print(f'Users: {User.objects.count()}')"
 
 # Количество договоров
-docker-compose -f docker-compose.local.yml exec backend python manage.py shell -c "from api.models import Contract; print(f'Contracts: {Contract.objects.count()}')"
+docker-compose -f docker-compose.dev.yml exec backend python manage.py shell -c "from api.models import Contract; print(f'Contracts: {Contract.objects.count()}')"
 
 # Количество сотрудников
-docker-compose -f docker-compose.local.yml exec backend python manage.py shell -c "from api.models import ContingentEmployee; print(f'Employees: {ContingentEmployee.objects.count()}')"
+docker-compose -f docker-compose.dev.yml exec backend python manage.py shell -c "from api.models import ContingentEmployee; print(f'Employees: {ContingentEmployee.objects.count()}')"
 
 # Количество календарных планов
-docker-compose -f docker-compose.local.yml exec backend python manage.py shell -c "from api.models import CalendarPlan; print(f'Plans: {CalendarPlan.objects.count()}')"
+docker-compose -f docker-compose.dev.yml exec backend python manage.py shell -c "from api.models import CalendarPlan; print(f'Plans: {CalendarPlan.objects.count()}')"
 ```
 
 ### Просмотр логов
 
 ```bash
 # Все логи
-docker-compose -f docker-compose.local.yml logs -f
+docker-compose -f docker-compose.dev.yml logs -f
 
 # Только backend
-docker-compose -f docker-compose.local.yml logs -f backend
+docker-compose -f docker-compose.dev.yml logs -f backend
 
 # Только frontend
-docker-compose -f docker-compose.local.yml logs -f frontend
+docker-compose -f docker-compose.dev.yml logs -f frontend
 ```
 
 ### Остановка
 
 ```bash
 # Остановить контейнеры
-docker-compose -f docker-compose.local.yml down
+docker-compose -f docker-compose.dev.yml down
 
 # Остановить и удалить volumes (осторожно!)
-docker-compose -f docker-compose.local.yml down -v
+docker-compose -f docker-compose.dev.yml down -v
 ```
 
 ### Перезапуск
 
 ```bash
 # Перезапустить backend
-docker-compose -f docker-compose.local.yml restart backend
+docker-compose -f docker-compose.dev.yml restart backend
 
 # Перезапустить frontend
-docker-compose -f docker-compose.local.yml restart frontend
+docker-compose -f docker-compose.dev.yml restart frontend
 ```
 
 ## Переключение между режимами
 
 ### Локальная БД (разработка)
-```bash
-docker-compose -f docker-compose.dev.yml up -d
+1. Откройте `.env.dev`
+2. Раскомментируйте локальную БД:
+```env
+POSTGRES_DB=crm_db_dev
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=Postgres9007
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
 ```
+3. Закомментируйте продакшн БД
+4. Перезапустите: `docker-compose -f docker-compose.dev.yml restart backend`
 
 ### Продакшн БД (тестирование с реальными данными)
-```bash
-docker-compose -f docker-compose.local.yml up -d
+1. Откройте `.env.dev`
+2. Раскомментируйте продакшн БД:
+```env
+POSTGRES_DB=postgres
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=P0sTgReS9007
+POSTGRES_HOST=82.115.48.40
+POSTGRES_PORT=5432
 ```
+3. Закомментируйте локальную БД
+4. Перезапустите: `docker-compose -f docker-compose.dev.yml restart backend`
 
-### Продакшн (деплой)
+### Продакшн (деплой на сервере)
 ```bash
 docker-compose up -d
 ```
@@ -267,10 +294,10 @@ cat backup_20241205_120000.sql | ssh user@82.115.48.40 "docker exec -i postgres 
 
 ### Файлы конфигурации
 
-- `.env.local` - переменные окружения для локальной разработки с прод БД
-- `docker-compose.local.yml` - Docker Compose конфигурация
-- `.env.dev` - переменные для разработки с локальной БД
+- `.env.dev` - переменные для разработки (можно переключать между локальной и прод БД)
+- `docker-compose.dev.yml` - Docker Compose для разработки
 - `.env.prod` - переменные для продакшн
+- `docker-compose.yml` - Docker Compose для продакшн
 
 ### Сети
 
