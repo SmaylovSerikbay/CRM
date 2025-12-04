@@ -10,9 +10,11 @@ import Link from 'next/link';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ContingentPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [employees, setEmployees] = useState<ContingentEmployee[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string>('');
@@ -57,7 +59,7 @@ export default function ContingentPage() {
     if (!file) return;
     
     if (!selectedContractId) {
-      alert('Пожалуйста, выберите договор перед загрузкой контингента');
+      showToast('Пожалуйста, выберите договор перед загрузкой контингента', 'warning');
       return;
     }
     
@@ -77,10 +79,12 @@ export default function ContingentPage() {
           reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
           reasons.no_name ? `нет ФИО: ${reasons.no_name}` : '',
         ].filter(Boolean).join(', ');
-        alert(`Загружено: ${result.created}, пропущено (${reasonsText || 'разные причины'}): ${result.skipped}`);
+        showToast(`Загружено: ${result.created}, пропущено (${reasonsText || 'разные причины'}): ${result.skipped}`, 'info');
+      } else {
+        showToast('Файл успешно загружен!', 'success');
       }
     } catch (error: any) {
-      alert(error.message || 'Ошибка загрузки файла');
+      showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -93,8 +97,9 @@ export default function ContingentPage() {
       await workflowStoreAPI.deleteContingentEmployee(id);
       const updated = await workflowStoreAPI.getContingent();
       setEmployees(updated);
+      showToast('Сотрудник успешно удален', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка удаления');
+      showToast(error.message || 'Ошибка удаления', 'error');
     }
   };
 
@@ -105,9 +110,9 @@ export default function ContingentPage() {
       await workflowStoreAPI.deleteAllContingentEmployees();
       setEmployees([]);
       setUploadSuccess(false);
-      alert('Все сотрудники удалены');
+      showToast('Все сотрудники удалены', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка удаления');
+      showToast(error.message || 'Ошибка удаления', 'error');
     }
   };
 
@@ -136,8 +141,9 @@ export default function ContingentPage() {
       setEmployees(updated);
       setEditingId(null);
       setEditData({});
+      showToast('Изменения успешно сохранены', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка сохранения');
+      showToast(error.message || 'Ошибка сохранения', 'error');
     }
   };
 
@@ -237,7 +243,7 @@ export default function ContingentPage() {
                   try {
                     await workflowStoreAPI.downloadContingentTemplate();
                   } catch (error: any) {
-                    alert(error.message || 'Ошибка скачивания шаблона');
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
                   }
                 }}
               >
@@ -615,7 +621,7 @@ export default function ContingentPage() {
                                         setQrCodeModal({ employeeId: employee.id, qrUrl });
                                       } catch (error) {
                                         console.error('Error generating QR code:', error);
-                                        alert('Ошибка при генерации QR-кода');
+                                        showToast('Ошибка при генерации QR-кода', 'error');
                                       }
                                     }}
                                     className="p-1 text-green-600 hover:text-green-700"

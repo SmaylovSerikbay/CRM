@@ -3058,6 +3058,54 @@ class ContractViewSet(viewsets.ModelViewSet):
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to send contract notification: {str(e)}")
     
+    def _send_contract_rejection_notification(self, contract, phone, reason):
+        """Отправка уведомления клинике об отклонении договора через WhatsApp"""
+        try:
+            from django.conf import settings
+            import requests
+            
+            # Форматируем телефон
+            formatted_phone = phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+            if not formatted_phone.startswith('7'):
+                formatted_phone = '7' + formatted_phone
+            
+            # Получаем имя работодателя
+            employer_name = 'Работодатель'
+            if contract.employer:
+                employer_name = contract.employer.registration_data.get('name', 'Работодатель') if contract.employer.registration_data else 'Работодатель'
+            elif contract.employer_name:
+                employer_name = contract.employer_name
+            
+            # Формируем сообщение
+            message = f"""Добрый день!
+
+Договор №{contract.contract_number} от {contract.contract_date} был отклонен работодателем.
+
+Причина отклонения: {reason}
+
+Вы можете отредактировать договор и отправить его повторно на согласование.
+
+Для просмотра договора перейдите по ссылке:
+{settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else 'http://localhost:3000'}/dashboard/clinic/contracts"""
+            
+            # Отправляем через Green API
+            url = f"{settings.GREEN_API_URL}/waInstance{settings.GREEN_API_ID_INSTANCE}/sendMessage/{settings.GREEN_API_TOKEN}"
+            payload = {
+                "chatId": f"{formatted_phone}@c.us",
+                "message": message
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            
+            if response.status_code != 200:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to send contract rejection notification: {response.status_code}")
+        except Exception as e:
+            # Логируем ошибку, но не прерываем отклонение договора
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send contract rejection notification: {str(e)}")
+    
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         """Согласование договора"""
@@ -3203,6 +3251,12 @@ class ContractViewSet(viewsets.ModelViewSet):
                 new_status='rejected',
                 comment=reason
             )
+            
+            # Отправляем уведомление клинике о отклонении договора
+            if contract.clinic:
+                clinic_phone = contract.clinic.registration_data.get('phone', '') if contract.clinic.registration_data else ''
+                if clinic_phone:
+                    self._send_contract_rejection_notification(contract, clinic_phone, reason)
             
             serializer = self.get_serializer(contract)
             return Response(serializer.data, status=status.HTTP_200_OK)

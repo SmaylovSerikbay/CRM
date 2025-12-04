@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { useToast } from '@/components/ui/Toast';
 
 interface Contract {
   id: string;
@@ -39,6 +40,7 @@ interface ContractHistoryItem {
 }
 
 export default function ContractsPage() {
+  const { showToast } = useToast();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +126,7 @@ export default function ContractsPage() {
     e.preventDefault();
     
     if (!formData.employer_bin || !formData.employer_phone || !formData.contract_number) {
-      alert('Заполните все обязательные поля');
+      showToast('Заполните все обязательные поля', 'warning');
       return;
     }
 
@@ -140,7 +142,7 @@ export default function ContractsPage() {
         notes: formData.notes,
       });
 
-      alert('Договор создан и уведомление отправлено работодателю!');
+      showToast('Договор создан и уведомление отправлено работодателю!', 'success');
       setFormData({
         employer_bin: '',
         employer_phone: '',
@@ -155,7 +157,7 @@ export default function ContractsPage() {
       setFoundEmployer(null);
       loadContracts();
     } catch (error: any) {
-      alert(error.message || 'Ошибка создания договора');
+      showToast(error.message || 'Ошибка создания договора', 'error');
     }
   };
 
@@ -215,7 +217,7 @@ export default function ContractsPage() {
         notes: formData.notes,
       });
 
-      alert('Договор обновлен!');
+      showToast('Договор обновлен!', 'success');
       setFormData({
         employer_bin: '',
         employer_phone: '',
@@ -230,7 +232,7 @@ export default function ContractsPage() {
       setEditingContract(null);
       loadContracts();
     } catch (error: any) {
-      alert(error.message || 'Ошибка обновления договора');
+      showToast(error.message || 'Ошибка обновления договора', 'error');
     }
   };
 
@@ -239,10 +241,10 @@ export default function ContractsPage() {
     
     try {
       await workflowStoreAPI.resendContractForApproval(contractId, comment || undefined);
-      alert('Договор отправлен на согласование!');
+      showToast('Договор отправлен на согласование!', 'success');
       loadContracts();
     } catch (error: any) {
-      alert(error.message || 'Ошибка отправки договора');
+      showToast(error.message || 'Ошибка отправки договора', 'error');
     }
   };
 
@@ -252,7 +254,7 @@ export default function ContractsPage() {
       setContractHistory(history);
       setShowHistory(contractId);
     } catch (error: any) {
-      alert(error.message || 'Ошибка загрузки истории');
+      showToast(error.message || 'Ошибка загрузки истории', 'error');
     }
   };
 

@@ -9,6 +9,7 @@ import { FileText, CheckCircle, Clock, Send, X, Download, Upload, History } from
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 import { useSearchParams } from 'next/navigation';
+import { useToast } from '@/components/ui/Toast';
 
 interface Contract {
   id: string;
@@ -45,6 +46,7 @@ interface ContractHistoryItem {
 
 function EmployerContractsContent() {
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const binFromUrl = searchParams.get('bin');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +63,7 @@ function EmployerContractsContent() {
     // Если есть БИН в URL, показываем сообщение о договоре
     if (binFromUrl) {
       setTimeout(() => {
-        alert('Вам отправлен договор на согласование. Пожалуйста, ознакомьтесь и подпишите его.');
+        showToast('Вам отправлен договор на согласование. Пожалуйста, ознакомьтесь и подпишите его.', 'info', 8000);
       }, 500);
     }
   }, [binFromUrl]);
@@ -116,26 +118,26 @@ function EmployerContractsContent() {
       await loadContracts();
       // Сбрасываем выбранный договор, чтобы обновился UI
       setSelectedContract(null);
-      alert('Договор успешно подписан!');
+      showToast('Договор успешно подписан!', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка подписания договора');
+      showToast(error.message || 'Ошибка подписания договора', 'error');
     }
   };
 
   const handleReject = async (contractId: string) => {
     if (!rejectReason.trim()) {
-      alert('Пожалуйста, укажите причину отклонения');
+      showToast('Пожалуйста, укажите причину отклонения', 'warning');
       return;
     }
     
     try {
       await workflowStoreAPI.rejectContract(contractId, rejectReason);
-      alert('Договор отклонен. Клиника получит уведомление.');
+      showToast('Договор отклонен. Клиника получит уведомление.', 'success');
       setRejectReason('');
       setShowRejectForm(null);
       loadContracts();
     } catch (error: any) {
-      alert(error.message || 'Ошибка отклонения договора');
+      showToast(error.message || 'Ошибка отклонения договора', 'error');
     }
   };
 
@@ -144,11 +146,11 @@ function EmployerContractsContent() {
     
     try {
       await workflowStoreAPI.executeContract(contractId);
-      alert('Договор отмечен как исполненный!');
+      showToast('Договор отмечен как исполненный!', 'success');
       loadContracts();
       setSelectedContract(null);
     } catch (error: any) {
-      alert(error.message || 'Ошибка');
+      showToast(error.message || 'Ошибка', 'error');
     }
   };
 
@@ -158,7 +160,7 @@ function EmployerContractsContent() {
       setContractHistory(history);
       setShowHistory(contractId);
     } catch (error: any) {
-      alert(error.message || 'Ошибка загрузки истории');
+      showToast(error.message || 'Ошибка загрузки истории', 'error');
     }
   };
 
