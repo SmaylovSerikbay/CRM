@@ -262,12 +262,15 @@ export default function ContractsPage() {
     }
   };
 
+  const [resendComment, setResendComment] = useState('');
+  const [showResendForm, setShowResendForm] = useState<string | null>(null);
+
   const handleResendForApproval = async (contractId: string) => {
-    const comment = prompt('Добавьте комментарий (необязательно):');
-    
     try {
-      await workflowStoreAPI.resendContractForApproval(contractId, comment || undefined);
+      await workflowStoreAPI.resendContractForApproval(contractId, resendComment || undefined);
       showToast('Договор отправлен на согласование!', 'success');
+      setResendComment('');
+      setShowResendForm(null);
       loadContracts();
     } catch (error: any) {
       showToast(error.message || 'Ошибка отправки договора', 'error');
@@ -749,7 +752,7 @@ export default function ContractsPage() {
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => handleResendForApproval(contract.id)}
+                            onClick={() => setShowResendForm(contract.id)}
                           >
                             <Send className="h-4 w-4 mr-2" />
                             {contract.status === 'rejected' ? 'Отправить повторно' : 'Отправить на согласование'}
@@ -765,6 +768,50 @@ export default function ContractsPage() {
                         История
                       </Button>
                     </div>
+
+                    {showResendForm === contract.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
+                      >
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Комментарий (необязательно)
+                            </label>
+                            <textarea
+                              value={resendComment}
+                              onChange={(e) => setResendComment(e.target.value)}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
+                              rows={3}
+                              placeholder="Добавьте комментарий к договору..."
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleResendForApproval(contract.id)}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Отправить
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setShowResendForm(null);
+                                setResendComment('');
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Отмена
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {showHistory === contract.id && (
                       <motion.div

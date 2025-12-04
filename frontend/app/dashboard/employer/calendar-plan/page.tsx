@@ -7,8 +7,10 @@ import { Card } from '@/components/ui/Card';
 import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { CalendarPlan } from '@/lib/store/workflow-store';
+import { useToast } from '@/components/ui/Toast';
 
 export default function EmployerCalendarPlanPage() {
+  const { showToast } = useToast();
   const [plans, setPlans] = useState<CalendarPlan[]>([]);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,14 +41,15 @@ export default function EmployerCalendarPlanPage() {
       await workflowStoreAPI.updateCalendarPlanStatus(id, 'approved');
       const updatedPlans = await workflowStoreAPI.getCalendarPlans();
       setPlans(updatedPlans);
+      showToast('План успешно утвержден', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка утверждения плана');
+      showToast(error.message || 'Ошибка утверждения плана', 'error');
     }
   };
 
   const handleGeneratePDF = (plan: CalendarPlan) => {
     // Симуляция генерации PDF
-    alert(`Генерация PDF календарного плана для ${plan.department}...`);
+    showToast(`Генерация PDF календарного плана для ${plan.department}...`, 'info');
   };
 
   const getEmployeeCount = (plan: CalendarPlan) => {

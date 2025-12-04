@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/Input';
 import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, UserCheck, Edit, Trash2 } from 'lucide-react';
 import { workflowStoreAPI, CalendarPlan, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { apiClient } from '@/lib/api/client';
+import { useToast } from '@/components/ui/Toast';
 
 export default function CalendarPlanPage() {
+  const { showToast } = useToast();
   const [plans, setPlans] = useState<CalendarPlan[]>([]);
   const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -83,17 +85,17 @@ export default function CalendarPlanPage() {
     e.preventDefault();
     
     if (!selectedContractId) {
-      alert('Пожалуйста, выберите договор перед созданием календарного плана');
+      showToast('Пожалуйста, выберите договор перед созданием календарного плана', 'warning');
       return;
     }
     
     if (formData.selectedDepartments.length === 0) {
-      alert('Пожалуйста, выберите хотя бы один объект или участок');
+      showToast('Пожалуйста, выберите хотя бы один объект или участок', 'warning');
       return;
     }
     
     if (formData.useCommonDates && (!formData.commonStartDate || !formData.commonEndDate)) {
-      alert('Пожалуйста, укажите даты начала и окончания');
+      showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
       return;
     }
     
@@ -119,7 +121,7 @@ export default function CalendarPlanPage() {
         } else {
           const dates = formData.departmentDates[department];
           if (!dates || !dates.startDate || !dates.endDate) {
-            alert(`Пожалуйста, укажите даты для объекта/участка: ${department}`);
+            showToast(`Пожалуйста, укажите даты для объекта/участка: ${department}`, 'warning');
             return;
           }
           startDate = dates.startDate;
@@ -146,7 +148,7 @@ export default function CalendarPlanPage() {
       }
       
       if (departmentsInfo.length === 0) {
-        alert('Не найдено сотрудников для выбранных участков');
+        showToast('Не найдено сотрудников для выбранных участков', 'warning');
         return;
       }
       
@@ -182,9 +184,9 @@ export default function CalendarPlanPage() {
       });
       setCurrentStep(1);
       setShowForm(false);
-      alert(`Успешно создан календарный план для ${departmentsInfo.length} ${departmentsInfo.length === 1 ? 'участка' : 'участков'}`);
+      showToast(`Успешно создан календарный план для ${departmentsInfo.length} ${departmentsInfo.length === 1 ? 'участка' : 'участков'}`, 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка создания плана');
+      showToast(error.message || 'Ошибка создания плана', 'error');
     }
   };
 
@@ -194,8 +196,9 @@ export default function CalendarPlanPage() {
       await workflowStoreAPI.updateCalendarPlanStatus(id, 'pending_employer');
       const updatedPlans = await workflowStoreAPI.getCalendarPlans();
       setPlans(updatedPlans);
+      showToast('План отправлен на утверждение работодателю', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка утверждения плана');
+      showToast(error.message || 'Ошибка утверждения плана', 'error');
     }
   };
 
@@ -204,8 +207,9 @@ export default function CalendarPlanPage() {
       await workflowStoreAPI.updateCalendarPlanStatus(id, 'sent_to_ses');
       const updatedPlans = await workflowStoreAPI.getCalendarPlans();
       setPlans(updatedPlans);
+      showToast('План успешно отправлен в СЭС', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка отправки в СЭС');
+      showToast(error.message || 'Ошибка отправки в СЭС', 'error');
     }
   };
 
@@ -217,9 +221,9 @@ export default function CalendarPlanPage() {
       await workflowStoreAPI.deleteCalendarPlan(id);
       const updatedPlans = await workflowStoreAPI.getCalendarPlans();
       setPlans(updatedPlans);
-      alert('Календарный план успешно удален');
+      showToast('Календарный план успешно удален', 'success');
     } catch (error: any) {
-      alert(error.message || 'Ошибка удаления плана');
+      showToast(error.message || 'Ошибка удаления плана', 'error');
     }
   };
 
@@ -229,12 +233,12 @@ export default function CalendarPlanPage() {
     // TODO: Заполнить форму данными плана
     setShowForm(true);
     setCurrentStep(1);
-    alert('Редактирование плана будет доступно в следующей версии');
+    showToast('Редактирование плана будет доступно в следующей версии', 'info');
   };
 
   const handleGeneratePDF = (plan: CalendarPlan) => {
     // Симуляция генерации PDF
-    alert(`Генерация PDF календарного плана для объекта/участка: ${plan.department}...`);
+    showToast(`Генерация PDF календарного плана для объекта/участка: ${plan.department}...`, 'info');
   };
 
   const getEmployeeCount = (plan: CalendarPlan) => {
@@ -393,7 +397,7 @@ export default function CalendarPlanPage() {
                           if (selectedContractId) {
                             setCurrentStep(2);
                           } else {
-                            alert('Пожалуйста, выберите договор');
+                            showToast('Пожалуйста, выберите договор', 'warning');
                           }
                         }}
                         disabled={!selectedContractId}
@@ -493,7 +497,7 @@ export default function CalendarPlanPage() {
                           if (formData.selectedDepartments.length > 0) {
                             setCurrentStep(3);
                           } else {
-                            alert('Пожалуйста, выберите хотя бы один объект или участок');
+                            showToast('Пожалуйста, выберите хотя бы один объект или участок', 'warning');
                           }
                         }}
                         disabled={formData.selectedDepartments.length === 0}
@@ -650,14 +654,14 @@ export default function CalendarPlanPage() {
                           if (formData.useCommonDates) {
                             if (!formData.commonStartDate || !formData.commonEndDate) {
                               isValid = false;
-                              alert('Пожалуйста, укажите даты начала и окончания');
+                              showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
                             }
                           } else {
                             for (const dept of formData.selectedDepartments) {
                               const dates = formData.departmentDates[dept];
                               if (!dates || !dates.startDate || !dates.endDate) {
                                 isValid = false;
-                                alert(`Пожалуйста, укажите даты для объекта/участка: ${dept}`);
+                                showToast(`Пожалуйста, укажите даты для объекта/участка: ${dept}`, 'warning');
                                 break;
                               }
                             }
