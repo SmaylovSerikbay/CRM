@@ -30,9 +30,15 @@ if errorlevel 1 (
 )
 
 echo [3/4] Отправка в репозиторий...
-git push origin main
+git push upstream main
 if errorlevel 1 (
-    git push origin master
+    git push upstream master
+    if errorlevel 1 (
+        git push origin main
+        if errorlevel 1 (
+            git push origin master
+        )
+    )
 )
 
 echo [4/4] Быстрое обновление на сервере...

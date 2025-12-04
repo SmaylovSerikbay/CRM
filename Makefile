@@ -141,7 +141,7 @@ git-push: ## Коммит и push изменений
 	@echo "$(GREEN)Коммит и push изменений...$(NC)"
 	@git add .
 	@git commit -m "Auto deploy" || echo "$(YELLOW)Нет изменений для коммита$(NC)"
-	@git push origin main || git push origin master
+	@git push upstream main || git push upstream master || git push origin main || git push origin master
 	@echo "$(GREEN)Изменения отправлены в репозиторий!$(NC)"
 
 server-update: ## Обновить код на prod сервере
