@@ -92,7 +92,8 @@ main() {
         all)
             hot_deploy_backend
             echo ""
-            hot_deploy_frontend
+            echo -e "${YELLOW}⚠️  Frontend hot deploy не поддерживается (production build)${NC}"
+            echo -e "${YELLOW}Для обновления frontend используйте: ${BLUE}make bg-auto-fast${NC}"
             ;;
         *)
             echo -e "${RED}Неизвестный компонент: $component${NC}"

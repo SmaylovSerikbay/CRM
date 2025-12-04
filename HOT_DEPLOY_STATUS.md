@@ -28,8 +28,15 @@
 
 ## 🚀 Как использовать
 
-### Backend (работает):
+### Основные команды:
 ```bash
+make hot                  # Git pull + hot deploy backend (~10 сек)
+make hot-pull             # Git pull + hot deploy backend (~10 сек)
+```
+
+### Backend отдельно:
+```bash
+make hot-backend          # Hot deploy backend (~10 сек)
 make hot-pull-backend     # Git pull + hot deploy backend (~10 сек)
 ```
 

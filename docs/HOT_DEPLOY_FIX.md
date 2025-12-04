@@ -60,18 +60,18 @@ make hot-pull-backend     # Git pull + hot deploy backend
 
 ### Работающие команды:
 ```bash
+make hot                  # ✅ Backend hot deploy (основная команда)
+make hot-pull             # ✅ Git pull + backend hot deploy (основная команда)
 make hot-backend          # ✅ Backend hot deploy
 make hot-pull-backend     # ✅ Git pull + backend hot deploy
-make bg-auto-fast         # ✅ Быстрый blue-green deploy
+make bg-auto-fast         # ✅ Быстрый blue-green deploy (для frontend)
 make bg-auto-full         # ✅ Полный blue-green deploy
 ```
 
-### Удаленные команды:
+### Команды с предупреждением:
 ```bash
-make hot                  # ❌ Удалено (frontend не поддерживается)
-make hot-frontend         # ❌ Удалено (не работает с production build)
-make hot-pull             # ❌ Удалено (frontend не поддерживается)
-make hot-pull-frontend    # ❌ Удалено (не работает)
+make hot-frontend         # ⚠️  Показывает предупреждение (не работает)
+make hot-pull-frontend    # ⚠️  Показывает предупреждение (не работает)
 ```
 
 ## Рекомендации
