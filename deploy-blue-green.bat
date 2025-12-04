@@ -286,12 +286,16 @@ goto :usage
     call :get_active_color
     call :get_inactive_color
     
+    REM Запоминаем время старта
+    set START_TIME=%TIME%
+    
     echo.
     echo ╔═══════════════════════════════════════════════════════════╗
     echo ║  АВТОМАТИЧЕСКИЙ BLUE-GREEN DEPLOYMENT                     ║
     echo ╚═══════════════════════════════════════════════════════════╝
     echo.
     echo Активный: %ACTIVE_COLOR% -^> Деплой в: %INACTIVE_COLOR%
+    echo Время старта: %TIME%
     echo.
     
     REM Шаг 0: Git pull
@@ -460,6 +464,10 @@ goto :usage
         docker compose -f %COMPOSE_FILE% down
     )
     
+    REM Вычисляем время деплоя
+    set END_TIME=%TIME%
+    call :calculate_duration "%START_TIME%" "%END_TIME%"
+    
     echo.
     echo ╔═══════════════════════════════════════════════════════════╗
     echo ║  ✓ ДЕПЛОЙ ЗАВЕРШЕН УСПЕШНО!                              ║
@@ -468,6 +476,42 @@ goto :usage
     echo Активное окружение: %INACTIVE_COLOR%
     echo Порты: Backend %BACKEND_PORT%, Frontend %FRONTEND_PORT%
     echo.
+    echo ⏱️  Время деплоя: %DURATION%
+    echo Время завершения: %TIME%
+    echo.
+    exit /b 0
+
+:calculate_duration
+    setlocal enabledelayedexpansion
+    set start=%~1
+    set end=%~2
+    
+    REM Извлекаем часы, минуты, секунды
+    for /f "tokens=1-3 delims=:." %%a in ("%start%") do (
+        set /a start_h=%%a
+        set /a start_m=%%b
+        set /a start_s=%%c
+    )
+    
+    for /f "tokens=1-3 delims=:." %%a in ("%end%") do (
+        set /a end_h=%%a
+        set /a end_m=%%b
+        set /a end_s=%%c
+    )
+    
+    REM Конвертируем в секунды
+    set /a start_total=start_h*3600 + start_m*60 + start_s
+    set /a end_total=end_h*3600 + end_m*60 + end_s
+    
+    REM Вычисляем разницу
+    set /a duration=end_total - start_total
+    if !duration! lss 0 set /a duration=duration + 86400
+    
+    REM Конвертируем обратно в минуты и секунды
+    set /a minutes=duration / 60
+    set /a seconds=duration %% 60
+    
+    endlocal & set DURATION=%minutes% мин %seconds% сек
     exit /b 0
 
 :usage

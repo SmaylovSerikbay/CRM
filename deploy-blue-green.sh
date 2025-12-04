@@ -71,10 +71,12 @@ check_health() {
 deploy() {
     local active=$(get_active_color)
     local inactive=$(get_inactive_color)
+    local start_time=$(date +%s)
     
     echo -e "${BLUE}=== Blue-Green Deployment ===${NC}"
     echo -e "Активный: ${GREEN}$active${NC}"
     echo -e "Деплой в: ${YELLOW}$inactive${NC}"
+    echo -e "Время старта: $(date '+%H:%M:%S')"
     echo ""
     
     # Собираем новую версию
@@ -99,7 +101,13 @@ deploy() {
         exit 1
     fi
     
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
     echo -e "${GREEN}✓ Деплой успешен! $inactive окружение готово.${NC}"
+    echo -e "${YELLOW}⏱️  Время деплоя: ${minutes} мин ${seconds} сек${NC}"
     echo -e "${YELLOW}Используйте './deploy-blue-green.sh switch' для переключения трафика${NC}"
 }
 
@@ -248,11 +256,15 @@ auto_deploy() {
     local active=$(get_active_color)
     local inactive=$(get_inactive_color)
     
+    # Запоминаем время старта
+    local start_time=$(date +%s)
+    
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║  АВТОМАТИЧЕСКИЙ BLUE-GREEN DEPLOYMENT                     ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "Активный: ${GREEN}$active${NC} → Деплой в: ${YELLOW}$inactive${NC}"
+    echo -e "Время старта: $(date '+%H:%M:%S')"
     echo ""
     
     # Шаг 0: Git pull
@@ -405,6 +417,12 @@ auto_deploy() {
     echo -e "${YELLOW}Остановка $active окружения...${NC}"
     docker compose -f "$COMPOSE_FILE" --profile "$active" down
     
+    # Вычисляем время деплоя
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  ✓ ДЕПЛОЙ ЗАВЕРШЕН УСПЕШНО!                              ║${NC}"
@@ -412,6 +430,9 @@ auto_deploy() {
     echo ""
     echo -e "Активное окружение: ${GREEN}$inactive${NC}"
     echo -e "Порты: Backend ${GREEN}$BACKEND_PORT${NC}, Frontend ${GREEN}$FRONTEND_PORT${NC}"
+    echo ""
+    echo -e "${YELLOW}⏱️  Время деплоя: ${GREEN}${minutes} мин ${seconds} сек${NC}"
+    echo -e "Время завершения: $(date '+%H:%M:%S')"
     echo ""
 }
 
