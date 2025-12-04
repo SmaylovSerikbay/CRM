@@ -56,6 +56,9 @@ update_proxy_port() {
     local config=$(curl -s -X GET "$NPM_HOST/api/nginx/proxy-hosts/$host_id" \
         -H "Authorization: Bearer $TOKEN")
     
+    # Удаляем поля которые NPM не принимает при обновлении
+    config=$(echo "$config" | jq 'del(.id, .created_on, .modified_on, .owner_user_id, .meta, .certificate_id, .ssl_forced, .hsts_enabled, .hsts_subdomains, .http2_support)')
+    
     # Обновляем frontend порт
     config=$(echo "$config" | jq ".forward_port = $frontend_port")
     
