@@ -3,7 +3,7 @@ REM Просмотр логов на сервере
 
 set PROD_HOST=89.207.255.13
 set PROD_USER=root
-set PROD_PATH=/root/crm-medical
+set PROD_PATH=/root/projects/CRM
 set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 
 echo Получение логов с сервера...
