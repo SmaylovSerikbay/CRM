@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status hot hot-backend hot-frontend
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod bg-auto bg-deploy bg-switch bg-rollback bg-cleanup bg-status hot hot-backend hot-frontend hot-pull hot-pull-backend hot-pull-frontend
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -88,6 +88,9 @@ endif
 	@echo "  make hot                  - 🔥 HOT DEPLOY всего (backend + frontend)"
 	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend (~5 сек)"
 	@echo "  make hot-frontend         - 🔥 HOT DEPLOY только frontend (~20 сек)"
+	@echo "  make hot-pull             - 🔥 GIT PULL + HOT DEPLOY всего"
+	@echo "  make hot-pull-backend     - 🔥 GIT PULL + HOT DEPLOY backend"
+	@echo "  make hot-pull-frontend    - 🔥 GIT PULL + HOT DEPLOY frontend"
 
 # Логи только backend
 logs-backend: ## Логи только backend
@@ -304,5 +307,24 @@ hot-backend: ## 🔥 HOT DEPLOY только backend - ~5 сек
 	@bash scripts/hot-deploy.sh backend
 
 hot-frontend: ## 🔥 HOT DEPLOY только frontend - ~20 сек
+	@echo "$(GREEN)Hot Deploy: Обновление frontend...$(NC)"
+	@bash scripts/hot-deploy.sh frontend
+
+# Hot Deploy с git pull
+hot-pull: ## 🔥 GIT PULL + HOT DEPLOY всего
+	@echo "$(YELLOW)Git Pull...$(NC)"
+	@git pull
+	@echo "$(GREEN)Hot Deploy: Обновление всего...$(NC)"
+	@bash scripts/hot-deploy.sh all
+
+hot-pull-backend: ## 🔥 GIT PULL + HOT DEPLOY backend
+	@echo "$(YELLOW)Git Pull...$(NC)"
+	@git pull
+	@echo "$(GREEN)Hot Deploy: Обновление backend...$(NC)"
+	@bash scripts/hot-deploy.sh backend
+
+hot-pull-frontend: ## 🔥 GIT PULL + HOT DEPLOY frontend
+	@echo "$(YELLOW)Git Pull...$(NC)"
+	@git pull
 	@echo "$(GREEN)Hot Deploy: Обновление frontend...$(NC)"
 	@bash scripts/hot-deploy.sh frontend
