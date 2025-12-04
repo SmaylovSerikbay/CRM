@@ -31,7 +31,8 @@ export default function ClinicContingentPage() {
       try {
         // Загружаем договоры
         const contractsData = await workflowStoreAPI.getContracts();
-        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved');
+        // Включаем как утвержденные, так и исполненные договоры
+        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
         setContracts(approvedContracts);
         
         // Загружаем контингент
@@ -261,7 +262,7 @@ export default function ClinicContingentPage() {
                   <option value="">-- Выберите договор --</option>
                   {contracts.map((contract: any) => (
                     <option key={contract.id} value={contract.id}>
-                      Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')} - {contract.employer_name || `БИН: ${contract.employer_bin}`}
+                      Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')} - {contract.employer_name || `БИН: ${contract.employer_bin}`}{contract.status === 'executed' ? ' (Исполнен)' : ''}
                     </option>
                   ))}
                 </select>
@@ -400,7 +401,7 @@ export default function ClinicContingentPage() {
                       const count = employees.filter(emp => emp.contractId === contract.id).length;
                       return (
                         <option key={contract.id} value={contract.id}>
-                          Договор №{contract.contract_number} ({count} сотрудников)
+                          Договор №{contract.contract_number}{contract.status === 'executed' ? ' (Исполнен)' : ''} ({count} сотрудников)
                         </option>
                       );
                     })}
@@ -660,8 +661,13 @@ export default function ClinicContingentPage() {
                                     <div>
                                       {contract ? (
                                         <>
-                                          <div className="font-semibold text-gray-900 dark:text-white">
-                                            Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')}
+                                          <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <span>Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')}</span>
+                                            {contract.status === 'executed' && (
+                                              <span className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded">
+                                                Исполнен
+                                              </span>
+                                            )}
                                           </div>
                                           <div className="text-sm text-gray-600 dark:text-gray-400">
                                             {contract.employer_name || `БИН: ${contract.employer_bin}`}

@@ -35,7 +35,8 @@ export default function CalendarPlanPage() {
       try {
         // Загружаем договоры
         const contractsData = await workflowStoreAPI.getContracts();
-        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved');
+        // Включаем как утвержденные, так и исполненные договоры
+        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
         setContracts(approvedContracts);
         
         // Загружаем контингент (доступен для всех клиник после загрузки работодателем)
