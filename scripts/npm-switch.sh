@@ -65,6 +65,19 @@ update_proxy_port() {
     # Обновляем backend порт в locations
     if echo "$config" | jq -e '.locations[0]' > /dev/null 2>&1; then
         config=$(echo "$config" | jq ".locations[0].forward_port = $backend_port")
+        
+        # Проверяем наличие advanced_config и обновляем порт в нем
+        if echo "$config" | jq -e '.locations[0].advanced_config' > /dev/null 2>&1; then
+            local advanced_config=$(echo "$config" | jq -r '.locations[0].advanced_config')
+            if [ -n "$advanced_config" ] && [ "$advanced_config" != "null" ]; then
+                # Заменяем старый порт на новый в advanced_config
+                # Ищем паттерн :XXXX/ где XXXX - это порт
+                local new_advanced_config=$(echo "$advanced_config" | sed -E "s/:([0-9]+)\/api\//:$backend_port\/api\//g")
+                config=$(echo "$config" | jq ".locations[0].advanced_config = \"$new_advanced_config\"")
+                echo -e "${GREEN}✓ Обновлен advanced_config с портом: $backend_port${NC}"
+            fi
+        fi
+        
         echo -e "${GREEN}✓ Обновлен backend location порт: $backend_port${NC}"
     fi
     
