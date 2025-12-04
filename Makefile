@@ -84,13 +84,12 @@ endif
 	@echo "  make bg-cleanup           - Остановить неактивное окружение"
 	@echo "  make bg-status            - Статус blue-green окружений"
 	@echo ""
-	@echo "$(YELLOW)Hot Deploy (Мгновенное обновление, ~10-30 сек):$(NC)"
-	@echo "  make hot                  - 🔥 HOT DEPLOY всего (backend + frontend)"
-	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend (~5 сек)"
-	@echo "  make hot-frontend         - 🔥 HOT DEPLOY только frontend (~20 сек)"
-	@echo "  make hot-pull             - 🔥 GIT PULL + HOT DEPLOY всего"
+	@echo "$(YELLOW)Hot Deploy (Только для backend, ~10 сек):$(NC)"
+	@echo "  make hot-backend          - 🔥 HOT DEPLOY только backend (~10 сек)"
 	@echo "  make hot-pull-backend     - 🔥 GIT PULL + HOT DEPLOY backend"
-	@echo "  make hot-pull-frontend    - 🔥 GIT PULL + HOT DEPLOY frontend"
+	@echo ""
+	@echo "$(YELLOW)⚠️  Frontend hot deploy не поддерживается (production build)$(NC)"
+	@echo "$(YELLOW)   Для frontend используйте: make bg-auto-fast (~2-3 мин)$(NC)"
 
 # Логи только backend
 logs-backend: ## Логи только backend

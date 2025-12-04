@@ -49,8 +49,9 @@ hot_deploy_backend() {
     echo -e "${BLUE}Копирование кода backend...${NC}"
     docker cp backend/. ${BACKEND_CONTAINER}:/app/
     
-    echo -e "${BLUE}Перезапуск gunicorn...${NC}"
-    docker exec ${BACKEND_CONTAINER} pkill -HUP gunicorn || true
+    echo -e "${BLUE}Перезапуск контейнера...${NC}"
+    # Используем docker restart вместо pkill, так как pkill может отсутствовать
+    docker restart ${BACKEND_CONTAINER}
     
     echo -e "${GREEN}✓ Backend обновлен! (порт $BACKEND_PORT)${NC}"
 }
@@ -59,20 +60,13 @@ hot_deploy_backend() {
 hot_deploy_frontend() {
     echo -e "${YELLOW}🔥 Hot Deploy Frontend...${NC}"
     
-    # Проверяем что контейнер запущен
-    if ! docker ps --format '{{.Names}}' | grep -q "^${FRONTEND_CONTAINER}$"; then
-        echo -e "${RED}✗ Контейнер $FRONTEND_CONTAINER не запущен${NC}"
-        return 1
-    fi
-    
-    echo -e "${BLUE}Пересборка Next.js...${NC}"
-    # Для Next.js нужна пересборка, но она быстрее чем Docker build
-    docker exec ${FRONTEND_CONTAINER} npm run build
-    
-    echo -e "${BLUE}Перезапуск Next.js...${NC}"
-    docker restart ${FRONTEND_CONTAINER}
-    
-    echo -e "${GREEN}✓ Frontend обновлен! (порт $FRONTEND_PORT)${NC}"
+    echo -e "${RED}⚠️  ВНИМАНИЕ: Hot deploy для frontend не поддерживается!${NC}"
+    echo -e "${YELLOW}Frontend использует production build без npm/node_modules в runtime.${NC}"
+    echo -e "${YELLOW}Для обновления frontend используйте:${NC}"
+    echo -e "  ${BLUE}make bg-auto-fast${NC}  - быстрый деплой (~2-3 мин)"
+    echo -e "  ${BLUE}make bg-auto-full${NC}  - полный деплой (~10-15 мин)"
+    echo ""
+    return 1
 }
 
 # Главная функция
