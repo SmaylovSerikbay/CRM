@@ -1,5 +1,11 @@
 .PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate createsuperuser
 
+# Определение команды docker-compose
+DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
+ifndef DOCKER_COMPOSE
+	DOCKER_COMPOSE := docker compose
+endif
+
 # Цвета для вывода
 GREEN=\033[0;32m
 YELLOW=\033[1;33m
@@ -34,63 +40,63 @@ dev: build-dev up-dev ## Полный запуск в dev режиме
 
 build-dev: ## Собрать dev образы
 	@echo "$(GREEN)Сборка dev образов...$(NC)"
-	docker-compose -f docker-compose.dev.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml build
 
 up-dev: ## Запустить dev контейнеры
 	@echo "$(GREEN)Запуск dev контейнеров...$(NC)"
-	docker-compose -f docker-compose.dev.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d
 	@echo "$(GREEN)Dev сервисы запущены!$(NC)"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend: http://localhost:8000"
 
 down-dev: ## Остановить dev контейнеры
 	@echo "$(YELLOW)Остановка dev контейнеров...$(NC)"
-	docker-compose -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down
 
 logs-dev: ## Показать логи dev
-	docker-compose -f docker-compose.dev.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml logs -f
 
 # Production команды
 prod: build-prod up-prod ## Полный запуск в prod режиме
 
 build-prod: ## Собрать prod образы
 	@echo "$(GREEN)Сборка prod образов...$(NC)"
-	docker-compose -f docker-compose.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.yml build
 
 up-prod: ## Запустить prod контейнеры
 	@echo "$(GREEN)Запуск prod контейнеров...$(NC)"
-	docker-compose -f docker-compose.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml up -d
 	@echo "$(GREEN)Prod сервисы запущены!$(NC)"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend: http://localhost:8000"
 
 down-prod: ## Остановить prod контейнеры
 	@echo "$(YELLOW)Остановка prod контейнеров...$(NC)"
-	docker-compose -f docker-compose.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml down
 
 logs-prod: ## Показать логи prod
-	docker-compose -f docker-compose.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.yml logs -f
 
 # Утилиты
 migrate: ## Применить миграции Django
 	@echo "$(GREEN)Применение миграций...$(NC)"
-	docker-compose exec backend python manage.py makemigrations
-	docker-compose exec backend python manage.py migrate
+	$(DOCKER_COMPOSE) exec backend python manage.py makemigrations
+	$(DOCKER_COMPOSE) exec backend python manage.py migrate
 
 createsuperuser: ## Создать суперпользователя Django
 	@echo "$(GREEN)Создание суперпользователя...$(NC)"
-	docker-compose exec backend python manage.py createsuperuser
+	$(DOCKER_COMPOSE) exec backend python manage.py createsuperuser
 
 shell-backend: ## Войти в shell backend контейнера
-	docker-compose exec backend /bin/sh
+	$(DOCKER_COMPOSE) exec backend /bin/sh
 
 shell-frontend: ## Войти в shell frontend контейнера
-	docker-compose exec frontend /bin/sh
+	$(DOCKER_COMPOSE) exec frontend /bin/sh
 
 clean: ## Очистить все контейнеры и volumes
 	@echo "$(YELLOW)Очистка контейнеров и volumes...$(NC)"
-	docker-compose -f docker-compose.yml down -v
-	docker-compose -f docker-compose.dev.yml down -v
+	$(DOCKER_COMPOSE) -f docker-compose.yml down -v
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v
 	@echo "$(GREEN)Очистка завершена!$(NC)"
 
 # Дополнительные команды
@@ -100,4 +106,4 @@ restart-prod: down-prod up-prod ## Перезапустить prod
 
 status: ## Показать статус контейнеров
 	@echo "$(GREEN)Статус контейнеров:$(NC)"
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
