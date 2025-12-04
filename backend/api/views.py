@@ -54,8 +54,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def send_otp(self, request):
+        print(f"[OTP] Request received")
+        print(f"[OTP] Request body: {request.body}")
+        print(f"[OTP] Request data: {request.data}")
+        print(f"[OTP] Content-Type: {request.content_type}")
+        
         phone = request.data.get('phone')
         if not phone:
+            print(f"[OTP] Error: Phone number is required")
             return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Generate OTP
