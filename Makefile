@@ -1,4 +1,4 @@
-.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod
+.PHONY: help dev prod build-dev build-prod up-dev up-prod down-dev down-prod logs-dev logs-prod clean migrate-dev migrate-prod createsuperuser-dev createsuperuser-prod shell-backend-dev shell-frontend-dev shell-backend-prod shell-frontend-prod restart-dev restart-prod status-dev status-prod restart-backend-dev restart-frontend-dev restart-backend-prod restart-frontend-prod rebuild-dev rebuild-prod rebuild-backend-dev rebuild-frontend-dev rebuild-backend-prod rebuild-frontend-prod
 
 # Определение команды docker-compose
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null)
@@ -58,9 +58,21 @@ endif
 	@echo "  make status-prod          - Статус контейнеров (prod)"
 	@echo ""
 	@echo "$(YELLOW)Общие утилиты:$(NC)"
-	@echo "  make clean            - Очистить все контейнеры и volumes"
-	@echo "  make restart-dev      - Перезапустить dev"
-	@echo "  make restart-prod     - Перезапустить prod"
+	@echo "  make clean                - Очистить все контейнеры и volumes"
+	@echo "  make restart-dev          - Перезапустить dev"
+	@echo "  make restart-prod         - Перезапустить prod"
+	@echo "  make restart-backend-dev  - Перезапустить только backend (dev)"
+	@echo "  make restart-frontend-dev - Перезапустить только frontend (dev)"
+	@echo "  make restart-backend-prod - Перезапустить только backend (prod)"
+	@echo "  make restart-frontend-prod- Перезапустить только frontend (prod)"
+	@echo ""
+	@echo "$(YELLOW)Пересборка:$(NC)"
+	@echo "  make rebuild-dev          - Полная пересборка dev (down + build + up)"
+	@echo "  make rebuild-prod         - Полная пересборка prod (down + build + up)"
+	@echo "  make rebuild-backend-dev  - Пересборка только backend (dev)"
+	@echo "  make rebuild-frontend-dev - Пересборка только frontend (dev)"
+	@echo "  make rebuild-backend-prod - Пересборка только backend (prod)"
+	@echo "  make rebuild-frontend-prod- Пересборка только frontend (prod)"
 
 # Логи только backend
 logs-backend: ## Логи только backend
@@ -167,3 +179,69 @@ clean: ## Очистить все контейнеры и volumes
 restart-dev: down-dev up-dev ## Перезапустить dev
 
 restart-prod: down-prod up-prod ## Перезапустить prod
+
+# Перезапуск отдельных сервисов (Development)
+restart-backend-dev: ## Перезапустить только backend (dev)
+	@echo "$(GREEN)Перезапуск backend (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml restart backend
+	@echo "$(GREEN)Backend перезапущен!$(NC)"
+
+restart-frontend-dev: ## Перезапустить только frontend (dev)
+	@echo "$(GREEN)Перезапуск frontend (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml restart frontend
+	@echo "$(GREEN)Frontend перезапущен!$(NC)"
+
+# Перезапуск отдельных сервисов (Production)
+restart-backend-prod: ## Перезапустить только backend (prod)
+	@echo "$(GREEN)Перезапуск backend (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml restart backend
+	@echo "$(GREEN)Backend перезапущен!$(NC)"
+
+restart-frontend-prod: ## Перезапустить только frontend (prod)
+	@echo "$(GREEN)Перезапуск frontend (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml restart frontend
+	@echo "$(GREEN)Frontend перезапущен!$(NC)"
+
+# Полная пересборка (Development)
+rebuild-dev: ## Полная пересборка dev (down + build + up)
+	@echo "$(YELLOW)Полная пересборка dev...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)Dev пересобран и запущен!$(NC)"
+
+rebuild-backend-dev: ## Пересборка только backend (dev)
+	@echo "$(YELLOW)Пересборка backend (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml stop backend
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache backend
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d backend
+	@echo "$(GREEN)Backend пересобран и запущен!$(NC)"
+
+rebuild-frontend-dev: ## Пересборка только frontend (dev)
+	@echo "$(YELLOW)Пересборка frontend (dev)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml stop frontend
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache frontend
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up -d frontend
+	@echo "$(GREEN)Frontend пересобран и запущен!$(NC)"
+
+# Полная пересборка (Production)
+rebuild-prod: ## Полная пересборка prod (down + build + up)
+	@echo "$(YELLOW)Полная пересборка prod...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml up -d
+	@echo "$(GREEN)Prod пересобран и запущен!$(NC)"
+
+rebuild-backend-prod: ## Пересборка только backend (prod)
+	@echo "$(YELLOW)Пересборка backend (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml stop backend
+	$(DOCKER_COMPOSE) -f docker-compose.yml build --no-cache backend
+	$(DOCKER_COMPOSE) -f docker-compose.yml up -d backend
+	@echo "$(GREEN)Backend пересобран и запущен!$(NC)"
+
+rebuild-frontend-prod: ## Пересборка только frontend (prod)
+	@echo "$(YELLOW)Пересборка frontend (prod)...$(NC)"
+	$(DOCKER_COMPOSE) -f docker-compose.yml stop frontend
+	$(DOCKER_COMPOSE) -f docker-compose.yml build --no-cache frontend
+	$(DOCKER_COMPOSE) -f docker-compose.yml up -d frontend
+	@echo "$(GREEN)Frontend пересобран и запущен!$(NC)"
