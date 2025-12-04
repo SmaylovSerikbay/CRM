@@ -183,9 +183,17 @@ export default function EmployeesPage() {
                     label="ИИН"
                     placeholder="123456789012"
                     value={formData.iin}
-                    onChange={(e) => setFormData({ ...formData, iin: e.target.value })}
+                    onChange={(e) => {
+                      // Разрешаем только цифры и ограничиваем до 12 символов
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                      setFormData({ ...formData, iin: value });
+                    }}
                     required
+                    maxLength={12}
                   />
+                  {formData.iin && formData.iin.length !== 12 && (
+                    <p className="text-sm text-red-500 mt-1">ИИН должен содержать ровно 12 цифр</p>
+                  )}
                   <PhoneInput
                     label="Телефон"
                     value={formData.phone}

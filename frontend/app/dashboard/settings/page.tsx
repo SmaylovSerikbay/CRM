@@ -161,10 +161,18 @@ export default function SettingsPage() {
                 </label>
                 <Input
                   value={formData.inn}
-                  onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
-                  placeholder="Введите ИИН/БИН"
+                  onChange={(e) => {
+                    // Разрешаем только цифры и ограничиваем до 12 символов
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                    setFormData({ ...formData, inn: value });
+                  }}
+                  placeholder="Введите ИИН/БИН (12 цифр)"
                   required
+                  maxLength={12}
                 />
+                {formData.inn && formData.inn.length !== 12 && (
+                  <p className="text-sm text-red-500 mt-1">ИИН/БИН должен содержать ровно 12 цифр</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
@@ -180,12 +188,12 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Контактное лицо
+                  ФИО первого руководителя
                 </label>
                 <Input
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                  placeholder="Введите ФИО контактного лица"
+                  placeholder="Введите ФИО первого руководителя"
                   required
                 />
               </div>

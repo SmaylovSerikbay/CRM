@@ -298,7 +298,12 @@ export default function ContractsPage() {
                         <div className="flex gap-2">
                           <Input
                             value={formData.employer_bin}
-                            onChange={(e) => setFormData({ ...formData, employer_bin: e.target.value })}
+                            onChange={(e) => {
+                              // Разрешаем только цифры и ограничиваем до 12 символов
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                              setFormData({ ...formData, employer_bin: value });
+                            }}
+                            maxLength={12}
                             placeholder="123456789012"
                             required
                             className="flex-1"

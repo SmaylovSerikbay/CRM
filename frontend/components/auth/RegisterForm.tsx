@@ -60,7 +60,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ role, phone, onCompl
       <Input
         type="text"
         label={isClinic ? 'Название клиники' : 'Название организации'}
-        placeholder={isClinic ? 'ООО "Медицинский центр"' : 'ООО "Компания"'}
+        placeholder={isClinic ? 'ТОО "Медицинский центр" или ИП "Медицинский центр"' : 'ТОО "Компания" или ИП "Компания"'}
         value={formData.name}
         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
         required
@@ -71,8 +71,13 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ role, phone, onCompl
         label="ИИН/БИН"
         placeholder="123456789012"
         value={formData.inn}
-        onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
+        onChange={(e) => {
+          // Разрешаем только цифры и ограничиваем до 12 символов
+          const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+          setFormData({ ...formData, inn: value });
+        }}
         required
+        maxLength={12}
       />
 
       <Input
@@ -86,7 +91,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ role, phone, onCompl
 
       <Input
         type="text"
-        label="Контактное лицо"
+        label="ФИО первого руководителя"
         placeholder="Иванов Иван Иванович"
         value={formData.contactPerson}
         onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}

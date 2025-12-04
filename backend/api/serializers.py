@@ -14,6 +14,15 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ContingentEmployeeSerializer(serializers.ModelSerializer):
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр или быть пустым"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
+    
     class Meta:
         model = ContingentEmployee
         fields = '__all__'
@@ -37,6 +46,15 @@ class CalendarPlanSerializer(serializers.ModelSerializer):
 class RouteSheetSerializer(serializers.ModelSerializer):
     services = serializers.JSONField()
     
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
+    
     class Meta:
         model = RouteSheet
         fields = ['id', 'patient_id', 'patient_name', 'iin', 'position', 'department', 'visit_date', 'services', 'created_at']
@@ -59,6 +77,15 @@ class ExpertiseSerializer(serializers.ModelSerializer):
     verdict_date = serializers.DateTimeField(read_only=True, allow_null=True)
     temporary_unfit_until = serializers.DateField(allow_null=True)
     
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
+    
     class Meta:
         model = Expertise
         fields = ['id', 'patient_id', 'patient_name', 'iin', 'position', 'department',
@@ -69,6 +96,15 @@ class ExpertiseSerializer(serializers.ModelSerializer):
 
 
 class EmergencyNotificationSerializer(serializers.ModelSerializer):
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
+    
     class Meta:
         model = EmergencyNotification
         fields = '__all__'
@@ -148,6 +184,15 @@ class FunctionalTestSerializer(serializers.ModelSerializer):
 
 
 class ReferralSerializer(serializers.ModelSerializer):
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
+    
     class Meta:
         model = Referral
         fields = '__all__'
@@ -157,6 +202,15 @@ class ReferralSerializer(serializers.ModelSerializer):
 class PatientQueueSerializer(serializers.ModelSerializer):
     doctor_name = serializers.CharField(source='doctor.name', read_only=True)
     doctor_specialization = serializers.CharField(source='doctor.specialization', read_only=True)
+    
+    def validate_iin(self, value):
+        """Валидация ИИН: должен содержать ровно 12 цифр или быть пустым"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('ИИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
     
     class Meta:
         model = PatientQueue
@@ -180,6 +234,15 @@ class ContractSerializer(serializers.ModelSerializer):
     employer = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='employer'), write_only=False)
     clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
     history = ContractHistorySerializer(many=True, read_only=True)
+    
+    def validate_employer_bin(self, value):
+        """Валидация БИН: должен содержать ровно 12 цифр"""
+        if value:
+            cleaned = ''.join(filter(str.isdigit, str(value)))
+            if len(cleaned) != 12:
+                raise serializers.ValidationError('БИН должен содержать ровно 12 цифр')
+            return cleaned
+        return value
     
     class Meta:
         model = Contract
