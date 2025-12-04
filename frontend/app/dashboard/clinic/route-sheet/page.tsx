@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { QrCode, Search, FileText, Printer, CheckCircle, AlertCircle, User, Calendar, Building2, Briefcase, Clock, MapPin, CheckSquare, FlaskConical, Activity, ExternalLink, Plus, Scan, X } from 'lucide-react';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 
@@ -283,24 +284,17 @@ export default function RouteSheetPage() {
               <h2 className="text-lg font-semibold mb-3">Поиск пациента</h2>
           <div className="flex gap-4">
             <div className="flex-1">
-              <Input
-                    label="Номер телефона пациента"
+              <PhoneInput
+                label="Номер телефона пациента"
                 value={searchValue}
-                    onChange={(e) => {
-                      setSearchValue(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="Введите номер телефона (например: +7 777 123 4567 или 87771234567)"
-                type="tel"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
+                onChange={(value) => {
+                  setSearchValue(value);
+                  setError(null);
                 }}
               />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Поиск по ФИО или ИИН. Или отсканируйте QR-код сотрудника. Маршрут создается автоматически на основе должности и вредных факторов.
-                  </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Поиск по ФИО или ИИН. Или отсканируйте QR-код сотрудника. Маршрут создается автоматически на основе должности и вредных факторов.
+              </p>
             </div>
             <div className="flex items-end gap-2">
               <Button

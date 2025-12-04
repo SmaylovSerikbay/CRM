@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { Phone, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
@@ -150,22 +151,12 @@ function AuthContent() {
                 </button>
               </div>
 
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Номер телефона
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
-                  <input
-                    type="tel"
-                    placeholder="+7 (___) ___-__-__"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-              </div>
+              <PhoneInput
+                label="Номер телефона"
+                value={phone}
+                onChange={setPhone}
+                required
+              />
               <Button
                 type="submit"
                 className="w-full"

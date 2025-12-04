@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Plus, UserPlus, Edit2, Trash2, X, Save } from 'lucide-react';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 
 interface Doctor {
@@ -362,20 +363,16 @@ export default function DoctorsPage() {
                         )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Телефон (необязательно)
-                        </label>
-                  <Input
-                    placeholder="+7 777 123 4567"
+                  <PhoneInput
+                    label="Телефон (необязательно)"
                     value={formData.phone}
-                          onChange={(e) => {
-                            const formatted = formatPhone(e.target.value);
-                            setFormData({ ...formData, phone: formatted });
-                            if (errors.phone) {
-                              setErrors({ ...errors, phone: undefined });
-                            }
-                          }}
-                        />
+                    onChange={(value) => {
+                      setFormData({ ...formData, phone: value });
+                      if (errors.phone) {
+                        setErrors({ ...errors, phone: undefined });
+                      }
+                    }}
+                  />
                         {errors.phone && (
                           <p className="text-sm text-red-500 mt-1">{errors.phone}</p>
                         )}

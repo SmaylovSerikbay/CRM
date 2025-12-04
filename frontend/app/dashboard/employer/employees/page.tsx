@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Plus, Users, Upload, X, FileSpreadsheet } from 'lucide-react';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 
 interface Employee {
   id: string;
@@ -185,11 +186,10 @@ export default function EmployeesPage() {
                     onChange={(e) => setFormData({ ...formData, iin: e.target.value })}
                     required
                   />
-                  <Input
+                  <PhoneInput
                     label="Телефон"
-                    placeholder="+7 777 123 4567"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, phone: value })}
                     required
                   />
                   <Input

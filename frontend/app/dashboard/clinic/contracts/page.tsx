@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2 } from 'lucide-react';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 
 interface Contract {
@@ -204,12 +205,10 @@ export default function ContractsPage() {
                       </p>
                     )}
                   </div>
-                  <Input
-                    label="Телефон работодателя *"
-                    type="tel"
+                  <PhoneInput
+                    label="Телефон работодателя"
                     value={formData.employer_phone}
-                    onChange={(e) => setFormData({ ...formData, employer_phone: e.target.value })}
-                    placeholder="+7 777 123 4567"
+                    onChange={(value) => setFormData({ ...formData, employer_phone: value })}
                     required
                   />
                   <Input
