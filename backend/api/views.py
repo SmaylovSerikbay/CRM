@@ -1114,8 +1114,19 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             elements.append(Spacer(1, 0.2*inch))
             
             # Основная информация
+            # Создаем стиль для текста в ячейках с переносом
+            cell_style = ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.HexColor('#1f2937'),
+                fontName=font_name,
+                wordWrap='CJK',  # Перенос слов
+                leading=12  # Межстрочный интервал
+            )
+            
             info_data = [
-                ['Объект/участок:', plan.department],
+                ['Объект/участок:', Paragraph(plan.department, cell_style)],
                 ['Период проведения:', f"{plan.start_date.strftime('%d.%m.%Y')} - {plan.end_date.strftime('%d.%m.%Y')}"],
                 ['Количество сотрудников:', str(len(plan.employee_ids))],
                 ['Статус:', self._get_status_text(plan.status)],
@@ -1134,7 +1145,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 ('FONTNAME', (1, 0), (1, -1), font_name),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Выравнивание по верху для многострочного текста
                 ('TOPPADDING', (0, 0), (-1, -1), 8),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
@@ -1148,6 +1159,17 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 elements.append(Paragraph('Участки и периоды проведения осмотров', subtitle_style))
                 elements.append(Spacer(1, 0.1*inch))
                 
+                # Стиль для ячеек с переносом текста
+                dept_cell_style = ParagraphStyle(
+                    'DeptCellText',
+                    parent=styles['Normal'],
+                    fontSize=9,
+                    textColor=colors.HexColor('#1f2937'),
+                    fontName=font_name,
+                    wordWrap='CJK',
+                    leading=11
+                )
+                
                 dept_data = [['№', 'Объект/участок', 'Период', 'Сотрудников']]
                 for idx, dept_info in enumerate(plan.departments_info, 1):
                     # Поддержка как camelCase, так и snake_case ключей
@@ -1158,7 +1180,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                     
                     dept_data.append([
                         str(idx),
-                        department,
+                        Paragraph(department, dept_cell_style),  # Используем Paragraph для переноса
                         f"{start_date} - {end_date}",
                         str(len(employee_ids))
                     ])
@@ -1167,15 +1189,19 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 dept_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Номер по центру
+                    ('ALIGN', (1, 1), (1, -1), 'LEFT'),    # Название участка слева
+                    ('ALIGN', (2, 0), (-1, -1), 'CENTER'), # Остальное по центру
                     ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('FONTNAME', (0, 1), (-1, -1), font_name),
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Выравнивание по верху
                     ('TOPPADDING', (0, 0), (-1, -1), 6),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
                 ]))
                 elements.append(dept_table)
@@ -1230,17 +1256,78 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     pass
             
-            # Футер с датой создания
-            elements.append(Spacer(1, 0.5*inch))
-            footer_style = ParagraphStyle(
-                'Footer',
-                parent=styles['Normal'],
-                fontName=font_name,
-                fontSize=8,
-                textColor=colors.HexColor('#6b7280'),
-                alignment=1
-            )
-            elements.append(Paragraph(f'Документ создан: {timezone.now().strftime("%d.%m.%Y %H:%M")}', footer_style))
+            # Список сотрудников (контингент)
+            if plan.employee_ids:
+                elements.append(Paragraph('Список работников, подлежащих медицинскому осмотру', subtitle_style))
+                elements.append(Spacer(1, 0.1*inch))
+                
+                try:
+                    from .models import ContingentEmployee
+                    
+                    # Получаем сотрудников по ID
+                    employees = ContingentEmployee.objects.filter(id__in=plan.employee_ids).order_by('department', 'name')
+                    
+                    if employees.exists():
+                        # Стиль для ячеек таблицы сотрудников
+                        emp_cell_style = ParagraphStyle(
+                            'EmpCellText',
+                            parent=styles['Normal'],
+                            fontSize=8,
+                            textColor=colors.HexColor('#1f2937'),
+                            fontName=font_name,
+                            wordWrap='CJK',
+                            leading=10
+                        )
+                        
+                        # Заголовок таблицы
+                        emp_data = [['№', 'ФИО', 'Должность', 'Объект/участок', 'Вредные факторы']]
+                        
+                        # Добавляем сотрудников
+                        for idx, emp in enumerate(employees, 1):
+                            harmful_factors = ', '.join(emp.harmful_factors) if emp.harmful_factors else '-'
+                            emp_data.append([
+                                str(idx),
+                                Paragraph(emp.name, emp_cell_style),
+                                Paragraph(emp.position, emp_cell_style),
+                                Paragraph(emp.department, emp_cell_style),
+                                Paragraph(harmful_factors, emp_cell_style)
+                            ])
+                        
+                        # Создаем таблицу с оптимальными размерами колонок
+                        emp_table = Table(emp_data, colWidths=[0.4*inch, 1.8*inch, 1.5*inch, 1.8*inch, 1.5*inch])
+                        emp_table.setStyle(TableStyle([
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                            ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Номер по центру
+                            ('ALIGN', (1, 1), (-1, -1), 'LEFT'),   # Остальное слева
+                            ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
+                            ('FONTSIZE', (0, 0), (-1, 0), 9),
+                            ('FONTNAME', (0, 1), (-1, -1), font_name),
+                            ('FONTSIZE', (0, 1), (-1, -1), 8),
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('TOPPADDING', (0, 0), (-1, -1), 4),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
+                        ]))
+                        elements.append(emp_table)
+                        elements.append(Spacer(1, 0.3*inch))
+                        
+                        # Итоговая информация
+                        summary_style = ParagraphStyle(
+                            'Summary',
+                            parent=styles['Normal'],
+                            fontSize=10,
+                            textColor=colors.HexColor('#374151'),
+                            fontName=font_name_bold
+                        )
+                        elements.append(Paragraph(f'Всего работников: {employees.count()}', summary_style))
+                        
+                except Exception as e:
+                    print(f"[PDF Export] Error loading employees: {str(e)}")
+                    pass
             
             # Генерация PDF
             doc.build(elements)
