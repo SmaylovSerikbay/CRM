@@ -2,8 +2,8 @@
 chcp 65001 >nul
 REM Быстрое подключение к серверу
 
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
 set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 
 echo Connecting to server %PROD_HOST%...

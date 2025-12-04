@@ -57,13 +57,13 @@ ssh-keygen -t rsa -b 4096
 
 ### 2. Скопировать на сервер
 ```bash
-ssh-copy-id root@89.207.255.13
+ssh-copy-id ubuntu@82.115.48.40
 ```
-Пароль: `r6aQ-osxs0GERy8=`
+Пароль: `q+I/U9UzOPuXexTC8jbyHgs=`
 
 ### 3. Проверить подключение
 ```bash
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 ```
 
 ### 4. Настроить проект на сервере
@@ -122,9 +122,9 @@ docker system prune -a  # Очистка всего Docker
 ## Настройки в Makefile
 
 ```makefile
-PROD_HOST := 89.207.255.13
-PROD_USER := root
-PROD_PATH := /root/crm-medical
+PROD_HOST := 82.115.48.40
+PROD_USER := ubuntu
+PROD_PATH := /home/ubuntu/projects/CRM
 SSH_KEY := ~/.ssh/id_rsa
 ```
 
@@ -133,9 +133,9 @@ SSH_KEY := ~/.ssh/id_rsa
 ## Настройки в .bat файлах
 
 ```batch
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
-set PROD_PATH=/root/crm-medical
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
+set PROD_PATH=/home/ubuntu/projects/CRM
 set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 ```
 
@@ -146,11 +146,11 @@ set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 ### SSH не работает
 ```bash
 # Проверить ключ
-ssh -v root@89.207.255.13
+ssh -v ubuntu@82.115.48.40
 
 # Пересоздать ключ
 ssh-keygen -t rsa -b 4096
-ssh-copy-id root@89.207.255.13
+ssh-copy-id ubuntu@82.115.48.40
 ```
 
 ### Git push не работает
@@ -168,10 +168,10 @@ git remote set-url origin URL
 ### Контейнеры не запускаются
 ```bash
 # Подключиться к серверу
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 
 # Проверить логи
-cd /root/crm-medical
+cd /home/ubuntu/projects/CRM
 docker compose logs
 
 # Пересобрать
@@ -207,10 +207,10 @@ docker compose up -d
 
 ## Контакты сервера
 
-- **IP:** 89.207.255.13
-- **User:** root
-- **Пароль:** r6aQ-osxs0GERy8= (только для первой настройки!)
-- **Путь проекта:** /root/crm-medical
+- **IP:** 82.115.48.40
+- **User:** ubuntu
+- **Пароль:** q+I/U9UzOPuXexTC8jbyHgs= (только для первой настройки!)
+- **Путь проекта:** /home/ubuntu/projects/CRM
 
 ---
 

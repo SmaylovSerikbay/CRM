@@ -9,9 +9,9 @@ echo ================================
 echo.
 
 REM Настройки
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
-set PROD_PATH=/root/projects/CRM
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
+set PROD_PATH=/home/ubuntu/projects/CRM
 set SSH_KEY=%USERPROFILE%\.ssh\id_rsa
 
 REM Проверка аргументов

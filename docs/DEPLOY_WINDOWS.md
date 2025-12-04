@@ -51,10 +51,10 @@ ssh-keygen -t rsa -b 4096
 **Вариант 1: Через PowerShell**
 
 ```powershell
-type $env:USERPROFILE\.ssh\id_rsa.pub | ssh root@89.207.255.13 "cat >> ~/.ssh/authorized_keys"
+type $env:USERPROFILE\.ssh\id_rsa.pub | ssh ubuntu@82.115.48.40 "cat >> ~/.ssh/authorized_keys"
 ```
 
-Введите пароль: `r6aQ-osxs0GERy8=`
+Введите пароль: `q+I/U9UzOPuXexTC8jbyHgs=`
 
 **Вариант 2: Вручную**
 
@@ -67,9 +67,9 @@ type $env:USERPROFILE\.ssh\id_rsa.pub | ssh root@89.207.255.13 "cat >> ~/.ssh/au
 
 3. Подключитесь к серверу:
    ```cmd
-   ssh root@89.207.255.13
+   ssh ubuntu@82.115.48.40
    ```
-   Пароль: `r6aQ-osxs0GERy8=`
+   Пароль: `q+I/U9UzOPuXexTC8jbyHgs=`
 
 4. На сервере выполните:
    ```bash
@@ -83,7 +83,7 @@ type $env:USERPROFILE\.ssh\id_rsa.pub | ssh root@89.207.255.13 "cat >> ~/.ssh/au
 ### Шаг 3: Проверка подключения
 
 ```cmd
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 ```
 
 Если подключается без пароля - готово! ✅
@@ -117,9 +117,9 @@ deploy-quick.bat "Исправил опечатку"
 Если нужно изменить IP, пользователя или путь, отредактируйте в начале файлов `deploy.bat` и `deploy-quick.bat`:
 
 ```batch
-set PROD_HOST=89.207.255.13
-set PROD_USER=root
-set PROD_PATH=/root/crm-medical
+set PROD_HOST=82.115.48.40
+set PROD_USER=ubuntu
+set PROD_PATH=/home/ubuntu/projects/CRM
 ```
 
 ## Первоначальная настройка на сервере
@@ -127,7 +127,7 @@ set PROD_PATH=/root/crm-medical
 Подключитесь к серверу и настройте проект:
 
 ```cmd
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 ```
 
 На сервере:
@@ -159,25 +159,25 @@ docker compose ps
 ### Просмотр логов на сервере
 
 ```cmd
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose logs -f"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose logs -f"
 ```
 
 ### Статус контейнеров
 
 ```cmd
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose ps"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose ps"
 ```
 
 ### Перезапуск контейнеров
 
 ```cmd
-ssh root@89.207.255.13 "cd /root/crm-medical && docker compose restart"
+ssh ubuntu@82.115.48.40 "cd /home/ubuntu/projects/CRM && docker compose restart"
 ```
 
 ### Подключение к серверу
 
 ```cmd
-ssh root@89.207.255.13
+ssh ubuntu@82.115.48.40
 ```
 
 ## Использование через Make (опционально)

@@ -7,9 +7,9 @@ ifndef DOCKER_COMPOSE
 endif
 
 # Настройки деплоя
-PROD_HOST := 89.207.255.13
-PROD_USER := root
-PROD_PATH := /root/projects/CRM
+PROD_HOST := 82.115.48.40
+PROD_USER := ubuntu
+PROD_PATH := /home/ubuntu/projects/CRM
 SSH_KEY := ~/.ssh/id_rsa
 
 # Colors (disabled on Windows due to encoding issues)

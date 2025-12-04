@@ -67,8 +67,8 @@ make server-restart        # Перезапуск
 git add .
 git commit -m "описание"
 git push origin main
-ssh root@89.207.255.13
-cd /root/crm-medical
+ssh ubuntu@82.115.48.40
+cd /home/ubuntu/projects/CRM
 git pull origin main
 docker compose -f docker-compose.yml build
 docker compose -f docker-compose.yml up -d
@@ -250,9 +250,9 @@ server-logs.bat
 ## 📞 Настройки сервера
 
 ```
-IP:       89.207.255.13
-User:     root
-Path:     /root/crm-medical
+IP:       82.115.48.40
+User:     ubuntu
+Path:     /home/ubuntu/projects/CRM
 Password: r6aQ-osxs0GERy8= (только для первой настройки!)
 ```
 
