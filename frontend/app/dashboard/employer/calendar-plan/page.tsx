@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, X, FileText } from 'lucide-react';
@@ -17,6 +17,11 @@ export default function EmployerCalendarPlanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedPlanEmployees, setSelectedPlanEmployees] = useState<ContingentEmployee[]>([]);
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+  
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const loadData = async () => {
@@ -51,9 +56,49 @@ export default function EmployerCalendarPlanPage() {
     }
   };
 
-  const handleGeneratePDF = (plan: CalendarPlan) => {
-    // Симуляция генерации PDF
-    showToast(`Генерация PDF календарного плана для ${plan.department}...`, 'info');
+  const handleGeneratePDF = async (plan: CalendarPlan) => {
+    try {
+      showToast('Генерация PDF...', 'info');
+      
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      
+      const response = await fetch(`${API_URL}/calendar-plans/${plan.id}/export_pdf/`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        let errorMessage = 'Ошибка генерации PDF';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.detail || errorMessage;
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой PDF файл');
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const filename = `calendar_plan_${plan.department.replace(/[^a-zA-Z0-9а-яА-Я]/g, '_')}_${plan.startDate}.pdf`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showToast('PDF успешно сгенерирован и скачан', 'success');
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      showToast(error.message || 'Ошибка генерации PDF', 'error');
+    }
   };
 
   const getEmployeeCount = (plan: CalendarPlan) => {
@@ -67,24 +112,78 @@ export default function EmployerCalendarPlanPage() {
     setShowEmployeeModal(true);
   };
 
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { label: string; icon: any; colors: string }> = {
+      draft: {
+        label: 'Черновик',
+        icon: Clock,
+        colors: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+      },
+      pending_clinic: {
+        label: 'Ожидает утверждения клиникой',
+        icon: Clock,
+        colors: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+      },
+      pending_employer: {
+        label: 'Ожидает утверждения работодателем',
+        icon: Clock,
+        colors: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+      },
+      approved: {
+        label: 'Утвержден',
+        icon: CheckCircle,
+        colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+      },
+      sent_to_ses: {
+        label: 'Отправлен в СЭС',
+        icon: Download,
+        colors: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+      },
+    };
+    return configs[status] || configs.draft;
+  };
+
   // Фильтруем планы, которые ожидают утверждения работодателем
   const pendingPlans = plans.filter(p => p.status === 'pending_employer');
   const approvedPlans = plans.filter(p => p.status === 'approved' || p.status === 'sent_to_ses');
+  
+  // Пагинация
+  const allPlans = [...pendingPlans, ...approvedPlans];
+  const totalPages = Math.ceil(allPlans.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPlans = allPlans.slice(startIndex, endIndex);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div>
-            <h1 className="text-2xl font-bold">Календарный план</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Утверждение календарных планов, созданных клиникой. После утверждения план отправляется в СЭС.
-            </p>
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Sticky Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold">Календарный план</h1>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Утверждение календарных планов, созданных клиникой
+              </p>
+            </div>
+            <div className="flex items-center gap-3 ml-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Планов: {plans.length}
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 overflow-y-auto px-4 py-4">
         {availableDepartments.length === 0 && (
           <Card className="mb-8">
             <div className="flex items-center gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
@@ -94,224 +193,292 @@ export default function EmployerCalendarPlanPage() {
                   Список контингента не загружен
                 </p>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  Сначала загрузите список контингента
+                  Сначала необходимо загрузить список контингента по договору
                 </p>
               </div>
             </div>
           </Card>
         )}
 
-        {/* Pending Plans */}
-        {pendingPlans.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4">Ожидают утверждения</h2>
-            <div className="space-y-4">
-              {pendingPlans.map((plan, index) => (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Основная информация */}
-                      <div className="lg:col-span-2 space-y-4">
-                        <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-600 dark:from-yellow-600 dark:to-yellow-700 flex items-center justify-center shadow-md flex-shrink-0">
-                            <Calendar className="h-7 w-7 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{plan.department}</h3>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg">
-                              <Clock className="h-3.5 w-3.5" />
-                              Ожидает утверждения работодателем
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Информация о периодах и участках */}
-                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
-                          {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
-                            <>
-                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                                <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                                <span>Общий период:</span>
-                                <span className="text-gray-900 dark:text-white">
-                                  {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                </span>
-                              </div>
-                              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Участки ({plan.departmentsInfo.length}):</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                  {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
-                                    <div key={idx} className="bg-white dark:bg-gray-900 rounded-md p-3 border border-gray-200 dark:border-gray-700">
-                                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{deptInfo.department}</p>
-                                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                        {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                      </p>
-                                      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                                        <Users className="h-3 w-3" />
-                                        <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                              <span className="text-gray-600 dark:text-gray-400">Период:</span>
-                              <span className="font-medium text-gray-900 dark:text-white">
-                                {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+        {/* Таблица планов */}
+        {allPlans.length > 0 ? (
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+            {/* Таблица */}
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                      Объект/Участок
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                      Период
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-24">
+                      Сотрудников
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-28">
+                      Договор
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-40">
+                      Статус
+                    </th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {paginatedPlans.map((plan, index) => {
+                    const statusConfig = getStatusConfig(plan.status);
+                    const StatusIcon = statusConfig.icon;
+                    
+                    return (
+                      <>
+                        <motion.tr
+                          key={plan.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: index * 0.02 }}
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                            expandedPlan === plan.id 
+                              ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400' 
+                              : ''
+                          }`}
+                        >
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[250px]">
+                                {plan.department}
                               </span>
                             </div>
-                          )}
-                        </div>
-
-                        {/* Дополнительная информация */}
-                        <button
-                          onClick={() => handleShowEmployees(plan)}
-                          className="flex items-center gap-2 text-sm hover:bg-yellow-50 dark:hover:bg-yellow-900/20 px-3 py-2 rounded-lg transition-colors group"
-                        >
-                          <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                          <span className="font-medium text-yellow-600 dark:text-yellow-400">{getEmployeeCount(plan)}</span>
-                          <span className="text-gray-600 dark:text-gray-400 group-hover:text-yellow-700 dark:group-hover:text-yellow-300">сотрудников</span>
-                          <span className="text-yellow-600 dark:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
-                        </button>
-                      </div>
-
-                      {/* Действия */}
-                      <div className="lg:col-span-1">
-                        <div className="flex flex-col gap-2 lg:sticky lg:top-4">
-                          <Button size="sm" onClick={() => handleApprove(plan.id)} className="w-full">
-                            Согласовано (Работодатель)
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Просмотреть PDF
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Approved Plans */}
-        {approvedPlans.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Утвержденные планы</h2>
-            <div className="space-y-4">
-              {approvedPlans.map((plan, index) => (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Основная информация */}
-                      <div className="lg:col-span-2 space-y-4">
-                        <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 flex items-center justify-center shadow-md flex-shrink-0">
-                            <Calendar className="h-7 w-7 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{plan.department}</h3>
-                            <div className="flex flex-wrap items-center gap-2">
-                              {plan.status === 'approved' ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg">
-                                  <CheckCircle className="h-3.5 w-3.5" />
-                                  Утвержден обеими сторонами
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg">
-                                  Отправлен в СЭС
-                                </span>
+                            {plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
+                                {plan.departmentsInfo.length} участков
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {getEmployeeCount(plan)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {plan.contractNumber ? `№${plan.contractNumber}` : '—'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${statusConfig.colors}`}>
+                              <StatusIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="truncate max-w-[140px]">{statusConfig.label}</span>
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2 flex-wrap">
+                              {plan.status === 'pending_employer' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApprove(plan.id)}
+                                >
+                                  Согласовать
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGeneratePDF(plan)}
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                PDF
+                              </Button>
+                              {(plan.departmentsInfo && plan.departmentsInfo.length > 1) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
+                                >
+                                  {expandedPlan === plan.id ? 'Скрыть' : 'Подробнее'}
+                                </Button>
                               )}
                             </div>
-                          </div>
-                        </div>
-
-                        {/* Информация о периодах и участках */}
-                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
-                          {plan.departmentsInfo && plan.departmentsInfo.length > 1 ? (
-                            <>
-                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                                <Calendar className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <span>Общий период:</span>
-                                <span className="text-gray-900 dark:text-white">
-                                  {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                </span>
-                              </div>
-                              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Участки ({plan.departmentsInfo.length}):</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                  {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
-                                    <div key={idx} className="bg-white dark:bg-gray-900 rounded-md p-3 border border-gray-200 dark:border-gray-700">
-                                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{deptInfo.department}</p>
-                                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                        {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                      </p>
-                                      <button
-                                        onClick={() => handleShowEmployees(plan)}
-                                        className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
-                                      >
-                                        <Users className="h-3 w-3" />
-                                        <span className="underline">{deptInfo.employeeIds?.length || 0} сотрудников</span>
-                                      </button>
+                          </td>
+                        </motion.tr>
+                        
+                        {/* Развернутая информация о нескольких участках */}
+                        {expandedPlan === plan.id && plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
+                          <tr className="bg-blue-50/30 dark:bg-blue-900/10">
+                            <td colSpan={6} className="px-0 py-0">
+                              <AnimatePresence>
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  {/* Соединительная линия */}
+                                  <div className="h-px bg-blue-300 dark:bg-blue-700 mx-4"></div>
+                                  
+                                  <div className="px-4 py-4 bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400">
+                                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center">
+                                        <Calendar className="h-3.5 w-3.5 text-white" />
+                                      </div>
+                                      <span>Детали по участкам календарного плана &quot;{plan.department}&quot; ({plan.departmentsInfo.length})</span>
+                                    </h4>
+                                    
+                                    {/* Подтаблица */}
+                                    <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                      <table className="w-full text-sm">
+                                        <thead>
+                                          <tr className="bg-gray-100 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700">
+                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                              №
+                                            </th>
+                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                              Объект/Участок
+                                            </th>
+                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                              Период
+                                            </th>
+                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                              Сотрудников
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                                          {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
+                                            <motion.tr
+                                              key={idx}
+                                              initial={{ opacity: 0, x: -10 }}
+                                              animate={{ opacity: 1, x: 0 }}
+                                              transition={{ delay: idx * 0.05 }}
+                                              className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                            >
+                                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium">
+                                                {idx + 1}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                  {deptInfo.department}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                  <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                                                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                    {new Date(deptInfo.startDate).toLocaleDateString('ru-RU')} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU')}
+                                                  </span>
+                                                </div>
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                  <Users className="h-3.5 w-3.5 text-purple-500" />
+                                                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                                    {deptInfo.employeeIds?.length || 0} {deptInfo.employeeIds?.length === 1 ? 'сотрудник' : deptInfo.employeeIds?.length < 5 ? 'сотрудника' : 'сотрудников'}
+                                                  </span>
+                                                </div>
+                                              </td>
+                                            </motion.tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              <span className="text-gray-600 dark:text-gray-400">Период:</span>
-                              <span className="font-medium text-gray-900 dark:text-white">
-                                {new Date(plan.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(plan.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Дополнительная информация */}
-                        <button
-                          onClick={() => handleShowEmployees(plan)}
-                          className="flex items-center gap-2 text-sm hover:bg-green-50 dark:hover:bg-green-900/20 px-3 py-2 rounded-lg transition-colors group"
-                        >
-                          <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          <span className="font-medium text-green-600 dark:text-green-400">{getEmployeeCount(plan)}</span>
-                          <span className="text-gray-600 dark:text-gray-400 group-hover:text-green-700 dark:group-hover:text-green-300">сотрудников</span>
-                          <span className="text-green-600 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
-                        </button>
-                      </div>
-
-                      {/* Действия */}
-                      <div className="lg:col-span-1">
-                        <div className="flex flex-col gap-2 lg:sticky lg:top-4">
-                          <Button size="sm" variant="outline" onClick={() => handleGeneratePDF(plan)} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Скачать PDF
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                                  </div>
+                                </motion.div>
+                              </AnimatePresence>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+            
+            {/* Пагинация */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Страница {currentPage} из {totalPages}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">На странице:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                    >
+                      <option value="5">5</option>
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Назад
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 text-sm rounded transition-colors ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-
-        {plans.length === 0 && (
+        ) : (
           <Card>
             <div className="text-center py-12">
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
