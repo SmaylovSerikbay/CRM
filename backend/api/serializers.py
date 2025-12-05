@@ -307,12 +307,124 @@ class ContractHistorySerializer(serializers.ModelSerializer):
 
 class ContractSerializer(serializers.ModelSerializer):
     scan_files = serializers.JSONField(required=False, allow_null=True, default=list)
-    employer_name = serializers.CharField(source='employer.registration_data.name', read_only=True, allow_null=True)
-    clinic_name = serializers.CharField(source='clinic.registration_data.name', read_only=True, allow_null=True)
-    employer_bin = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    employer_phone = serializers.CharField(required=False, allow_blank=True)
+    employer_name = serializers.SerializerMethodField()
+    # clinic_name показывает оригинальную клинику для работодателя, даже если договор передан на субподряд
+    clinic_name = serializers.SerializerMethodField()
+    original_clinic_name = serializers.CharField(source='original_clinic.registration_data.name', read_only=True, allow_null=True)
+    subcontractor_clinic_name = serializers.CharField(source='subcontractor_clinic.registration_data.name', read_only=True, allow_null=True)
+    amount = serializers.SerializerMethodField()
+    employer_bin = serializers.SerializerMethodField()
+    employer_phone = serializers.SerializerMethodField()
+    
+    def get_clinic_name(self, obj):
+        # Если договор передан на субподряд, показываем оригинальную клинику
+        # чтобы работодатель всегда видел клинику, с которой он заключал договор
+        if obj.is_subcontracted and obj.original_clinic:
+            return obj.original_clinic.registration_data.get('name', '') if obj.original_clinic.registration_data else ''
+        # Иначе показываем текущую клинику
+        return obj.clinic.registration_data.get('name', '') if obj.clinic and obj.clinic.registration_data else ''
+    
+    def get_employer_name(self, obj):
+        """Скрываем данные работодателя для субподрядчика"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            # Если пользователь - субподрядчик, скрываем данные работодателя
+            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                return None
+        return obj.employer.registration_data.get('name', '') if obj.employer and obj.employer.registration_data else None
+    
+    def get_amount(self, obj):
+        """Скрываем сумму для субподрядчика"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            # Если пользователь - субподрядчик, скрываем сумму
+            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                return None
+        return obj.amount
+    
+    def get_employer_bin(self, obj):
+        """Скрываем БИН работодателя для субподрядчика"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            # Если пользователь - субподрядчик, скрываем БИН
+            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                return None
+        return obj.employer_bin
+    
+    def get_employer_phone(self, obj):
+        """Скрываем телефон работодателя для субподрядчика"""
+        request = self.context.get('request')
+        if request:
+            # Получаем user_id из query params
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                try:
+                    from .models import User
+                    user = User.objects.get(id=user_id)
+                    # Если пользователь - субподрядчик, скрываем телефон
+                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                        return None
+                except:
+                    pass
+        return obj.employer_phone
+    
+    def get_employer_bin(self, obj):
+        """Скрываем БИН работодателя для субподрядчика"""
+        request = self.context.get('request')
+        if request:
+            # Получаем user_id из query params
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                try:
+                    from .models import User
+                    user = User.objects.get(id=user_id)
+                    # Если пользователь - субподрядчик, скрываем БИН
+                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                        return None
+                except:
+                    pass
+        return obj.employer_bin
+    
+    def get_employer_name(self, obj):
+        """Скрываем данные работодателя для субподрядчика"""
+        request = self.context.get('request')
+        if request:
+            # Получаем user_id из query params
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                try:
+                    from .models import User
+                    user = User.objects.get(id=user_id)
+                    # Если пользователь - субподрядчик, скрываем данные работодателя
+                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                        return None
+                except:
+                    pass
+        return obj.employer.registration_data.get('name', '') if obj.employer and obj.employer.registration_data else None
+    
+    def get_amount(self, obj):
+        """Скрываем сумму для субподрядчика"""
+        request = self.context.get('request')
+        if request:
+            # Получаем user_id из query params
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                try:
+                    from .models import User
+                    user = User.objects.get(id=user_id)
+                    # Если пользователь - субподрядчик, скрываем сумму
+                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
+                        return None
+                except:
+                    pass
+        return obj.amount
     employer = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='employer'), write_only=False)
     clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
+    original_clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
+    subcontractor_clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
     history = ContractHistorySerializer(many=True, read_only=True)
     
     def validate_employer_bin(self, value):
@@ -327,8 +439,10 @@ class ContractSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contract
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_by_employer_at', 'approved_by_clinic_at', 'sent_at', 'executed_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_by_employer_at', 'approved_by_clinic_at', 'sent_at', 'executed_at', 'subcontracted_at', 'subcontract_accepted_at', 'subcontract_rejected_at']
         extra_kwargs = {
             'employer': {'required': False, 'allow_null': True},
             'clinic': {'required': False, 'allow_null': True},
+            'original_clinic': {'required': False, 'allow_null': True},
+            'subcontractor_clinic': {'required': False, 'allow_null': True},
         }

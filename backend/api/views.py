@@ -359,6 +359,59 @@ class UserViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def clinics(self, request):
+        """Получить список всех клиник"""
+        try:
+            clinics = User.objects.filter(role='clinic', registration_completed=True)
+            serializer = UserSerializer(clinics, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def find_clinic_by_bin(self, request):
+        """Поиск клиники по БИН"""
+        bin_number = request.query_params.get('bin')
+        if not bin_number:
+            return Response({'error': 'bin parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Нормализуем БИН (убираем пробелы, приводим к строке)
+            bin_normalized = ''.join(str(bin_number).strip().split())
+            
+            # Ищем клинику с указанным БИН в registration_data
+            clinics = User.objects.filter(role='clinic')
+            
+            clinic = None
+            for cl in clinics:
+                reg_data = cl.registration_data or {}
+                # Проверяем оба варианта: bin и inn
+                clinic_bin = str(reg_data.get('bin', '')).strip()
+                clinic_inn = str(reg_data.get('inn', '')).strip()
+                
+                # Нормализуем для сравнения
+                clinic_bin_normalized = ''.join(clinic_bin.split())
+                clinic_inn_normalized = ''.join(clinic_inn.split())
+                
+                if clinic_bin_normalized == bin_normalized or clinic_inn_normalized == bin_normalized:
+                    clinic = cl
+                    break
+            
+            if clinic:
+                serializer = UserSerializer(clinic)
+                return Response({
+                    'found': True,
+                    'user': serializer.data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'found': False,
+                    'message': 'Клиника с таким БИН не найдена. Можно отправить на субподряд незарегистрированной клинике.'
+                }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ContingentEmployeeViewSet(viewsets.ModelViewSet):
@@ -3560,6 +3613,12 @@ class ContractViewSet(viewsets.ModelViewSet):
     """ViewSet для управления договорами между работодателем и клиникой"""
     serializer_class = ContractSerializer
     
+    def get_serializer_context(self):
+        """Передаем request в контекст сериализатора для проверки прав доступа"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
     def get_queryset(self):
         user_id = self.request.query_params.get('user_id')
         if user_id:
@@ -3581,7 +3640,13 @@ class ContractViewSet(viewsets.ModelViewSet):
                         return Contract.objects.filter(employer=user)
                 # Клиника видит свои договоры
                 elif user.role == 'clinic':
-                    return Contract.objects.filter(clinic=user)
+                    # Клиника видит:
+                    # 1. Договоры где она является основной клиникой (clinic=user)
+                    # 2. Договоры переданные ей на субподряд (subcontractor_clinic=user)
+                    # 3. Договоры которые она передала на субподряд (original_clinic=user)
+                    return Contract.objects.filter(
+                        Q(clinic=user) | Q(subcontractor_clinic=user) | Q(original_clinic=user)
+                    )
                 else:
                     return Contract.objects.none()
             except User.DoesNotExist:
@@ -3742,6 +3807,284 @@ class ContractViewSet(viewsets.ModelViewSet):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to send contract notification: {str(e)}")
+    
+    def _send_subcontract_notification(self, contract, phone, bin_number, subcontract_amount, is_registered):
+        """Отправка уведомления клинике-субподрядчику о передаче договора на субподряд через WhatsApp"""
+        try:
+            from django.conf import settings
+            import requests
+            
+            # Форматируем телефон
+            formatted_phone = phone.replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+            if not formatted_phone.startswith('7'):
+                formatted_phone = '7' + formatted_phone
+            
+            # Формируем сообщение
+            original_clinic_name = contract.original_clinic.registration_data.get('name', 'Клиника') if contract.original_clinic and contract.original_clinic.registration_data else 'Клиника'
+            frontend_url = settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else 'http://localhost:3000'
+            
+            if is_registered:
+                message = f"""Добрый день!
+
+Вам передан договор на субподряд от {original_clinic_name}.
+
+Номер договора: {contract.contract_number}
+Дата договора: {contract.contract_date}
+Количество сотрудников: {contract.people_count}
+Сумма субподряда: {subcontract_amount} тенге
+
+Для просмотра и принятия договора перейдите по ссылке:
+{frontend_url}/dashboard/clinic/contracts
+
+Войдите в систему используя свой номер телефона."""
+            else:
+                message = f"""Добрый день!
+
+Вам передан договор на субподряд от {original_clinic_name}.
+
+Номер договора: {contract.contract_number}
+Дата договора: {contract.contract_date}
+Количество сотрудников: {contract.people_count}
+Сумма субподряда: {subcontract_amount} тенге
+{f'БИН: {bin_number}' if bin_number else ''}
+
+Для работы с договором зарегистрируйтесь в системе:
+{frontend_url}/auth
+
+После регистрации вы сможете принять или отклонить договор на субподряд."""
+            
+            # Отправляем через Green API
+            url = f"{settings.GREEN_API_URL}/waInstance{settings.GREEN_API_ID_INSTANCE}/sendMessage/{settings.GREEN_API_TOKEN}"
+            payload = {
+                "chatId": f"{formatted_phone}@c.us",
+                "message": message
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Subcontract notification sent to {formatted_phone}")
+            else:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send subcontract notification: {response.status_code} - {response.text}")
+        except Exception as e:
+            # Логируем ошибку, но не прерываем процесс
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send subcontract notification: {str(e)}")
+    
+    @action(detail=True, methods=['post'])
+    def subcontract(self, request, pk=None):
+        """Передача договора на субподряд другой клинике"""
+        try:
+            contract = self.get_object()
+            subcontractor_clinic_id = request.data.get('subcontractor_clinic_id')
+            subcontractor_clinic_bin = request.data.get('subcontractor_clinic_bin')
+            subcontractor_clinic_phone = request.data.get('subcontractor_clinic_phone')
+            subcontract_amount = request.data.get('subcontract_amount')
+            user_id = request.data.get('user_id')
+            
+            if not user_id:
+                return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not subcontract_amount:
+                return Response({'error': 'subcontract_amount is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что пользователь является владельцем договора (оригинальной клиникой)
+            user = User.objects.get(id=user_id)
+            if user.role != 'clinic':
+                return Response({'error': 'Only clinic can subcontract this contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Определяем оригинальную клинику: если есть original_clinic, то она, иначе clinic
+            original_clinic = contract.original_clinic if contract.original_clinic else contract.clinic
+            if original_clinic != user:
+                return Response({'error': 'Only the original clinic can subcontract this contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Проверяем что договор еще не передан на субподряд
+            if contract.is_subcontracted:
+                return Response({'error': 'Contract is already subcontracted'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Получаем клинику-субподрядчика
+            subcontractor_clinic = None
+            if subcontractor_clinic_id:
+                subcontractor_clinic = User.objects.get(id=subcontractor_clinic_id, role='clinic')
+            elif subcontractor_clinic_bin:
+                # Поиск по БИН/ИНН
+                bin_normalized = ''.join(str(subcontractor_clinic_bin).strip().split())
+                clinics = User.objects.filter(role='clinic')
+                for clinic in clinics:
+                    reg_data = clinic.registration_data or {}
+                    clinic_bin = str(reg_data.get('bin', '')).strip()
+                    clinic_inn = str(reg_data.get('inn', '')).strip()
+                    clinic_bin_normalized = ''.join(clinic_bin.split())
+                    clinic_inn_normalized = ''.join(clinic_inn.split())
+                    if clinic_bin_normalized == bin_normalized or clinic_inn_normalized == bin_normalized:
+                        subcontractor_clinic = clinic
+                        break
+                
+                if not subcontractor_clinic:
+                    # Клиника не найдена, но можем создать запрос для незарегистрированной
+                    pass
+            
+            if not subcontractor_clinic and not subcontractor_clinic_phone:
+                return Response({'error': 'subcontractor_clinic_id or subcontractor_clinic_bin with subcontractor_clinic_phone is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что не передаем самому себе
+            if subcontractor_clinic and subcontractor_clinic == original_clinic:
+                return Response({'error': 'Cannot subcontract to yourself'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Обновляем договор
+            contract.is_subcontracted = True
+            contract.subcontract_status = 'pending'
+            contract.original_clinic = original_clinic
+            contract.subcontract_amount = subcontract_amount
+            if subcontractor_clinic:
+                contract.subcontractor_clinic = subcontractor_clinic
+            contract.subcontracted_at = timezone.now()
+            # Меняем clinic на субподрядчика, чтобы он видел договор как свой
+            if subcontractor_clinic:
+                contract.clinic = subcontractor_clinic
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            subcontractor_name = subcontractor_clinic.registration_data.get('name', '') if subcontractor_clinic and subcontractor_clinic.registration_data else (subcontractor_clinic_bin or 'Клиника')
+            ContractHistory.objects.create(
+                contract=contract,
+                action='subcontracted',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=contract.status,
+                new_status=contract.status,
+                comment=f'Договор передан на субподряд клинике: {subcontractor_name}. Сумма субподряда: {subcontract_amount} тенге'
+            )
+            
+            # Отправляем уведомление
+            if subcontractor_clinic_phone:
+                self._send_subcontract_notification(contract, subcontractor_clinic_phone, subcontractor_clinic_bin or '', subcontract_amount, subcontractor_clinic is not None)
+            
+            # Обновляем сериализатор для возврата обновленных данных
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({'error': 'User or subcontractor clinic not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            return Response({
+                'error': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def accept_subcontract(self, request, pk=None):
+        """Принятие договора на субподряд клиникой-субподрядчиком"""
+        try:
+            contract = self.get_object()
+            user_id = request.data.get('user_id')
+            
+            if not user_id:
+                return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что пользователь является субподрядчиком
+            user = User.objects.get(id=user_id)
+            if user.role != 'clinic':
+                return Response({'error': 'Only clinic can accept subcontract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            if not contract.is_subcontracted or contract.subcontractor_clinic != user:
+                return Response({'error': 'You are not the subcontractor for this contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            if contract.subcontract_status != 'pending':
+                return Response({'error': f'Contract subcontract status is {contract.subcontract_status}, not pending'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Обновляем статус
+            contract.subcontract_status = 'accepted'
+            contract.subcontract_accepted_at = timezone.now()
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='subcontracted',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=contract.status,
+                new_status=contract.status,
+                comment='Субподряд принят клиникой-субподрядчиком'
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            return Response({
+                'error': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def reject_subcontract(self, request, pk=None):
+        """Отклонение договора на субподряд клиникой-субподрядчиком"""
+        try:
+            contract = self.get_object()
+            user_id = request.data.get('user_id')
+            reason = request.data.get('reason', '')
+            
+            if not user_id:
+                return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что пользователь является субподрядчиком
+            user = User.objects.get(id=user_id)
+            if user.role != 'clinic':
+                return Response({'error': 'Only clinic can reject subcontract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            if not contract.is_subcontracted or contract.subcontractor_clinic != user:
+                return Response({'error': 'You are not the subcontractor for this contract'}, status=status.HTTP_403_FORBIDDEN)
+            
+            if contract.subcontract_status != 'pending':
+                return Response({'error': f'Contract subcontract status is {contract.subcontract_status}, not pending'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Обновляем статус
+            contract.subcontract_status = 'rejected'
+            contract.subcontract_rejected_at = timezone.now()
+            contract.subcontract_rejection_reason = reason
+            # Возвращаем clinic обратно к оригинальной клинике
+            if contract.original_clinic:
+                contract.clinic = contract.original_clinic
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='subcontracted',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=contract.status,
+                new_status=contract.status,
+                comment=f'Субподряд отклонен клиникой-субподрядчиком. Причина: {reason}' if reason else 'Субподряд отклонен клиникой-субподрядчиком'
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            return Response({
+                'error': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     def _send_contract_rejection_notification(self, contract, phone, reason):
         """Отправка уведомления клинике об отклонении договора через WhatsApp"""

@@ -420,6 +420,21 @@ class Contract(models.Model):
     approved_by_clinic_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата согласования клиникой')
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата отправки')
     executed_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата исполнения')
+    # Поля для субподряда
+    SUBCONTRACT_STATUS_CHOICES = [
+        ('pending', 'Ожидает подтверждения'),
+        ('accepted', 'Принят'),
+        ('rejected', 'Отклонен'),
+    ]
+    is_subcontracted = models.BooleanField(default=False, verbose_name='Передан на субподряд', help_text='Флаг указывающий что договор передан на субподряд')
+    subcontract_status = models.CharField(max_length=20, choices=SUBCONTRACT_STATUS_CHOICES, null=True, blank=True, verbose_name='Статус субподряда')
+    original_clinic = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='subcontracted_contracts', verbose_name='Оригинальная клиника', null=True, blank=True, help_text='Клиника, которая передала договор на субподряд')
+    subcontractor_clinic = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='subcontractor_contracts', verbose_name='Клиника-субподрядчик', null=True, blank=True, help_text='Клиника-субподрядчик, которая выполняет работу')
+    subcontracted_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата передачи на субподряд')
+    subcontract_accepted_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата принятия субподряда')
+    subcontract_rejected_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата отклонения субподряда')
+    subcontract_rejection_reason = models.TextField(blank=True, verbose_name='Причина отклонения субподряда')
+    subcontract_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name='Сумма субподряда', help_text='Сумма, которую основная клиника платит субподрядчику')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
     
@@ -447,6 +462,7 @@ class ContractHistory(models.Model):
         ('resent_for_approval', 'Повторно отправлен на согласование'),
         ('cancelled', 'Отменен'),
         ('executed', 'Исполнен'),
+        ('subcontracted', 'Передан на субподряд'),
     ]
     
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='history', verbose_name='Договор')

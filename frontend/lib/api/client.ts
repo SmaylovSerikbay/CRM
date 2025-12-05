@@ -251,6 +251,52 @@ class ApiClient {
     return this.request(`/users/find_by_bin/?bin=${bin}`);
   }
 
+  async getClinics(): Promise<any[]> {
+    return this.request('/users/clinics/');
+  }
+
+  async subcontractContract(
+    contractId: string, 
+    userId: string, 
+    data: {
+      subcontractor_clinic_id?: string;
+      subcontractor_clinic_bin?: string;
+      subcontractor_clinic_phone?: string;
+      subcontract_amount: number;
+    }
+  ): Promise<any> {
+    return this.request(`/contracts/${contractId}/subcontract/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: userId,
+        ...data,
+      }),
+    });
+  }
+
+  async findClinicByBin(bin: string): Promise<any> {
+    return this.request(`/users/find_clinic_by_bin/?bin=${bin}`);
+  }
+
+  async acceptSubcontract(contractId: string, userId: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/accept_subcontract/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: userId,
+      }),
+    });
+  }
+
+  async rejectSubcontract(contractId: string, userId: string, reason?: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/reject_subcontract/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: userId,
+        reason: reason || '',
+      }),
+    });
+  }
+
   async approveContract(contractId: string, userId: string): Promise<any> {
     return this.request(`/contracts/${contractId}/approve/`, {
       method: 'POST',

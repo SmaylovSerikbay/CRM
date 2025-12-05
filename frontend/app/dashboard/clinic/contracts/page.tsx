@@ -7,12 +7,13 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, FileCheck, Eye } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, FileCheck, Eye, Handshake } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
+import { userStore } from '@/lib/store/user-store';
 
 interface Contract {
   id: string;
@@ -39,6 +40,15 @@ interface Contract {
   notes?: string;
   createdAt: string;
   history?: ContractHistoryItem[];
+  // Поля для субподряда
+  is_subcontracted?: boolean;
+  subcontract_status?: 'pending' | 'accepted' | 'rejected';
+  original_clinic?: number;
+  original_clinic_name?: string;
+  subcontractor_clinic?: number;
+  subcontractor_clinic_name?: string;
+  subcontracted_at?: string;
+  subcontract_rejection_reason?: string;
 }
 
 interface ContractHistoryItem {
@@ -111,6 +121,19 @@ export default function ContractsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   
+  // Состояния для субподряда
+  const [showSubcontractModal, setShowSubcontractModal] = useState<string | null>(null);
+  const [clinics, setClinics] = useState<any[]>([]);
+  const [selectedSubcontractorClinic, setSelectedSubcontractorClinic] = useState<string>('');
+  const [isSubcontracting, setIsSubcontracting] = useState(false);
+  const [clinicSearchQuery, setClinicSearchQuery] = useState('');
+  const [subcontractBin, setSubcontractBin] = useState('');
+  const [subcontractPhone, setSubcontractPhone] = useState('');
+  const [subcontractAmount, setSubcontractAmount] = useState('');
+  const [searchingSubcontractBin, setSearchingSubcontractBin] = useState(false);
+  const [foundSubcontractClinic, setFoundSubcontractClinic] = useState<any>(null);
+  const [subcontractBinSearched, setSubcontractBinSearched] = useState(false);
+  
   const [formData, setFormData] = useState({
     employer_bin: '',
     employer_phone: '',
@@ -124,7 +147,129 @@ export default function ContractsPage() {
 
   useEffect(() => {
     loadContracts();
+    loadClinics();
   }, []);
+
+  const loadClinics = async () => {
+    try {
+      const clinicsData = await apiClient.getClinics();
+      setClinics(clinicsData);
+    } catch (error) {
+      console.error('Error loading clinics:', error);
+    }
+  };
+
+  const handleOpenSubcontractModal = async (contractId: string) => {
+    const user = userStore.getCurrentUser();
+    if (!user) {
+      showToast('Пользователь не авторизован', 'error');
+      return;
+    }
+    
+    const contract = contracts.find(c => c.id === contractId);
+    if (!contract) {
+      showToast('Договор не найден', 'error');
+      return;
+    }
+    
+    // Проверяем что договор еще не передан на субподряд
+    if (contract.is_subcontracted) {
+      showToast('Договор уже передан на субподряд', 'warning');
+      return;
+    }
+    
+    setShowSubcontractModal(contractId);
+    setSelectedSubcontractorClinic('');
+    setClinicSearchQuery('');
+    setSubcontractBin('');
+    setSubcontractPhone('');
+    setSubcontractAmount('');
+    setFoundSubcontractClinic(null);
+    setSubcontractBinSearched(false);
+  };
+
+  const handleSearchSubcontractBin = async (bin: string) => {
+    if (!bin.trim() || bin.length < 12) {
+      setFoundSubcontractClinic(null);
+      setSubcontractBinSearched(false);
+      return;
+    }
+
+    setSearchingSubcontractBin(true);
+    setSubcontractBinSearched(false);
+    try {
+      const result = await apiClient.findClinicByBin(bin);
+      setSubcontractBinSearched(true);
+      if (result.found) {
+        setFoundSubcontractClinic(result.user);
+        setSelectedSubcontractorClinic(result.user.id.toString());
+        if (result.user.phone) {
+          setSubcontractPhone(result.user.phone);
+        }
+      } else {
+        setFoundSubcontractClinic(null);
+        setSelectedSubcontractorClinic('');
+      }
+    } catch (error: any) {
+      console.error('Ошибка поиска БИН:', error);
+      setFoundSubcontractClinic(null);
+      setSubcontractBinSearched(true);
+    } finally {
+      setSearchingSubcontractBin(false);
+    }
+  };
+
+  const handleSubcontract = async () => {
+    if (!showSubcontractModal) {
+      showToast('Ошибка: договор не выбран', 'error');
+      return;
+    }
+
+    if (!subcontractAmount || parseFloat(subcontractAmount) <= 0) {
+      showToast('Укажите сумму субподряда', 'warning');
+      return;
+    }
+
+    if (!selectedSubcontractorClinic && !subcontractBin) {
+      showToast('Выберите клинику-субподрядчика или укажите БИН', 'warning');
+      return;
+    }
+
+    if (!subcontractPhone) {
+      showToast('Укажите телефон клиники-субподрядчика для отправки уведомления', 'warning');
+      return;
+    }
+    
+    const user = userStore.getCurrentUser();
+    if (!user) {
+      showToast('Пользователь не авторизован', 'error');
+      return;
+    }
+    
+    setIsSubcontracting(true);
+    try {
+      await apiClient.subcontractContract(showSubcontractModal, user.id, {
+        subcontractor_clinic_id: selectedSubcontractorClinic || undefined,
+        subcontractor_clinic_bin: subcontractBin || undefined,
+        subcontractor_clinic_phone: subcontractPhone,
+        subcontract_amount: parseFloat(subcontractAmount),
+      });
+      showToast('Договор успешно передан на субподряд. Ожидается подтверждение от клиники-субподрядчика', 'success');
+      setShowSubcontractModal(null);
+      setSelectedSubcontractorClinic('');
+      setSubcontractBin('');
+      setSubcontractPhone('');
+      setSubcontractAmount('');
+      setClinicSearchQuery('');
+      setFoundSubcontractClinic(null);
+      setSubcontractBinSearched(false);
+      loadContracts();
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка передачи договора на субподряд', 'error');
+    } finally {
+      setIsSubcontracting(false);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -138,7 +283,7 @@ export default function ContractsPage() {
         id: c.id.toString(),
         contract_number: c.contract_number,
         contract_date: c.contract_date,
-        amount: typeof c.amount === 'string' ? parseFloat(c.amount) : c.amount,
+        amount: c.amount !== null && c.amount !== undefined ? (typeof c.amount === 'string' ? parseFloat(c.amount) : c.amount) : null,
         people_count: c.people_count,
         execution_date: c.execution_date,
         status: c.status,
@@ -149,6 +294,14 @@ export default function ContractsPage() {
         notes: c.notes,
         createdAt: c.created_at,
         history: c.history,
+        is_subcontracted: c.is_subcontracted,
+        subcontract_status: c.subcontract_status,
+        original_clinic: c.original_clinic,
+        original_clinic_name: c.original_clinic_name,
+        subcontractor_clinic: c.subcontractor_clinic,
+        subcontractor_clinic_name: c.subcontractor_clinic_name,
+        subcontracted_at: c.subcontracted_at,
+        subcontract_rejection_reason: c.subcontract_rejection_reason,
       }));
       setContracts(mappedContracts);
       
@@ -2036,7 +2189,9 @@ export default function ContractsPage() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {contract.amount.toLocaleString('ru-RU')} ₸
+                                {contract.amount !== null && contract.amount !== undefined 
+                                  ? `${contract.amount.toLocaleString('ru-RU')} ₸`
+                                  : '—'}
                               </span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
@@ -2100,6 +2255,74 @@ export default function ContractsPage() {
                             })()}
                           </div>
                         </Button>
+                      )}
+                      {/* Кнопка передачи на субподряд - только для договоров, которые еще не переданы */}
+                      {!contract.is_subcontracted && (contract.status === 'approved' || contract.status === 'active' || contract.status === 'in_progress') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSubcontractModal(contract.id)}
+                          title="Передать договор на субподряд другой клинике"
+                          className="border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                        >
+                          <Handshake className="h-4 w-4 mr-1" />
+                          Субподряд
+                        </Button>
+                      )}
+                      {/* Индикатор и действия для субподряда */}
+                      {contract.is_subcontracted && (
+                        <>
+                          {contract.subcontract_status === 'pending' && contract.subcontractor_clinic === parseInt(userStore.getCurrentUser()?.id || '0') && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleAcceptSubcontract(contract.id)}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Принять
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const reason = prompt('Укажите причину отклонения:');
+                                  if (reason) {
+                                    handleRejectSubcontract(contract.id, reason);
+                                  }
+                                }}
+                                className="border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Отклонить
+                              </Button>
+                            </div>
+                          )}
+                          {contract.subcontract_status === 'accepted' && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <span className="text-xs text-green-700 dark:text-green-300">
+                                Субподряд принят
+                              </span>
+                            </div>
+                          )}
+                          {contract.subcontract_status === 'rejected' && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                              <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                              <span className="text-xs text-red-700 dark:text-red-300">
+                                Субподряд отклонен
+                              </span>
+                            </div>
+                          )}
+                          {contract.subcontract_status === 'pending' && contract.original_clinic === parseInt(userStore.getCurrentUser()?.id || '0') && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                              <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                              <span className="text-xs text-yellow-700 dark:text-yellow-300">
+                                Ожидает подтверждения
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                       <Button
                         size="sm"
@@ -2949,6 +3172,212 @@ export default function ContractsPage() {
           );
         })()}
       </Drawer>
+
+      {/* Модальное окно для передачи на субподряд */}
+      <Modal
+        isOpen={showSubcontractModal !== null}
+        onClose={() => {
+          setShowSubcontractModal(null);
+          setSelectedSubcontractorClinic('');
+          setClinicSearchQuery('');
+          setSubcontractBin('');
+          setSubcontractPhone('');
+          setSubcontractAmount('');
+          setFoundSubcontractClinic(null);
+          setSubcontractBinSearched(false);
+        }}
+        title="Передача договора на субподряд"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              При передаче договора на субподряд, клиника-субподрядчик будет выполнять всю работу от вашего имени. 
+              Все документы будут отправляться работодателю от вашей клиники, но фактическую работу будет выполнять субподрядчик.
+            </p>
+          </div>
+
+          {/* Поле суммы субподряда */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Сумма субподряда (тенге) <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="number"
+              placeholder="Введите сумму субподряда"
+              value={subcontractAmount}
+              onChange={(e) => setSubcontractAmount(e.target.value)}
+              min="0"
+              step="0.01"
+            />
+          </div>
+
+          {/* Поиск по БИН/ИНН */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              БИН/ИНН клиники-субподрядчика
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Введите БИН/ИНН (12 цифр)"
+                value={subcontractBin}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                  setSubcontractBin(value);
+                  if (value.length === 12) {
+                    handleSearchSubcontractBin(value);
+                  } else {
+                    setFoundSubcontractClinic(null);
+                    setSubcontractBinSearched(false);
+                    setSelectedSubcontractorClinic('');
+                  }
+                }}
+                maxLength={12}
+              />
+              {searchingSubcontractBin && (
+                <RefreshCw className="h-5 w-5 animate-spin text-gray-400 self-center" />
+              )}
+            </div>
+            {subcontractBinSearched && (
+              <div className="mt-2">
+                {foundSubcontractClinic ? (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                      ✓ Клиника найдена: {foundSubcontractClinic.registration_data?.name || 'Клиника'}
+                    </p>
+                    {foundSubcontractClinic.phone && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        Телефон: {foundSubcontractClinic.phone}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      Клиника с таким БИН не найдена. Укажите телефон для отправки уведомления.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Поле телефона */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Телефон клиники-субподрядчика <span className="text-red-500">*</span>
+            </label>
+            <PhoneInput
+              value={subcontractPhone}
+              onChange={(value) => setSubcontractPhone(value)}
+              placeholder="+7 (___) ___-__-__"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              На этот номер будет отправлено уведомление о передаче договора на субподряд
+            </p>
+          </div>
+
+          {/* Список зарегистрированных клиник (альтернатива поиску по БИН) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Или выберите из списка зарегистрированных клиник
+            </label>
+            <Input
+              type="text"
+              placeholder="Поиск клиники..."
+              value={clinicSearchQuery}
+              onChange={(e) => setClinicSearchQuery(e.target.value)}
+              className="mb-3"
+            />
+            <div className="max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-700 rounded-lg">
+              {clinics
+                .filter(clinic => {
+                  const name = clinic.registration_data?.name || '';
+                  const searchLower = clinicSearchQuery.toLowerCase();
+                  return name.toLowerCase().includes(searchLower);
+                })
+                .map((clinic) => {
+                  const clinicName = clinic.registration_data?.name || `Клиника #${clinic.id}`;
+                  const isSelected = selectedSubcontractorClinic === clinic.id.toString();
+                  return (
+                    <div
+                      key={clinic.id}
+                      onClick={() => {
+                        setSelectedSubcontractorClinic(clinic.id.toString());
+                        if (clinic.phone) {
+                          setSubcontractPhone(clinic.phone);
+                        }
+                        const regData = clinic.registration_data || {};
+                        const bin = regData.bin || regData.inn || '';
+                        if (bin) {
+                          setSubcontractBin(bin);
+                        }
+                      }}
+                      className={`p-3 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                        isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">{clinicName}</p>
+                          {clinic.registration_data?.inn && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">ИНН: {clinic.registration_data.inn}</p>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              {clinics.filter(clinic => {
+                const name = clinic.registration_data?.name || '';
+                return name.toLowerCase().includes(clinicSearchQuery.toLowerCase());
+              }).length === 0 && (
+                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                  Клиники не найдены
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSubcontractModal(null);
+                setSelectedSubcontractorClinic('');
+                setClinicSearchQuery('');
+                setSubcontractBin('');
+                setSubcontractPhone('');
+                setSubcontractAmount('');
+                setFoundSubcontractClinic(null);
+                setSubcontractBinSearched(false);
+              }}
+              disabled={isSubcontracting}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleSubcontract}
+              disabled={!subcontractAmount || !subcontractPhone || isSubcontracting}
+            >
+              {isSubcontracting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Передача...
+                </>
+              ) : (
+                <>
+                  <Handshake className="h-4 w-4 mr-2" />
+                  Передать на субподряд
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
