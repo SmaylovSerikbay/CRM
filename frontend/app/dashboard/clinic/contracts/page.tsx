@@ -14,6 +14,23 @@ import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
 
+// Список стандартных вредных факторов
+const HARMFUL_FACTORS_OPTIONS = [
+  'Шум',
+  'Вибрация',
+  'Пыль',
+  'Химические вещества',
+  'Излучение',
+  'Высотные работы',
+  'Сварочные аэрозоли',
+  'Физические перегрузки',
+  'Работа на высоте',
+  'Электромагнитные поля',
+  'Токсичные вещества',
+  'Повышенная температура',
+  'Пониженная температура',
+];
+
 interface Contract {
   id: string;
   contract_number: string;
@@ -1213,11 +1230,25 @@ export default function ContractsPage() {
 
                 <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
                   <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                    Выберите Excel-файл или перетащите сюда
+                  </p>
                   <label className="cursor-pointer">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Выберите Excel-файл или перетащите сюда
-                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isUploading}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = document.getElementById('clinic-file-upload-input') as HTMLInputElement;
+                        input?.click();
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Выбрать файл
+                    </Button>
                     <input
+                      id="clinic-file-upload-input"
                       type="file"
                       accept=".xlsx,.xls"
                       onChange={(e) => handleFileUpload(e, showUploadModal)}
@@ -1225,7 +1256,7 @@ export default function ContractsPage() {
                       disabled={isUploading}
                     />
                   </label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                     Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
                   </p>
                   {isUploading && (
