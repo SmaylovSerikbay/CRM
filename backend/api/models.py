@@ -392,7 +392,9 @@ class Contract(models.Model):
         ('draft', 'Черновик'),
         ('pending_approval', 'Ожидает согласования'),
         ('approved', 'Согласован'),
-        ('sent', 'Отправлен'),
+        ('active', 'Действует'),
+        ('in_progress', 'В процессе исполнения'),
+        ('partially_executed', 'Частично исполнен'),
         ('executed', 'Исполнен'),
         ('cancelled', 'Отменен'),
     ]
