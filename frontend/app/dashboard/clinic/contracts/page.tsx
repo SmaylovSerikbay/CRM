@@ -566,9 +566,18 @@ export default function ContractsPage() {
         setActiveTab('contingent');
       }
     } catch (error: any) {
-      showToast(error.message || 'Ошибка загрузки файла', 'error');
+      console.error('Upload error:', error);
+      // Показываем ошибку с деталями
+      const errorMessage = error.message || 'Ошибка загрузки файла';
+      showToast(errorMessage, 'error');
+      // Также показываем alert для важных ошибок валидации
+      if (errorMessage.includes('не соответствует шаблону')) {
+        alert(errorMessage);
+      }
     } finally {
       setIsUploading(false);
+      // Сбрасываем input, чтобы можно было загрузить тот же файл снова
+      e.target.value = '';
     }
   };
 

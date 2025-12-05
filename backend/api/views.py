@@ -554,6 +554,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             workbook = load_workbook(excel_file)
             worksheet = workbook.active
             
+            # ВАЛИДАЦИЯ СТРУКТУРЫ ФАЙЛА
+            # Проверяем, что это наш шаблон по характерным признакам
+            
+            # 1. Проверяем заголовок документа в первой строке
+            first_cell = worksheet['A1'].value
+            if not first_cell or 'СПИСОК лиц, подлежащих обязательному медицинскому осмотру' not in str(first_cell):
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 2. Проверяем наличие ссылки на приказ во второй строке
+            second_cell = worksheet['A2'].value
+            if not second_cell or '№ ҚР ДСМ-131/2020' not in str(second_cell):
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             # Пропускаем заголовки (первые 2-3 строки могут быть заголовками)
             # Ищем строку с заголовками колонок
             header_row = None
@@ -564,7 +583,10 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     break
             
             if not header_row:
-                return Response({'error': 'Не найдены заголовки таблицы'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    'error': 'Не найдены заголовки таблицы в шаблоне',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Маппинг колонок (поиск по заголовкам)
             column_map = {}
@@ -599,6 +621,24 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     column_map['phone'] = idx
                 elif 'квартал' in val:
                     column_map['quarter'] = idx
+            
+            # 3. Проверяем наличие обязательных колонок
+            required_columns = ['name', 'department', 'position']
+            missing_columns = []
+            for col in required_columns:
+                if col not in column_map:
+                    col_names = {
+                        'name': 'ФИО',
+                        'department': 'Объект/участок',
+                        'position': 'Занимаемая должность'
+                    }
+                    missing_columns.append(col_names.get(col, col))
+            
+            if missing_columns:
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': f'Отсутствуют обязательные колонки: {", ".join(missing_columns)}. Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             created_employees = []
             skipped = 0
