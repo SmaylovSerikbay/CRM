@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, ChevronDown, FileCheck, Eye } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, ChevronDown, FileCheck, Eye, Save } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
@@ -131,6 +131,18 @@ export default function ContractsPage() {
   const [editEmployeeData, setEditEmployeeData] = useState<any>({});
   const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
   const [harmfulFactorsSearch, setHarmfulFactorsSearch] = useState('');
+  // Модальное окно для создания нового сотрудника
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createData, setCreateData] = useState<Partial<ContingentEmployee>>({});
+  const [showCreateHarmfulFactorsDropdown, setShowCreateHarmfulFactorsDropdown] = useState(false);
+  const [createHarmfulFactorsSearch, setCreateHarmfulFactorsSearch] = useState('');
+  const [createAttempted, setCreateAttempted] = useState(false);
+  // Модальное окно для редактирования сотрудника
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
+  const [showEditHarmfulFactorsDropdown, setShowEditHarmfulFactorsDropdown] = useState(false);
+  const [editHarmfulFactorsSearch, setEditHarmfulFactorsSearch] = useState('');
+  const [editAttempted, setEditAttempted] = useState(false);
   // Drawer для управления договором
   const [showContractDrawer, setShowContractDrawer] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'contingent' | 'plan' | 'route'>('contingent');
@@ -581,6 +593,79 @@ export default function ContractsPage() {
     }
   };
 
+  // Обработчик создания нового сотрудника
+  const handleCreateEmployee = async () => {
+    console.log('=== handleCreateEmployee called (clinic) ===');
+    console.log('createData:', createData);
+    console.log('selectedContractForUpload:', selectedContractForUpload);
+    
+    setCreateAttempted(true);
+    
+    // Валидация обязательных полей (все кроме телефона и примечания)
+    const missingFields = [];
+    if (!createData.name) missingFields.push('ФИО');
+    if (!createData.department) missingFields.push('Объект/участок');
+    if (!createData.position) missingFields.push('Должность');
+    if (!createData.birthDate) missingFields.push('Дата рождения');
+    if (!createData.gender) missingFields.push('Пол');
+    if (!createData.totalExperienceYears && createData.totalExperienceYears !== 0) missingFields.push('Общий стаж');
+    if (!createData.positionExperienceYears && createData.positionExperienceYears !== 0) missingFields.push('Стаж по должности');
+    if (!createData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+    if (!createData.harmfulFactors || createData.harmfulFactors.length === 0) missingFields.push('Вредные факторы');
+    
+    if (missingFields.length > 0) {
+      console.log('Validation failed: missing required fields:', missingFields);
+      showToast(`❌ Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
+      return;
+    }
+
+    if (!selectedContractForUpload) {
+      console.log('Validation failed: no contract selected');
+      showToast('❌ Выберите договор', 'error');
+      return;
+    }
+
+    try {
+      console.log('Calling API to create employee...');
+      const newEmployee = await workflowStoreAPI.createContingentEmployee({
+        ...createData,
+        contractId: selectedContractForUpload,
+      });
+      console.log('Employee created successfully:', newEmployee);
+      
+      // Добавляем нового сотрудника в начало списка
+      setContingent(prevContingent => [newEmployee, ...prevContingent]);
+      
+      // Обновляем список участков для календарного плана
+      const contractContingent = [newEmployee, ...contingent.filter(emp => emp.contractId === selectedContractForUpload)];
+      const contractDepartments = [...new Set(contractContingent.map(emp => emp.department))];
+      setAvailableDepartments(contractDepartments);
+      
+      // Закрываем модальное окно и очищаем форму
+      setShowCreateModal(false);
+      setCreateData({});
+      setShowCreateHarmfulFactorsDropdown(false);
+      setCreateHarmfulFactorsSearch('');
+      setSelectedContractForUpload('');
+      setCreateAttempted(false);
+      
+      showToast('✅ Сотрудник успешно добавлен', 'success');
+    } catch (error: any) {
+      console.error('Error creating employee:', error);
+      console.error('Error details:', error.message, error.stack);
+      showToast(error.message || 'Ошибка создания сотрудника', 'error');
+    }
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateModal(false);
+    setCreateData({});
+    setShowCreateHarmfulFactorsDropdown(false);
+    setCreateHarmfulFactorsSearch('');
+    setSelectedContractForUpload('');
+    setCreateAttempted(false);
+  };
+
   // Обработчик создания календарного плана
   const handleCreateCalendarPlan = (contractId: string) => {
     // Фильтруем контингент по договору
@@ -858,22 +943,48 @@ export default function ContractsPage() {
   // Функции управления контингентом
   const handleEditEmployee = (employee: ContingentEmployee) => {
     setEditingEmployee(employee.id);
-    setEditEmployeeData({
+    setEditData({
       name: employee.name,
       position: employee.position,
       department: employee.department,
       birthDate: employee.birthDate,
       gender: employee.gender,
+      phone: employee.phone,
+      totalExperienceYears: employee.totalExperienceYears,
+      positionExperienceYears: employee.positionExperienceYears,
+      lastExaminationDate: employee.lastExaminationDate,
       harmfulFactors: employee.harmfulFactors || [],
       notes: (employee as any).notes || '',
     });
+    setShowEditModal(true);
   };
 
   const handleSaveEmployee = async () => {
     if (!editingEmployee) return;
     
+    setEditAttempted(true);
+    
+    // Валидация обязательных полей
+    const missingFields = [];
+    if (!editData.name?.trim()) missingFields.push('ФИО');
+    if (!editData.department?.trim()) missingFields.push('Объект/участок');
+    if (!editData.position?.trim()) missingFields.push('Должность');
+    if (!editData.birthDate) missingFields.push('Дата рождения');
+    if (!editData.gender) missingFields.push('Пол');
+    if (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) missingFields.push('Общий стаж');
+    if (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) missingFields.push('Стаж по должности');
+    if (!editData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+    if (!editData.harmfulFactors || editData.harmfulFactors.length === 0) {
+      missingFields.push('Вредные факторы');
+    }
+    
+    if (missingFields.length > 0) {
+      showToast(`❌ Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
+      return;
+    }
+    
     try {
-      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingEmployee, editEmployeeData);
+      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingEmployee, editData);
       
       // Обновляем только конкретную запись в списке, сохраняя порядок
       setContingent(prevContingent => 
@@ -883,10 +994,12 @@ export default function ContractsPage() {
       );
       
       setEditingEmployee(null);
-      setEditEmployeeData({});
-      setShowHarmfulFactorsDropdown(false);
-      setHarmfulFactorsSearch('');
-      showToast('Изменения успешно сохранены', 'success');
+      setEditData({});
+      setShowEditModal(false);
+      setShowEditHarmfulFactorsDropdown(false);
+      setEditHarmfulFactorsSearch('');
+      setEditAttempted(false);
+      showToast('✅ Изменения успешно сохранены', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка сохранения', 'error');
     }
@@ -894,9 +1007,11 @@ export default function ContractsPage() {
 
   const handleCancelEditEmployee = () => {
     setEditingEmployee(null);
-    setEditEmployeeData({});
-    setShowHarmfulFactorsDropdown(false);
-    setHarmfulFactorsSearch('');
+    setEditData({});
+    setShowEditModal(false);
+    setShowEditHarmfulFactorsDropdown(false);
+    setEditHarmfulFactorsSearch('');
+    setEditAttempted(false);
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
@@ -1309,6 +1424,356 @@ export default function ContractsPage() {
                 </div>
               </>
             )}
+          </div>
+        </Modal>
+
+        {/* Модальное окно создания сотрудника */}
+        <Modal
+          isOpen={showCreateModal}
+          onClose={handleCancelCreate}
+          title="Добавить сотрудника"
+          size="lg"
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+            {/* ФИО */}
+            <Input
+              label="ФИО *"
+              value={createData.name || ''}
+              onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
+              placeholder="Иванов Иван Иванович"
+              title="👤 Введите полное ФИО сотрудника&#10;&#10;Формат: Фамилия Имя Отчество&#10;&#10;Примеры:&#10;• Иванов Иван Иванович&#10;• Петрова Мария Петровна"
+              className={createAttempted && !createData.name ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Объект/участок и Должность */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Объект/участок *"
+                value={createData.department || ''}
+                onChange={(e) => setCreateData({ ...createData, department: e.target.value })}
+                placeholder="Участок №1"
+                title="🏢 Укажите место работы сотрудника&#10;&#10;Примеры:&#10;• ТОО &quot;Компания&quot; - Отдел продаж&#10;• Производственный участок №1&#10;• Административный корпус"
+                className={createAttempted && !createData.department ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Должность *"
+                value={createData.position || ''}
+                onChange={(e) => setCreateData({ ...createData, position: e.target.value })}
+                placeholder="Оператор"
+                title="💼 Укажите должность сотрудника&#10;&#10;Примеры:&#10;• Оператор станков с ЧПУ&#10;• Главный бухгалтер&#10;• Инженер-технолог&#10;• Водитель погрузчика"
+                className={createAttempted && !createData.position ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата рождения и Пол */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Дата рождения *"
+                type="date"
+                value={createData.birthDate || ''}
+                onChange={(e) => setCreateData({ ...createData, birthDate: e.target.value })}
+                title="📅 Введите дату рождения&#10;&#10;Примеры:&#10;• 29.03.1976&#10;• 15.05.1985&#10;• 01.01.1990"
+                className={createAttempted && !createData.birthDate ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Пол *</label>
+                <select
+                  value={createData.gender || ''}
+                  onChange={(e) => setCreateData({ ...createData, gender: e.target.value as 'male' | 'female' })}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-sm ${
+                    createAttempted && !createData.gender 
+                      ? 'border-red-500 dark:border-red-500' 
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  title="Выберите пол сотрудника"
+                >
+                  <option value="">Не указан</option>
+                  <option value="male">Мужской</option>
+                  <option value="female">Женский</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Телефон */}
+            <Input
+              label="Телефон"
+              value={createData.phone || ''}
+              onChange={(e) => setCreateData({ ...createData, phone: e.target.value })}
+              placeholder="77001234567"
+              title="📱 Введите номер телефона&#10;&#10;Формат: 7XXXXXXXXXX&#10;&#10;Примеры:&#10;• 77001234567&#10;• 77051234567"
+            />
+
+            {/* Стаж */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Общий стаж (лет) *"
+                type="number"
+                value={createData.totalExperienceYears !== undefined ? createData.totalExperienceYears : ''}
+                onChange={(e) => setCreateData({ ...createData, totalExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="20"
+                min="0"
+                title="📊 Введите общий трудовой стаж в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 5, 10, 20, 35"
+                className={createAttempted && (createData.totalExperienceYears === undefined || createData.totalExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Стаж по должности (лет) *"
+                type="number"
+                value={createData.positionExperienceYears !== undefined ? createData.positionExperienceYears : ''}
+                onChange={(e) => setCreateData({ ...createData, positionExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="15"
+                min="0"
+                title="📊 Введите стаж работы по текущей должности в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 2, 5, 10, 15"
+                className={createAttempted && (createData.positionExperienceYears === undefined || createData.positionExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата последнего медосмотра */}
+            <Input
+              label="Дата последнего медосмотра *"
+              type="date"
+              value={createData.lastExaminationDate || ''}
+              onChange={(e) => setCreateData({ ...createData, lastExaminationDate: e.target.value })}
+              title="📅 Введите дату последнего медосмотра&#10;&#10;Примеры:&#10;• 22.01.2024&#10;• 15.03.2023&#10;• 01.12.2024"
+              className={createAttempted && !createData.lastExaminationDate ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Вредные факторы */}
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>
+              <div className="relative">
+                <Input
+                  value={createData.harmfulFactors?.[0] || ''}
+                  onChange={(e) => setCreateHarmfulFactorsSearch(e.target.value)}
+                  onFocus={() => setShowCreateHarmfulFactorsDropdown(true)}
+                  placeholder="Выберите вредный фактор"
+                  className={`pr-8 ${createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500 dark:border-red-500' : ''}`}
+                  title="⚠️ Выберите вредный фактор согласно приказу № ҚР ДСМ-131/2020&#10;&#10;Начните вводить текст для поиска"
+                />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {showCreateHarmfulFactorsDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {HARMFUL_FACTORS_OPTIONS
+                    .filter(factor => 
+                      factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
+                    )
+                    .map((factor, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setCreateData({ ...createData, harmfulFactors: [factor] });
+                          setShowCreateHarmfulFactorsDropdown(false);
+                          setCreateHarmfulFactorsSearch('');
+                        }}
+                        className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
+                          createData.harmfulFactors?.[0] === factor ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        {factor}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Примечание */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Примечание</label>
+              <textarea
+                value={createData.notes || ''}
+                onChange={(e) => setCreateData({ ...createData, notes: e.target.value })}
+                placeholder="Дополнительная информация"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 min-h-[60px] text-sm"
+                title="📝 Дополнительная информация о сотруднике&#10;&#10;Например:&#10;• Особые условия труда&#10;• Медицинские ограничения&#10;• Другие важные сведения"
+                maxLength={1000}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={handleCancelCreate}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleCreateEmployee}>
+              <Save className="h-4 w-4 mr-2" />
+              Сохранить
+            </Button>
+          </div>
+        </Modal>
+
+        {/* Модальное окно редактирования сотрудника */}
+        <Modal
+          isOpen={showEditModal}
+          onClose={handleCancelEditEmployee}
+          title="Редактировать сотрудника"
+          size="lg"
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+            {/* ФИО */}
+            <Input
+              label="ФИО *"
+              value={editData.name || ''}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              placeholder="Иванов Иван Иванович"
+              title="👤 Введите полное ФИО сотрудника&#10;&#10;Формат: Фамилия Имя Отчество&#10;&#10;Примеры:&#10;• Иванов Иван Иванович&#10;• Петрова Мария Петровна"
+              className={editAttempted && !editData.name ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Объект/участок и Должность */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Объект/участок *"
+                value={editData.department || ''}
+                onChange={(e) => setEditData({ ...editData, department: e.target.value })}
+                placeholder="Участок №1"
+                title="🏢 Укажите место работы сотрудника&#10;&#10;Примеры:&#10;• ТОО &quot;Компания&quot; - Отдел продаж&#10;• Производственный участок №1&#10;• Административный корпус"
+                className={editAttempted && !editData.department ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Должность *"
+                value={editData.position || ''}
+                onChange={(e) => setEditData({ ...editData, position: e.target.value })}
+                placeholder="Оператор"
+                title="💼 Укажите должность сотрудника&#10;&#10;Примеры:&#10;• Оператор станков с ЧПУ&#10;• Главный бухгалтер&#10;• Инженер-технолог&#10;• Водитель погрузчика"
+                className={editAttempted && !editData.position ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата рождения и Пол */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Дата рождения *"
+                type="date"
+                value={editData.birthDate || ''}
+                onChange={(e) => setEditData({ ...editData, birthDate: e.target.value })}
+                title="📅 Введите дату рождения&#10;&#10;Примеры:&#10;• 29.03.1976&#10;• 15.05.1985&#10;• 01.01.1990"
+                className={editAttempted && !editData.birthDate ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Пол *</label>
+                <select
+                  value={editData.gender || ''}
+                  onChange={(e) => setEditData({ ...editData, gender: e.target.value as 'male' | 'female' })}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-sm ${
+                    editAttempted && !editData.gender 
+                      ? 'border-red-500 dark:border-red-500' 
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  title="Выберите пол сотрудника"
+                >
+                  <option value="">Не указан</option>
+                  <option value="male">Мужской</option>
+                  <option value="female">Женский</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Телефон */}
+            <Input
+              label="Телефон"
+              value={editData.phone || ''}
+              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+              placeholder="77001234567"
+              title="📱 Введите номер телефона&#10;&#10;Формат: 7XXXXXXXXXX&#10;&#10;Примеры:&#10;• 77001234567&#10;• 77051234567"
+            />
+
+            {/* Стаж */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Общий стаж (лет) *"
+                type="number"
+                value={editData.totalExperienceYears !== undefined ? editData.totalExperienceYears : ''}
+                onChange={(e) => setEditData({ ...editData, totalExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="20"
+                min="0"
+                title="📊 Введите общий трудовой стаж в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 5, 10, 20, 35"
+                className={editAttempted && (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Стаж по должности (лет) *"
+                type="number"
+                value={editData.positionExperienceYears !== undefined ? editData.positionExperienceYears : ''}
+                onChange={(e) => setEditData({ ...editData, positionExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="15"
+                min="0"
+                title="📊 Введите стаж работы по текущей должности в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 2, 5, 10, 15"
+                className={editAttempted && (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата последнего медосмотра */}
+            <Input
+              label="Дата последнего медосмотра *"
+              type="date"
+              value={editData.lastExaminationDate || ''}
+              onChange={(e) => setEditData({ ...editData, lastExaminationDate: e.target.value })}
+              title="📅 Введите дату последнего медосмотра&#10;&#10;Примеры:&#10;• 22.01.2024&#10;• 15.03.2023&#10;• 01.12.2024"
+              className={editAttempted && !editData.lastExaminationDate ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Вредные факторы */}
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>
+              <div className="relative">
+                <Input
+                  value={editData.harmfulFactors?.[0] || ''}
+                  onChange={(e) => setEditHarmfulFactorsSearch(e.target.value)}
+                  onFocus={() => setShowEditHarmfulFactorsDropdown(true)}
+                  placeholder="Выберите вредный фактор"
+                  className={`pr-8 ${editAttempted && (!editData.harmfulFactors || editData.harmfulFactors.length === 0) ? 'border-red-500 dark:border-red-500' : ''}`}
+                  title="⚠️ Выберите вредный фактор согласно приказу № ҚР ДСМ-131/2020&#10;&#10;Начните вводить текст для поиска"
+                />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {showEditHarmfulFactorsDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {HARMFUL_FACTORS_OPTIONS
+                    .filter(factor => 
+                      factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
+                    )
+                    .map((factor, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setEditData({ ...editData, harmfulFactors: [factor] });
+                          setShowEditHarmfulFactorsDropdown(false);
+                          setEditHarmfulFactorsSearch('');
+                        }}
+                        className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
+                          editData.harmfulFactors?.[0] === factor ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        {factor}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Примечание */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Примечание</label>
+              <textarea
+                value={editData.notes || ''}
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                placeholder="Дополнительная информация"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 min-h-[60px] text-sm"
+                title="📝 Дополнительная информация о сотруднике&#10;&#10;Например:&#10;• Особые условия труда&#10;• Медицинские ограничения&#10;• Другие важные сведения"
+                maxLength={1000}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={handleCancelEditEmployee}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleSaveEmployee}>
+              <Save className="h-4 w-4 mr-2" />
+              Сохранить изменения
+            </Button>
           </div>
         </Modal>
 
@@ -2540,10 +3005,24 @@ export default function ContractsPage() {
                           {contractContingent.length} сотрудников
                         </p>
                       </div>
-                      <Button onClick={() => handleUploadContingent(showContractDrawer)}>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Загрузить контингент
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedContractForUpload(showContractDrawer);
+                            setShowCreateModal(true);
+                          }}
+                        >
+                          <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Добавить контингент
+                        </Button>
+                        <Button onClick={() => handleUploadContingent(showContractDrawer)}>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Загрузить контингент
+                        </Button>
+                      </div>
                     </div>
 
                     {contractContingent.length === 0 ? (
@@ -2576,146 +3055,40 @@ export default function ContractsPage() {
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                               {contractContingent.map((emp) => (
                                 <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                  {editingEmployee === emp.id ? (
-                                    <>
-                                      <td className="px-3 py-2">
-                                        <Input
-                                          value={editEmployeeData.name || ''}
-                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, name: e.target.value })}
-                                          className="w-full"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <Input
-                                          value={editEmployeeData.position || ''}
-                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, position: e.target.value })}
-                                          className="w-full"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <Input
-                                          value={editEmployeeData.department || ''}
-                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, department: e.target.value })}
-                                          className="w-full"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <div className="relative">
-                                          <div
-                                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800 cursor-pointer min-h-[32px] flex items-center justify-between"
-                                            onClick={() => setShowHarmfulFactorsDropdown(!showHarmfulFactorsDropdown)}
-                                          >
-                                            <span className="text-gray-700 dark:text-gray-300 truncate">
-                                              {Array.isArray(editEmployeeData.harmfulFactors) && editEmployeeData.harmfulFactors.length > 0
-                                                ? editEmployeeData.harmfulFactors[0]
-                                                : 'Выберите вредный фактор'}
-                                            </span>
-                                            <ChevronDown className="h-4 w-4 text-gray-500 flex-shrink-0 ml-2" />
-                                          </div>
-                                          {showHarmfulFactorsDropdown && (
-                                            <div className="absolute z-50 mt-1 w-full max-w-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-hidden">
-                                              <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-                                                <input
-                                                  type="text"
-                                                  placeholder="Поиск..."
-                                                  value={harmfulFactorsSearch}
-                                                  onChange={(e) => setHarmfulFactorsSearch(e.target.value)}
-                                                  className="w-full px-3 py-2 text-sm border rounded dark:bg-gray-900 dark:border-gray-600"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                  autoFocus
-                                                />
-                                              </div>
-                                              <div className="overflow-y-auto max-h-80">
-                                                {HARMFUL_FACTORS_OPTIONS.filter(factor =>
-                                                  factor.toLowerCase().includes(harmfulFactorsSearch.toLowerCase())
-                                                ).map((factor) => {
-                                                  const isSelected = Array.isArray(editEmployeeData.harmfulFactors) && editEmployeeData.harmfulFactors.includes(factor);
-                                                  return (
-                                                    <div
-                                                      key={factor}
-                                                      className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-xs ${
-                                                        isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-                                                      }`}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditEmployeeData({ ...editEmployeeData, harmfulFactors: [factor] });
-                                                        setShowHarmfulFactorsDropdown(false);
-                                                        setHarmfulFactorsSearch('');
-                                                      }}
-                                                    >
-                                                      {factor}
-                                                    </div>
-                                                  );
-                                                })}
-                                                {HARMFUL_FACTORS_OPTIONS.filter(factor =>
-                                                  factor.toLowerCase().includes(harmfulFactorsSearch.toLowerCase())
-                                                ).length === 0 && (
-                                                  <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                                    Ничего не найдено
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="px-3 py-2 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={handleSaveEmployee}
-                                          >
-                                            <CheckCircle className="h-4 w-4" />
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={handleCancelEditEmployee}
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </td>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <td className="px-3 py-2 font-medium">{emp.name}</td>
-                                      <td className="px-3 py-2">{emp.position}</td>
-                                      <td className="px-3 py-2">{emp.department}</td>
-                                      <td className="px-3 py-2">
-                                        <div className="flex flex-wrap gap-1">
-                                          {emp.harmfulFactors?.slice(0, 2).map((factor, idx) => (
-                                            <span key={idx} className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
-                                              {factor}
-                                            </span>
-                                          ))}
-                                          {emp.harmfulFactors && emp.harmfulFactors.length > 2 && (
-                                            <span className="text-xs text-gray-500">+{emp.harmfulFactors.length - 2}</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="px-3 py-2 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleEditEmployee(emp)}
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleDeleteEmployee(emp.id)}
-                                            className="text-red-600 hover:text-red-700"
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </td>
-                                    </>
-                                  )}
+                                  <td className="px-3 py-2 font-medium">{emp.name}</td>
+                                  <td className="px-3 py-2">{emp.position}</td>
+                                  <td className="px-3 py-2">{emp.department}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {emp.harmfulFactors?.slice(0, 2).map((factor, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                          {factor}
+                                        </span>
+                                      ))}
+                                      {emp.harmfulFactors && emp.harmfulFactors.length > 2 && (
+                                        <span className="text-xs text-gray-500">+{emp.harmfulFactors.length - 2}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleEditEmployee(emp)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleDeleteEmployee(emp.id)}
+                                        className="text-red-600 hover:text-red-700"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>

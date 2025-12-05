@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
 import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
@@ -61,11 +62,22 @@ export default function ContingentPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
+  
+  // Модальное окно для создания нового сотрудника
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createData, setCreateData] = useState<Partial<ContingentEmployee>>({});
+  const [showCreateHarmfulFactorsDropdown, setShowCreateHarmfulFactorsDropdown] = useState(false);
+  const [createHarmfulFactorsSearch, setCreateHarmfulFactorsSearch] = useState('');
+  const [createAttempted, setCreateAttempted] = useState(false);
+  
+  // Модальное окно для редактирования сотрудника
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
-  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
-  const [harmfulFactorsSearch, setHarmfulFactorsSearch] = useState('');
-  const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
+  const [showEditHarmfulFactorsDropdown, setShowEditHarmfulFactorsDropdown] = useState(false);
+  const [editHarmfulFactorsSearch, setEditHarmfulFactorsSearch] = useState('');
+  const [editAttempted, setEditAttempted] = useState(false);
   
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
@@ -176,28 +188,31 @@ export default function ContingentPage() {
       department: employee.department,
       birthDate: employee.birthDate,
       gender: employee.gender,
+      phone: (employee as any).phone,
       totalExperienceYears: (employee as any).totalExperienceYears,
       positionExperienceYears: (employee as any).positionExperienceYears,
       lastExaminationDate: employee.lastExaminationDate,
       harmfulFactors: employee.harmfulFactors,
       notes: (employee as any).notes,
     });
+    setShowEditModal(true);
+    setEditAttempted(false);
   };
 
   const handleSaveEdit = async () => {
     if (!editingId) return;
     
-    try {
-      console.log('Saving employee data:', editData);
-      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingId, editData);
-      
-      // Обновляем только конкретную запись в списке, сохраняя порядок
-      setEmployees(prevEmployees => 
-        prevEmployees.map(emp => 
-          emp.id === editingId ? { ...emp, ...updatedEmployee } : emp
-        )
-      );
-      
+    setEditAttempted(true);
+    
+    // Валидация обязательных полей (все кроме телефона и примечания)
+    const missingFields = [];
+    if (!editData.name) missingFields.push('ФИО');
+    if (!editData.department) missingFields.push('Объект/участок');
+    if (!editData.position) missingFields.push('Должность');
+    if (!editData.birthDate) missingFields.push('Дата рождения');
+    if (!editData.gender) missingFields.push('Пол');
+    if (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) missingFields.push('Общий стаж');
+    if (editData.positionExperienceYears === undefined || editData.positionExperienc
       setEditingId(null);
       setEditData({});
       setShowHarmfulFactorsDropdown(false);
@@ -214,6 +229,73 @@ export default function ContingentPage() {
     setEditData({});
     setShowHarmfulFactorsDropdown(false);
     setHarmfulFactorsSearch('');
+  };
+
+  const handleCreateEmployee = async () => {
+    console.log('=== handleCreateEmployee called ===');
+    console.log('createData:', createData);
+    console.log('selectedContractId:', selectedContractId);
+    
+    setCreateAttempted(true);
+    
+    // Валидация обязательных полей (все кроме телефона и примечания)
+    const missingFields = [];
+    if (!createData.name) missingFields.push('ФИО');
+    if (!createData.department) missingFields.push('Объект/участок');
+    if (!createData.position) missingFields.push('Должность');
+    if (!createData.birthDate) missingFields.push('Дата рождения');
+    if (!createData.gender) missingFields.push('Пол');
+    if (!createData.totalExperienceYears && createData.totalExperienceYears !== 0) missingFields.push('Общий стаж');
+    if (!createData.positionExperienceYears && createData.positionExperienceYears !== 0) missingFields.push('Стаж по должности');
+    if (!createData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+    if (!createData.harmfulFactors || createData.harmfulFactors.length === 0) missingFields.push('Вредные факторы');
+    
+    if (missingFields.length > 0) {
+      console.log('Validation failed: missing required fields:', missingFields);
+      showToast(`❌ Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
+      return;
+    }
+
+    if (!selectedContractId) {
+      console.log('Validation failed: no contract selected');
+      showToast('❌ Выберите договор', 'error');
+      return;
+    }
+
+    try {
+      console.log('Calling API to create employee...');
+      const newEmployee = await workflowStoreAPI.createContingentEmployee({
+        ...createData,
+        contractId: selectedContractId,
+      });
+      console.log('Employee created successfully:', newEmployee);
+      
+      // Добавляем нового сотрудника в начало списка
+      setEmployees(prevEmployees => [newEmployee, ...prevEmployees]);
+      
+      // Закрываем модальное окно и очищаем форму
+      setShowCreateModal(false);
+      setCreateData({});
+      setShowCreateHarmfulFactorsDropdown(false);
+      setCreateHarmfulFactorsSearch('');
+      setCreateAttempted(false);
+      
+      showToast('✅ Сотрудник успешно добавлен', 'success');
+    } catch (error: any) {
+      console.error('Error creating employee:', error);
+      console.error('Error details:', error.message, error.stack);
+      showToast(error.message || 'Ошибка создания сотрудника', 'error');
+    }
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateModal(false);
+    setCreateData({});
+    setShowCreateHarmfulFactorsDropdown(false);
+    setCreateHarmfulFactorsSearch('');
+    setShowHarmfulFactorsDropdown(false);
+    setHarmfulFactorsSearch('');
+    setCreateAttempted(false);
   };
 
   const handleNextStep = () => {
@@ -381,29 +463,42 @@ export default function ContingentPage() {
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
                 Выберите Excel-файл или перетащите сюда
               </p>
-              <label className="cursor-pointer">
+              <div className="flex items-center justify-center gap-3">
+                <label className="cursor-pointer">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isUploading}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = document.getElementById('file-upload-input') as HTMLInputElement;
+                      input?.click();
+                    }}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Выбрать файл
+                  </Button>
+                  <input
+                    id="file-upload-input"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                </label>
+                <span className="text-gray-400">или</span>
                 <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isUploading}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const input = document.getElementById('file-upload-input') as HTMLInputElement;
-                    input?.click();
-                  }}
+                  variant="primary"
+                  onClick={() => setShowCreateModal(true)}
+                  disabled={!selectedContractId || isUploading}
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Выбрать файл
+                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Добавить сотрудника вручную
                 </Button>
-                <input
-                  id="file-upload-input"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  disabled={isUploading}
-                />
-              </label>
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                 Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
               </p>
@@ -1021,6 +1116,181 @@ export default function ContingentPage() {
             </div>
           </Card>
         )}
+
+        {/* Create Employee Modal */}
+        <Modal
+          isOpen={showCreateModal}
+          onClose={handleCancelCreate}
+          title="Добавить сотрудника"
+          size="lg"
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+            {/* ФИО */}
+            <Input
+              label="ФИО *"
+              value={createData.name || ''}
+              onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
+              placeholder="Иванов Иван Иванович"
+              title="👤 Введите полное ФИО сотрудника&#10;&#10;Формат: Фамилия Имя Отчество&#10;&#10;Примеры:&#10;• Иванов Иван Иванович&#10;• Петрова Мария Петровна"
+              className={createAttempted && !createData.name ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Объект/участок и Должность */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Объект/участок *"
+                value={createData.department || ''}
+                onChange={(e) => setCreateData({ ...createData, department: e.target.value })}
+                placeholder="Участок №1"
+                title="🏢 Укажите место работы сотрудника&#10;&#10;Примеры:&#10;• ТОО &quot;Компания&quot; - Отдел продаж&#10;• Производственный участок №1&#10;• Административный корпус"
+                className={createAttempted && !createData.department ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Должность *"
+                value={createData.position || ''}
+                onChange={(e) => setCreateData({ ...createData, position: e.target.value })}
+                placeholder="Оператор"
+                title="💼 Укажите должность сотрудника&#10;&#10;Примеры:&#10;• Оператор станков с ЧПУ&#10;• Главный бухгалтер&#10;• Инженер-технолог&#10;• Водитель погрузчика"
+                className={createAttempted && !createData.position ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата рождения и Пол */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Дата рождения *"
+                type="date"
+                value={createData.birthDate || ''}
+                onChange={(e) => setCreateData({ ...createData, birthDate: e.target.value })}
+                title="📅 Введите дату рождения&#10;&#10;Примеры:&#10;• 29.03.1976&#10;• 15.05.1985&#10;• 01.01.1990"
+                className={createAttempted && !createData.birthDate ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Пол *</label>
+                <select
+                  value={createData.gender || ''}
+                  onChange={(e) => setCreateData({ ...createData, gender: e.target.value as 'male' | 'female' })}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-sm ${
+                    createAttempted && !createData.gender 
+                      ? 'border-red-500 dark:border-red-500' 
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  title="Выберите пол сотрудника"
+                >
+                  <option value="">Не указан</option>
+                  <option value="male">Мужской</option>
+                  <option value="female">Женский</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Телефон */}
+            <Input
+              label="Телефон"
+              value={createData.phone || ''}
+              onChange={(e) => setCreateData({ ...createData, phone: e.target.value })}
+              placeholder="77001234567"
+              title="📱 Введите номер телефона&#10;&#10;Формат: 7XXXXXXXXXX&#10;&#10;Примеры:&#10;• 77001234567&#10;• 77051234567"
+            />
+
+            {/* Стаж */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Общий стаж (лет) *"
+                type="number"
+                value={createData.totalExperienceYears !== undefined ? createData.totalExperienceYears : ''}
+                onChange={(e) => setCreateData({ ...createData, totalExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="20"
+                min="0"
+                title="📊 Введите общий трудовой стаж в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 5, 10, 20, 35"
+                className={createAttempted && (createData.totalExperienceYears === undefined || createData.totalExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Стаж по должности (лет) *"
+                type="number"
+                value={createData.positionExperienceYears !== undefined ? createData.positionExperienceYears : ''}
+                onChange={(e) => setCreateData({ ...createData, positionExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="15"
+                min="0"
+                title="📊 Введите стаж работы по текущей должности в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 2, 5, 10, 15"
+                className={createAttempted && (createData.positionExperienceYears === undefined || createData.positionExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата последнего медосмотра */}
+            <Input
+              label="Дата последнего медосмотра *"
+              type="date"
+              value={createData.lastExaminationDate || ''}
+              onChange={(e) => setCreateData({ ...createData, lastExaminationDate: e.target.value })}
+              title="📅 Введите дату последнего медосмотра&#10;&#10;Примеры:&#10;• 22.01.2024&#10;• 15.03.2023&#10;• 01.12.2024"
+              className={createAttempted && !createData.lastExaminationDate ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Вредные факторы */}
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>
+              <div className="relative">
+                <Input
+                  value={createData.harmfulFactors?.[0] || ''}
+                  onChange={(e) => setCreateHarmfulFactorsSearch(e.target.value)}
+                  onFocus={() => setShowCreateHarmfulFactorsDropdown(true)}
+                  placeholder="Выберите вредный фактор"
+                  className={`pr-8 ${createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500 dark:border-red-500' : ''}`}
+                  title="⚠️ Выберите вредный фактор согласно приказу № ҚР ДСМ-131/2020&#10;&#10;Начните вводить текст для поиска"
+                />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {showCreateHarmfulFactorsDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {HARMFUL_FACTORS_OPTIONS
+                    .filter(factor => 
+                      factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
+                    )
+                    .map((factor, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setCreateData({ ...createData, harmfulFactors: [factor] });
+                          setShowCreateHarmfulFactorsDropdown(false);
+                          setCreateHarmfulFactorsSearch('');
+                        }}
+                        className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
+                          createData.harmfulFactors?.[0] === factor ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        {factor}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Примечание */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Примечание</label>
+              <textarea
+                value={createData.notes || ''}
+                onChange={(e) => setCreateData({ ...createData, notes: e.target.value })}
+                placeholder="Дополнительная информация"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 min-h-[60px] text-sm"
+                title="📝 Дополнительная информация о сотруднике&#10;&#10;Например:&#10;• Особые условия труда&#10;• Медицинские ограничения&#10;• Другие важные сведения"
+                maxLength={1000}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={handleCancelCreate}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleCreateEmployee}>
+              <Save className="h-4 w-4 mr-2" />
+              Сохранить
+            </Button>
+          </div>
+        </Modal>
 
         {/* QR Code Modal */}
         {qrCodeModal && (

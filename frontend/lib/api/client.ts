@@ -202,6 +202,13 @@ class ApiClient {
     });
   }
 
+  async createContingentEmployee(userId: string, data: any) {
+    return this.request('/contingent-employees/', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, user: userId }),
+    });
+  }
+
   async generateEmployeeQRCode(employeeId: string): Promise<string> {
     // @ts-ignore - process is available in Next.js runtime
     const apiUrl = (process?.env?.NEXT_PUBLIC_API_URL) || 'http://localhost:8000/api';
