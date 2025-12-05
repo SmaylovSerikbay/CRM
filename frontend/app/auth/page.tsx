@@ -9,6 +9,7 @@ import { Phone, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
 import { useToast, ToastProvider } from '@/components/ui/Toast';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 function AuthContent() {
   const { showToast } = useToast();
@@ -95,7 +96,10 @@ function AuthContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-6 relative">
+      <div className="absolute top-6 right-6">
+        <ThemeToggle />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
