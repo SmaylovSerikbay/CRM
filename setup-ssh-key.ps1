@@ -164,3 +164,4 @@ Write-Host "[4/4] Готово!" -ForegroundColor Green
 Write-Host ""
 Read-Host "Нажмите Enter для выхода"
 
+
