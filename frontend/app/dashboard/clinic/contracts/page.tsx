@@ -271,6 +271,43 @@ export default function ContractsPage() {
     }
   };
 
+  const handleAcceptSubcontract = async (contractId: string) => {
+    const user = userStore.getCurrentUser();
+    if (!user) {
+      showToast('Пользователь не авторизован', 'error');
+      return;
+    }
+    
+    try {
+      await apiClient.acceptSubcontract(contractId, user.id);
+      showToast('Субподряд принят', 'success');
+      loadContracts();
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка принятия субподряда', 'error');
+    }
+  };
+
+  const handleRejectSubcontract = async (contractId: string, reason: string) => {
+    const user = userStore.getCurrentUser();
+    if (!user) {
+      showToast('Пользователь не авторизован', 'error');
+      return;
+    }
+    
+    if (!reason.trim()) {
+      showToast('Укажите причину отклонения', 'warning');
+      return;
+    }
+    
+    try {
+      await apiClient.rejectSubcontract(contractId, user.id, reason);
+      showToast('Субподряд отклонен', 'success');
+      loadContracts();
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка отклонения субподряда', 'error');
+    }
+  };
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, dateFromFilter, dateToFilter]);
