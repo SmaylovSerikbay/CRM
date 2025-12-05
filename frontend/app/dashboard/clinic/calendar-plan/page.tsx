@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, UserCheck, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, UserCheck, Edit, Trash2, X, FileText } from 'lucide-react';
 import { workflowStoreAPI, CalendarPlan, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/components/ui/Toast';
@@ -18,6 +18,8 @@ export default function CalendarPlanPage() {
   const [selectedContractId, setSelectedContractId] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // Текущий шаг формы
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [selectedPlanEmployees, setSelectedPlanEmployees] = useState<ContingentEmployee[]>([]);
   const [formData, setFormData] = useState({
     selectedDepartments: [] as string[],
     useCommonDates: true, // Использовать одинаковые даты для всех
@@ -301,6 +303,13 @@ export default function CalendarPlanPage() {
 
   const getEmployeeCount = (plan: CalendarPlan) => {
     return plan.employeeIds.length;
+  };
+
+  const handleShowEmployees = (plan: CalendarPlan) => {
+    // Получаем сотрудников по их ID из плана
+    const employees = contingent.filter(emp => plan.employeeIds.includes(emp.id));
+    setSelectedPlanEmployees(employees);
+    setShowEmployeeModal(true);
   };
 
   // Пагинация
@@ -987,10 +996,13 @@ export default function CalendarPlanPage() {
                                   <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                                     {new Date(deptInfo.startDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                   </p>
-                                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                  <button
+                                    onClick={() => handleShowEmployees(plan)}
+                                    className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                                  >
                                     <Users className="h-3 w-3" />
-                                    <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
-                                  </div>
+                                    <span className="underline">{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                                  </button>
                                 </div>
                               ))}
                             </div>
@@ -1015,11 +1027,15 @@ export default function CalendarPlanPage() {
                           <span className="text-gray-900 dark:text-white">№{plan.contractNumber}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        <span className="font-medium">{getEmployeeCount(plan)}</span>
-                        <span>сотрудников</span>
-                      </div>
+                      <button
+                        onClick={() => handleShowEmployees(plan)}
+                        className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-2 rounded-lg transition-colors group"
+                      >
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-medium text-blue-600 dark:text-blue-400">{getEmployeeCount(plan)}</span>
+                        <span className="group-hover:text-blue-700 dark:group-hover:text-blue-300">сотрудников</span>
+                        <span className="text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1152,6 +1168,227 @@ export default function CalendarPlanPage() {
           )}
         </div>
       </main>
+
+      {/* Модальное окно со списком сотрудников */}
+      {showEmployeeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          >
+            {/* Заголовок */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Список сотрудников
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Всего сотрудников: {selectedPlanEmployees.length}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowEmployeeModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="h-6 w-6 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Содержимое */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {selectedPlanEmployees.map((employee, index) => (
+                  <motion.div
+                    key={employee.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="hover:shadow-md transition-shadow">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* Основная информация о сотруднике */}
+                        <div className="lg:col-span-2 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                              {employee.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                                {employee.name}
+                              </h3>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Должность:</span> {employee.position}
+                                </p>
+                                <p className="text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Участок:</span> {employee.department}
+                                </p>
+                                <p className="text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">ИИН:</span> {employee.iin}
+                                </p>
+                                {employee.phone && (
+                                  <p className="text-gray-600 dark:text-gray-400">
+                                    <span className="font-medium">Телефон:</span> {employee.phone}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Информация о стаже */}
+                          {(employee.totalExperienceYears || employee.positionExperienceYears) && (
+                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">
+                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                Стаж работы
+                              </p>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                {employee.totalExperienceYears && (
+                                  <div>
+                                    <span className="text-gray-600 dark:text-gray-400">Общий стаж:</span>
+                                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                                      {employee.totalExperienceYears} {employee.totalExperienceYears === 1 ? 'год' : employee.totalExperienceYears < 5 ? 'года' : 'лет'}
+                                    </span>
+                                  </div>
+                                )}
+                                {employee.positionExperienceYears && (
+                                  <div>
+                                    <span className="text-gray-600 dark:text-gray-400">На должности:</span>
+                                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                                      {employee.positionExperienceYears} {employee.positionExperienceYears === 1 ? 'год' : employee.positionExperienceYears < 5 ? 'года' : 'лет'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Информация об анализах и осмотрах */}
+                        <div className="lg:col-span-1 space-y-3">
+                          {/* Вредные факторы */}
+                          {employee.harmfulFactors && employee.harmfulFactors.length > 0 && (
+                            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
+                              <div className="flex items-center gap-2 mb-2">
+                                <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                                <p className="text-xs font-semibold text-orange-800 dark:text-orange-200 uppercase tracking-wide">
+                                  Вредные факторы
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {employee.harmfulFactors.map((factor, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded"
+                                  >
+                                    {factor}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Даты осмотров */}
+                          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 uppercase tracking-wide">
+                                График осмотров
+                              </p>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              {employee.lastExaminationDate && (
+                                <div>
+                                  <span className="text-gray-600 dark:text-gray-400">Последний осмотр:</span>
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU', {
+                                      day: '2-digit',
+                                      month: 'long',
+                                      year: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                              )}
+                              {employee.nextExaminationDate && (
+                                <div>
+                                  <span className="text-gray-600 dark:text-gray-400">Следующий осмотр:</span>
+                                  <p className="font-medium text-blue-700 dark:text-blue-300">
+                                    {new Date(employee.nextExaminationDate).toLocaleDateString('ru-RU', {
+                                      day: '2-digit',
+                                      month: 'long',
+                                      year: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                              )}
+                              {!employee.lastExaminationDate && !employee.nextExaminationDate && (
+                                <p className="text-gray-500 dark:text-gray-400 text-xs italic">
+                                  Даты осмотров не указаны
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Требуемые анализы */}
+                          {employee.requiresExamination && (
+                            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
+                              <div className="flex items-center gap-2 mb-2">
+                                <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <p className="text-xs font-semibold text-green-800 dark:text-green-200 uppercase tracking-wide">
+                                  Требуемые анализы
+                                </p>
+                              </div>
+                              <div className="space-y-1 text-xs text-gray-700 dark:text-gray-300">
+                                <p>• Общий анализ крови</p>
+                                <p>• Общий анализ мочи</p>
+                                <p>• Флюорография</p>
+                                <p>• ЭКГ</p>
+                                {employee.harmfulFactors && employee.harmfulFactors.length > 0 && (
+                                  <p className="text-orange-600 dark:text-orange-400 font-medium mt-2">
+                                    + Дополнительные анализы по вредным факторам
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Примечания */}
+                          {employee.notes && (
+                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">
+                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 uppercase tracking-wide">
+                                Примечания
+                              </p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {employee.notes}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+
+                {selectedPlanEmployees.length === 0 && (
+                  <div className="text-center py-12">
+                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Нет сотрудников в этом плане
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Футер */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-800">
+              <Button variant="outline" onClick={() => setShowEmployeeModal(false)}>
+                Закрыть
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
