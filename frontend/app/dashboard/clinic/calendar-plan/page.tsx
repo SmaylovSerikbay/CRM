@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/components/ui/Toast';
 import { useSearchParams } from 'next/navigation';
 
-export default function CalendarPlanPage() {
+function CalendarPlanPageContent() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const [plans, setPlans] = useState<CalendarPlan[]>([]);
@@ -87,7 +87,7 @@ export default function CalendarPlanPage() {
       }
     };
     loadData();
-  }, []);
+  }, [searchParams]);
 
   // Фильтруем контингент по выбранному договору
   const getFilteredContingent = (): ContingentEmployee[] => {
@@ -1718,5 +1718,17 @@ export default function CalendarPlanPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function CalendarPlanPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+      </div>
+    }>
+      <CalendarPlanPageContent />
+    </Suspense>
   );
 }
