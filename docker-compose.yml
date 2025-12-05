@@ -24,11 +24,17 @@ services:
       - .env.prod
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://crm.archeo.kz/api}
+      - NODE_OPTIONS=--enable-source-maps
     depends_on:
       - backend
     restart: unless-stopped
     networks:
       - database_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   database_network:
