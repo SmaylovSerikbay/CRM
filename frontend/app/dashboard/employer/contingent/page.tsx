@@ -63,6 +63,8 @@ export default function ContingentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
+  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
+  const [harmfulFactorsSearch, setHarmfulFactorsSearch] = useState('');
   const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
   
   // Пагинация
@@ -608,25 +610,62 @@ export default function ContingentPage() {
                               </td>
                               <td className="py-2 px-2">
                                 <div className="relative">
-                                  <select
-                                    multiple
-                                    value={Array.isArray(editData.harmfulFactors) ? editData.harmfulFactors : []}
-                                    onChange={(e) => {
-                                      const selected = Array.from(e.target.selectedOptions, option => option.value);
-                                      setEditData({ ...editData, harmfulFactors: selected });
-                                    }}
-                                    className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800 min-h-[80px]"
-                                    title="Удерживайте Ctrl (Cmd на Mac) для выбора нескольких факторов"
+                                  <div
+                                    className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800 cursor-pointer min-h-[32px] flex items-center justify-between"
+                                    onClick={() => setShowHarmfulFactorsDropdown(!showHarmfulFactorsDropdown)}
                                   >
-                                    {HARMFUL_FACTORS_OPTIONS.map((factor) => (
-                                      <option key={factor} value={factor}>
-                                        {factor}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Ctrl+клик для выбора нескольких
-                                  </p>
+                                    <span className="text-gray-700 dark:text-gray-300 truncate">
+                                      {Array.isArray(editData.harmfulFactors) && editData.harmfulFactors.length > 0
+                                        ? editData.harmfulFactors[0]
+                                        : 'Выберите вредный фактор'}
+                                    </span>
+                                    <ChevronDown className="h-4 w-4 text-gray-500 flex-shrink-0 ml-2" />
+                                  </div>
+                                  {showHarmfulFactorsDropdown && (
+                                    <div className="absolute z-50 mt-1 w-full max-w-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-hidden">
+                                      <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                                        <input
+                                          type="text"
+                                          placeholder="Поиск..."
+                                          value={harmfulFactorsSearch}
+                                          onChange={(e) => setHarmfulFactorsSearch(e.target.value)}
+                                          className="w-full px-3 py-2 text-sm border rounded dark:bg-gray-900 dark:border-gray-600"
+                                          onClick={(e) => e.stopPropagation()}
+                                          autoFocus
+                                        />
+                                      </div>
+                                      <div className="overflow-y-auto max-h-80">
+                                        {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                                          factor.toLowerCase().includes(harmfulFactorsSearch.toLowerCase())
+                                        ).map((factor) => {
+                                          const isSelected = Array.isArray(editData.harmfulFactors) && editData.harmfulFactors.includes(factor);
+                                          return (
+                                            <div
+                                              key={factor}
+                                              className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-xs ${
+                                                isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+                                              }`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditData({ ...editData, harmfulFactors: [factor] });
+                                                setShowHarmfulFactorsDropdown(false);
+                                                setHarmfulFactorsSearch('');
+                                              }}
+                                            >
+                                              {factor}
+                                            </div>
+                                          );
+                                        })}
+                                        {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                                          factor.toLowerCase().includes(harmfulFactorsSearch.toLowerCase())
+                                        ).length === 0 && (
+                                          <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            Ничего не найдено
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-2 px-2">
