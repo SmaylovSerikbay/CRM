@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download } from 'lucide-react';
+import { Drawer } from '@/components/ui/Drawer';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, FileCheck, Eye } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api/client';
 
 interface Contract {
   id: string;
@@ -59,6 +61,28 @@ export default function ContractsPage() {
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   const [selectedContractForUpload, setSelectedContractForUpload] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  // Модальное окно для создания календарного плана
+  const [showCalendarPlanModal, setShowCalendarPlanModal] = useState<string | null>(null);
+  const [planFormData, setPlanFormData] = useState({
+    selectedDepartments: [] as string[],
+    useCommonDates: true,
+    commonStartDate: '',
+    commonEndDate: '',
+    departmentDates: {} as Record<string, { startDate: string; endDate: string }>,
+    harmfulFactors: [] as string[],
+    selectedDoctors: [] as string[],
+  });
+  const [planCurrentStep, setPlanCurrentStep] = useState(1);
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [harmfulFactorsList, setHarmfulFactorsList] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [editEmployeeData, setEditEmployeeData] = useState<any>({});
+  // Drawer для управления договором
+  const [showContractDrawer, setShowContractDrawer] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'contingent' | 'plan' | 'route'>('contingent');
   // Временные состояния для фильтров (до применения)
   const [tempSearchQuery, setTempSearchQuery] = useState('');
   const [tempStatusFilter, setTempStatusFilter] = useState<string>('all');
@@ -116,16 +140,23 @@ export default function ContractsPage() {
       }));
       setContracts(mappedContracts);
       
-      // Загружаем контингент и календарные планы для проверки
-      try {
-        const contingentData = await workflowStoreAPI.getContingent();
-        setContingent(contingentData);
-        
-        const plansData = await workflowStoreAPI.getCalendarPlans();
-        setCalendarPlans(plansData);
-      } catch (error) {
-        console.error('Error loading contingent/plans:', error);
-      }
+        // Загружаем контингент и календарные планы для проверки
+        try {
+          const contingentData = await workflowStoreAPI.getContingent();
+          setContingent(contingentData);
+          
+          const plansData = await workflowStoreAPI.getCalendarPlans();
+          setCalendarPlans(plansData);
+          
+          // Загружаем список вредных факторов и врачей для создания планов
+          const factors = await apiClient.getHarmfulFactorsList();
+          setHarmfulFactorsList(factors);
+          
+          const doctorsList = await workflowStoreAPI.getDoctors();
+          setDoctors(doctorsList);
+        } catch (error) {
+          console.error('Error loading contingent/plans:', error);
+        }
     } catch (error) {
       console.error('Error loading contracts:', error);
       showToast('Ошибка загрузки договоров', 'error');
@@ -418,6 +449,26 @@ export default function ContractsPage() {
     );
   };
 
+  // Получение прогресса шагов для договора
+  const getContractProgress = (contractId: string) => {
+    const hasContingent = getContingentCount(contractId) > 0;
+    const hasPlan = getCalendarPlansCount(contractId) > 0;
+    const hasApproved = hasApprovedPlan(contractId);
+    
+    return {
+      contingent: hasContingent,
+      plan: hasPlan,
+      approved: hasApproved,
+      completed: hasContingent && hasPlan && hasApproved,
+    };
+  };
+
+  // Обработчик открытия Drawer
+  const handleOpenContractDrawer = (contractId: string) => {
+    setShowContractDrawer(contractId);
+    setActiveTab('contingent');
+  };
+
   // Обработчик загрузки контингента
   const handleUploadContingent = (contractId: string) => {
     setSelectedContractForUpload(contractId);
@@ -434,6 +485,11 @@ export default function ContractsPage() {
       const updated = await workflowStoreAPI.getContingent();
       setContingent(updated);
       
+      // Обновляем список участков для календарного плана
+      const contractContingent = updated.filter(emp => emp.contractId === contractId);
+      const contractDepartments = [...new Set(contractContingent.map(emp => emp.department))];
+      setAvailableDepartments(contractDepartments);
+      
       if (result.skipped > 0) {
         const reasons = result.skipped_reasons || {};
         const reasonsText = [
@@ -447,6 +503,11 @@ export default function ContractsPage() {
       
       setShowUploadModal(null);
       setSelectedContractForUpload('');
+      
+      // Если Drawer открыт, переключаемся на вкладку контингента
+      if (showContractDrawer === contractId) {
+        setActiveTab('contingent');
+      }
     } catch (error: any) {
       showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
@@ -456,12 +517,319 @@ export default function ContractsPage() {
 
   // Обработчик создания календарного плана
   const handleCreateCalendarPlan = (contractId: string) => {
-    router.push(`/dashboard/clinic/calendar-plan?contractId=${contractId}`);
+    // Фильтруем контингент по договору
+    const contractContingent = contingent.filter(emp => emp.contractId === contractId);
+    if (contractContingent.length === 0) {
+      showToast('Для этого договора нет загруженного контингента', 'warning');
+      return;
+    }
+    
+    // Получаем уникальные участки для этого договора
+    const contractDepartments = [...new Set(contractContingent.map(emp => emp.department))];
+    setAvailableDepartments(contractDepartments);
+    
+    // Сбрасываем форму
+    setPlanFormData({
+      selectedDepartments: [],
+      useCommonDates: true,
+      commonStartDate: '',
+      commonEndDate: '',
+      departmentDates: {},
+      harmfulFactors: [],
+      selectedDoctors: [],
+    });
+    setPlanCurrentStep(1);
+    setShowCalendarPlanModal(contractId);
   };
 
-  // Обработчик создания маршрутного листа
-  const handleCreateRouteSheet = (contractId: string) => {
-    router.push(`/dashboard/clinic/route-sheet?contractId=${contractId}`);
+  // Получение контингента по участку для выбранного договора
+  const getContingentByDepartment = (contractId: string, department: string): ContingentEmployee[] => {
+    return contingent.filter(emp => emp.contractId === contractId && emp.department === department);
+  };
+
+  // Создание календарного плана
+  const handleSubmitCalendarPlan = async (contractId: string) => {
+    if (planFormData.selectedDepartments.length === 0) {
+      showToast('Пожалуйста, выберите хотя бы один объект или участок', 'warning');
+      return;
+    }
+    
+    if (planFormData.useCommonDates && (!planFormData.commonStartDate || !planFormData.commonEndDate)) {
+      showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
+      return;
+    }
+    
+    setIsCreatingPlan(true);
+    try {
+      const departmentsInfo: Array<{department: string; startDate: string; endDate: string; employeeIds: string[]}> = [];
+      const allEmployeeIds: string[] = [];
+      let minStartDate: string | null = null;
+      let maxEndDate: string | null = null;
+      
+      for (const department of planFormData.selectedDepartments) {
+        const departmentEmployees = getContingentByDepartment(contractId, department);
+        const employeeIds = departmentEmployees.map(emp => emp.id);
+        
+        if (employeeIds.length === 0) continue;
+        
+        let startDate: string;
+        let endDate: string;
+        
+        if (planFormData.useCommonDates) {
+          startDate = planFormData.commonStartDate;
+          endDate = planFormData.commonEndDate;
+        } else {
+          const dates = planFormData.departmentDates[department];
+          if (!dates || !dates.startDate || !dates.endDate) {
+            showToast(`Пожалуйста, укажите даты для объекта/участка: ${department}`, 'warning');
+            setIsCreatingPlan(false);
+            return;
+          }
+          startDate = dates.startDate;
+          endDate = dates.endDate;
+        }
+        
+        allEmployeeIds.push(...employeeIds);
+        
+        if (!minStartDate || startDate < minStartDate) {
+          minStartDate = startDate;
+        }
+        if (!maxEndDate || endDate > maxEndDate) {
+          maxEndDate = endDate;
+        }
+        
+        departmentsInfo.push({
+          department,
+          startDate,
+          endDate,
+          employeeIds,
+        });
+      }
+      
+      if (departmentsInfo.length === 0) {
+        showToast('Не найдено сотрудников для выбранных участков', 'warning');
+        setIsCreatingPlan(false);
+        return;
+      }
+      
+      const mainDepartment = planFormData.selectedDepartments[0];
+      const planData = {
+        department: planFormData.selectedDepartments.length === 1 
+          ? mainDepartment 
+          : `${planFormData.selectedDepartments.length} участков`,
+        startDate: minStartDate!,
+        endDate: maxEndDate!,
+        employeeIds: [...new Set(allEmployeeIds)],
+        departmentsInfo: departmentsInfo,
+        harmfulFactors: planFormData.harmfulFactors,
+        selectedDoctors: planFormData.selectedDoctors,
+        contractId: contractId,
+      };
+      
+      await workflowStoreAPI.addCalendarPlan(planData, planData.employeeIds);
+      
+      // Обновляем данные
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setCalendarPlans(updatedPlans);
+      
+      // Если Drawer открыт, переключаемся на вкладку плана
+      if (showContractDrawer === contractId) {
+        setActiveTab('plan');
+      }
+      
+      setPlanFormData({
+        selectedDepartments: [],
+        useCommonDates: true,
+        commonStartDate: '',
+        commonEndDate: '',
+        departmentDates: {},
+        harmfulFactors: [],
+        selectedDoctors: [],
+      });
+      setPlanCurrentStep(1);
+      setShowCalendarPlanModal(null);
+      showToast(`Успешно создан календарный план для ${departmentsInfo.length} ${departmentsInfo.length === 1 ? 'участка' : 'участков'}`, 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка создания плана', 'error');
+    } finally {
+      setIsCreatingPlan(false);
+    }
+  };
+
+  // Функции управления календарными планами
+  const handleApprovePlan = async (planId: string) => {
+    try {
+      await workflowStoreAPI.updateCalendarPlanStatus(planId, 'pending_employer');
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setCalendarPlans(updatedPlans);
+      showToast('План отправлен на утверждение работодателю', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка утверждения плана', 'error');
+    }
+  };
+
+  const handleSendPlanToSES = async (planId: string) => {
+    try {
+      await workflowStoreAPI.updateCalendarPlanStatus(planId, 'sent_to_ses');
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setCalendarPlans(updatedPlans);
+      showToast('План успешно отправлен в СЭС', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка отправки в СЭС', 'error');
+    }
+  };
+
+  const handleDeletePlan = async (planId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этот календарный план?')) {
+      return;
+    }
+    try {
+      await workflowStoreAPI.deleteCalendarPlan(planId);
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setCalendarPlans(updatedPlans);
+      showToast('Календарный план успешно удален', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка удаления плана', 'error');
+    }
+  };
+
+  const handleGeneratePDF = async (plan: CalendarPlan) => {
+    try {
+      showToast('Генерация PDF...', 'info');
+      
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      
+      const response = await fetch(`${API_URL}/calendar-plans/${plan.id}/export_pdf/`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        let errorMessage = 'Ошибка генерации PDF';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.detail || errorMessage;
+        } catch (e) {
+          // Игнорируем ошибку парсинга
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой PDF файл');
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const filename = `calendar_plan_${plan.department.replace(/[^a-zA-Z0-9а-яА-Я]/g, '_')}_${plan.startDate}.pdf`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showToast('PDF успешно сгенерирован и скачан', 'success');
+    } catch (error: any) {
+      console.error('[PDF] Error generating PDF:', error);
+      showToast(error.message || 'Ошибка генерации PDF', 'error');
+    }
+  };
+
+  const getPlanStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      draft: 'Черновик',
+      pending_clinic: 'Ожидает утверждения клиникой',
+      pending_employer: 'Ожидает утверждения работодателем',
+      approved: 'Утвержден',
+      sent_to_ses: 'Отправлен в СЭС',
+    };
+    return labels[status] || status;
+  };
+
+  const getPlanStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+      pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Загрузка маршрутных листов для договора
+  const [routeSheets, setRouteSheets] = useState<any[]>([]);
+  const [expandedRouteSheet, setExpandedRouteSheet] = useState<string | null>(null);
+  const [routeSheetSearch, setRouteSheetSearch] = useState('');
+  const [routeSheetDateFilter, setRouteSheetDateFilter] = useState('');
+  
+  const loadRouteSheetsForContract = async (contractId: string) => {
+    try {
+      const allSheets = await workflowStoreAPI.getRouteSheets();
+      // Фильтруем по контингенту договора
+      const contractEmployeeIds = contingent.filter(emp => emp.contractId === contractId).map(emp => emp.id);
+      const contractSheets = allSheets.filter(rs => contractEmployeeIds.includes(rs.patientId));
+      setRouteSheets(contractSheets);
+    } catch (error) {
+      console.error('Error loading route sheets:', error);
+    }
+  };
+
+  // Загружаем маршрутные листы при открытии вкладки
+  useEffect(() => {
+    if (showContractDrawer && activeTab === 'route') {
+      loadRouteSheetsForContract(showContractDrawer);
+    }
+  }, [showContractDrawer, activeTab, contingent]);
+
+  // Функции управления контингентом
+  const handleEditEmployee = (employee: ContingentEmployee) => {
+    setEditingEmployee(employee.id);
+    setEditEmployeeData({
+      name: employee.name,
+      position: employee.position,
+      department: employee.department,
+      birthDate: employee.birthDate,
+      gender: employee.gender,
+      harmfulFactors: employee.harmfulFactors || [],
+      notes: (employee as any).notes || '',
+    });
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!editingEmployee) return;
+    
+    try {
+      await workflowStoreAPI.updateContingentEmployee(editingEmployee, editEmployeeData);
+      const updated = await workflowStoreAPI.getContingent();
+      setContingent(updated);
+      setEditingEmployee(null);
+      setEditEmployeeData({});
+      showToast('Изменения успешно сохранены', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка сохранения', 'error');
+    }
+  };
+
+  const handleCancelEditEmployee = () => {
+    setEditingEmployee(null);
+    setEditEmployeeData({});
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) return;
+    
+    try {
+      await workflowStoreAPI.deleteContingentEmployee(employeeId);
+      const updated = await workflowStoreAPI.getContingent();
+      setContingent(updated);
+      showToast('Сотрудник успешно удален', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка удаления', 'error');
+    }
   };
 
   if (isLoading) {
@@ -847,6 +1215,236 @@ export default function ContractsPage() {
           </div>
         </Modal>
 
+        {/* Модальное окно создания календарного плана */}
+        <Modal
+          isOpen={showCalendarPlanModal !== null}
+          onClose={() => {
+            setShowCalendarPlanModal(null);
+            setPlanFormData({
+              selectedDepartments: [],
+              useCommonDates: true,
+              commonStartDate: '',
+              commonEndDate: '',
+              departmentDates: {},
+              harmfulFactors: [],
+              selectedDoctors: [],
+            });
+            setPlanCurrentStep(1);
+          }}
+          title="Создать календарный план"
+          size="xl"
+        >
+          {showCalendarPlanModal && (
+            <div className="space-y-6">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Договор: <strong>№{contracts.find(c => c.id === showCalendarPlanModal)?.contract_number}</strong>
+                </p>
+              </div>
+
+              {/* Шаг 1: Выбор участков */}
+              {planCurrentStep === 1 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Выберите объекты/участки *
+                    </label>
+                    <div className="border border-gray-300 dark:border-gray-700 rounded-lg max-h-64 overflow-y-auto">
+                      {availableDepartments.length === 0 ? (
+                        <p className="p-4 text-sm text-gray-500">Нет доступных участков для этого договора</p>
+                      ) : (
+                        availableDepartments.map(dept => {
+                          const count = getContingentByDepartment(showCalendarPlanModal, dept).length;
+                          const isSelected = planFormData.selectedDepartments.includes(dept);
+                          return (
+                            <label
+                              key={dept}
+                              className={`flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                                isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setPlanFormData({
+                                        ...planFormData,
+                                        selectedDepartments: [...planFormData.selectedDepartments, dept],
+                                        departmentDates: {
+                                          ...planFormData.departmentDates,
+                                          [dept]: planFormData.departmentDates[dept] || { startDate: '', endDate: '' }
+                                        }
+                                      });
+                                    } else {
+                                      const newDates = { ...planFormData.departmentDates };
+                                      delete newDates[dept];
+                                      setPlanFormData({
+                                        ...planFormData,
+                                        selectedDepartments: planFormData.selectedDepartments.filter(d => d !== dept),
+                                        departmentDates: newDates
+                                      });
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium">{dept}</span>
+                              </div>
+                              <span className="text-xs text-gray-500">{count} сотрудников</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCalendarPlanModal(null)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (planFormData.selectedDepartments.length > 0) {
+                          setPlanCurrentStep(2);
+                        } else {
+                          showToast('Выберите хотя бы один участок', 'warning');
+                        }
+                      }}
+                      disabled={planFormData.selectedDepartments.length === 0}
+                    >
+                      Далее <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Шаг 2: Даты */}
+              {planCurrentStep === 2 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="flex items-center gap-2 mb-4">
+                      <input
+                        type="checkbox"
+                        checked={planFormData.useCommonDates}
+                        onChange={(e) => setPlanFormData({ ...planFormData, useCommonDates: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium">Использовать одинаковые даты для всех участков</span>
+                    </label>
+
+                    {planFormData.useCommonDates ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Дата начала *
+                          </label>
+                          <Input
+                            type="date"
+                            value={planFormData.commonStartDate}
+                            onChange={(e) => setPlanFormData({ ...planFormData, commonStartDate: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Дата окончания *
+                          </label>
+                          <Input
+                            type="date"
+                            value={planFormData.commonEndDate}
+                            onChange={(e) => setPlanFormData({ ...planFormData, commonEndDate: e.target.value })}
+                            required
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {planFormData.selectedDepartments.map(dept => (
+                          <div key={dept} className="grid grid-cols-3 gap-3 items-end">
+                            <div className="col-span-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {dept}
+                              </label>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Начало</label>
+                              <Input
+                                type="date"
+                                value={planFormData.departmentDates[dept]?.startDate || ''}
+                                onChange={(e) => setPlanFormData({
+                                  ...planFormData,
+                                  departmentDates: {
+                                    ...planFormData.departmentDates,
+                                    [dept]: {
+                                      ...planFormData.departmentDates[dept],
+                                      startDate: e.target.value
+                                    }
+                                  }
+                                })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Окончание</label>
+                              <Input
+                                type="date"
+                                value={planFormData.departmentDates[dept]?.endDate || ''}
+                                onChange={(e) => setPlanFormData({
+                                  ...planFormData,
+                                  departmentDates: {
+                                    ...planFormData.departmentDates,
+                                    [dept]: {
+                                      ...planFormData.departmentDates[dept],
+                                      endDate: e.target.value
+                                    }
+                                  }
+                                })}
+                                required
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPlanCurrentStep(1)}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Назад
+                    </Button>
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowCalendarPlanModal(null)}
+                      >
+                        Отмена
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => handleSubmitCalendarPlan(showCalendarPlanModal)}
+                        disabled={isCreatingPlan}
+                      >
+                        {isCreatingPlan ? 'Создание...' : 'Создать план'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+
         <div>
           {filteredContracts.length === 0 && contracts.length > 0 ? (
             <Card>
@@ -990,49 +1588,31 @@ export default function ContractsPage() {
                           </Button>
                         </>
                       )}
-                      {/* Кнопки для утвержденных и исполненных договоров */}
+                      {/* Кнопка для утвержденных и исполненных договоров */}
                       {(contract.status === 'approved' || contract.status === 'executed') && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleUploadContingent(contract.id)}
-                            title="Загрузить контингент"
-                          >
-                            <Upload className="h-4 w-4 mr-1" />
-                            Контингент
-                            {getContingentCount(contract.id) > 0 && (
-                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
-                                {getContingentCount(contract.id)}
-                              </span>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCreateCalendarPlan(contract.id)}
-                            disabled={getContingentCount(contract.id) === 0}
-                            title={getContingentCount(contract.id) === 0 ? 'Сначала загрузите контингент' : 'Создать календарный план'}
-                          >
-                            <Calendar className="h-4 w-4 mr-1" />
-                            План
-                            {getCalendarPlansCount(contract.id) > 0 && (
-                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                                {getCalendarPlansCount(contract.id)}
-                              </span>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCreateRouteSheet(contract.id)}
-                            disabled={!hasApprovedPlan(contract.id)}
-                            title={!hasApprovedPlan(contract.id) ? 'Сначала создайте и утвердите календарный план' : 'Создать маршрутный лист'}
-                          >
-                            <Route className="h-4 w-4 mr-1" />
-                            Маршрут
-                          </Button>
-                        </>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenContractDrawer(contract.id)}
+                          title="Управление договором"
+                          className="relative"
+                        >
+                          <FileCheck className="h-4 w-4 mr-2" />
+                          Документы
+                          {/* Индикатор прогресса */}
+                          <div className="ml-2 flex items-center gap-1">
+                            {(() => {
+                              const progress = getContractProgress(contract.id);
+                              return (
+                                <>
+                                  <div className={`w-2 h-2 rounded-full ${progress.contingent ? 'bg-green-500' : 'bg-gray-300'}`} title="Контингент" />
+                                  <div className={`w-2 h-2 rounded-full ${progress.plan ? 'bg-green-500' : 'bg-gray-300'}`} title="План" />
+                                  <div className={`w-2 h-2 rounded-full ${progress.approved ? 'bg-green-500' : 'bg-gray-300'}`} title="Утвержден" />
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </Button>
                       )}
                       <Button
                         size="sm"
@@ -1308,6 +1888,580 @@ export default function ContractsPage() {
           )}
         </div>
       </main>
+
+      {/* Drawer для управления договором */}
+      <Drawer
+        isOpen={showContractDrawer !== null}
+        onClose={() => {
+          setShowContractDrawer(null);
+          setActiveTab('contingent');
+        }}
+        title={showContractDrawer ? `Договор №${contracts.find(c => c.id === showContractDrawer)?.contract_number}` : 'Управление договором'}
+        width="w-[1400px]"
+      >
+        {showContractDrawer && (() => {
+          const contract = contracts.find(c => c.id === showContractDrawer);
+          const contractContingent = contingent.filter(emp => emp.contractId === showContractDrawer);
+          const contractPlans = calendarPlans.filter(plan => plan.contractId === showContractDrawer);
+          const progress = getContractProgress(showContractDrawer);
+          
+          return (
+            <div className="flex flex-col h-full">
+              {/* Вкладки */}
+              <div className="border-b border-gray-200 dark:border-gray-800 px-6">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setActiveTab('contingent')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'contingent'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Контингент
+                      {progress.contingent && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {contractContingent.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                          {contractContingent.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('plan')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'plan'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Календарный план
+                      {progress.approved && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {contractPlans.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                          {contractPlans.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('route')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'route'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                    disabled={!progress.approved}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4" />
+                      Маршрутные листы
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Содержимое вкладок */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Вкладка Контингент */}
+                {activeTab === 'contingent' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Контингент договора</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {contractContingent.length} сотрудников
+                        </p>
+                      </div>
+                      <Button onClick={() => handleUploadContingent(showContractDrawer)}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Загрузить контингент
+                      </Button>
+                    </div>
+
+                    {contractContingent.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Контингент не загружен</h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Загрузите Excel-файл со списком сотрудников
+                          </p>
+                          <Button onClick={() => handleUploadContingent(showContractDrawer)}>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Загрузить файл
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-3 py-2 text-left">ФИО</th>
+                                <th className="px-3 py-2 text-left">Должность</th>
+                                <th className="px-3 py-2 text-left">Объект/участок</th>
+                                <th className="px-3 py-2 text-left">Вредные факторы</th>
+                                <th className="px-3 py-2 text-right">Действия</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {contractContingent.map((emp) => (
+                                <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                  {editingEmployee === emp.id ? (
+                                    <>
+                                      <td className="px-3 py-2">
+                                        <Input
+                                          value={editEmployeeData.name || ''}
+                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, name: e.target.value })}
+                                          className="w-full"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Input
+                                          value={editEmployeeData.position || ''}
+                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, position: e.target.value })}
+                                          className="w-full"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Input
+                                          value={editEmployeeData.department || ''}
+                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, department: e.target.value })}
+                                          className="w-full"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Input
+                                          value={Array.isArray(editEmployeeData.harmfulFactors) ? editEmployeeData.harmfulFactors.join(', ') : ''}
+                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, harmfulFactors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                          className="w-full"
+                                          placeholder="через запятую"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleSaveEmployee}
+                                          >
+                                            <CheckCircle className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleCancelEditEmployee}
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="px-3 py-2 font-medium">{emp.name}</td>
+                                      <td className="px-3 py-2">{emp.position}</td>
+                                      <td className="px-3 py-2">{emp.department}</td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex flex-wrap gap-1">
+                                          {emp.harmfulFactors?.slice(0, 2).map((factor, idx) => (
+                                            <span key={idx} className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                              {factor}
+                                            </span>
+                                          ))}
+                                          {emp.harmfulFactors && emp.harmfulFactors.length > 2 && (
+                                            <span className="text-xs text-gray-500">+{emp.harmfulFactors.length - 2}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleEditEmployee(emp)}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleDeleteEmployee(emp.id)}
+                                            className="text-red-600 hover:text-red-700"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </td>
+                                    </>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* Вкладка Календарный план */}
+                {activeTab === 'plan' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Календарные планы</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {contractPlans.length} планов
+                        </p>
+                      </div>
+                      <Button 
+                        onClick={() => handleCreateCalendarPlan(showContractDrawer)}
+                        disabled={!progress.contingent}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Создать план
+                      </Button>
+                    </div>
+
+                    {!progress.contingent ? (
+                      <Card>
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                            Сначала необходимо загрузить контингент
+                          </p>
+                        </div>
+                      </Card>
+                    ) : contractPlans.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Планы не созданы</h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Создайте календарный план для этого договора
+                          </p>
+                          <Button onClick={() => handleCreateCalendarPlan(showContractDrawer)}>
+                            <Calendar className="h-4 w-4 mr-2" />
+                            Создать план
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-4 py-3 text-left">Объект/участок</th>
+                                <th className="px-4 py-3 text-left">Период</th>
+                                <th className="px-4 py-3 text-left">Сотрудников</th>
+                                <th className="px-4 py-3 text-left">Участков</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-right">Действия</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {contractPlans.map((plan) => (
+                                <>
+                                  <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <td className="px-4 py-3 font-medium">{plan.department}</td>
+                                    <td className="px-4 py-3">
+                                      {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
+                                    </td>
+                                    <td className="px-4 py-3">{plan.employeeIds.length}</td>
+                                    <td className="px-4 py-3">{plan.departmentsInfo?.length || 1}</td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 text-xs rounded ${getPlanStatusColor(plan.status)}`}>
+                                        {getPlanStatusLabel(plan.status)}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        {plan.status === 'draft' && (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => handleApprovePlan(plan.id)}
+                                            >
+                                              <Send className="h-4 w-4 mr-1" />
+                                              Согласовать
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => handleDeletePlan(plan.id)}
+                                              className="text-red-600 hover:text-red-700"
+                                            >
+                                              <X className="h-4 w-4 mr-1" />
+                                              Удалить
+                                            </Button>
+                                          </>
+                                        )}
+                                        {plan.status === 'approved' && (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => handleSendPlanToSES(plan.id)}
+                                            >
+                                              <Send className="h-4 w-4 mr-1" />
+                                              В СЭС
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => handleGeneratePDF(plan)}
+                                            >
+                                              <Download className="h-4 w-4 mr-1" />
+                                              PDF
+                                            </Button>
+                                          </>
+                                        )}
+                                        {plan.status === 'sent_to_ses' && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleGeneratePDF(plan)}
+                                          >
+                                            <Download className="h-4 w-4 mr-1" />
+                                            PDF
+                                          </Button>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
+                                        >
+                                          <Eye className="h-4 w-4 mr-1" />
+                                          {expandedPlan === plan.id ? 'Скрыть' : 'Детали'}
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  {expandedPlan === plan.id && (
+                                    <tr key={`${plan.id}-expanded`}>
+                                      <td colSpan={6} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
+                                        {plan.departmentsInfo && plan.departmentsInfo.length > 0 ? (
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                              Участки и даты
+                                            </label>
+                                            <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                              {plan.departmentsInfo.map((dept: any, idx: number) => {
+                                                // Проверка валидности дат
+                                                const startDateObj = dept.startDate ? new Date(dept.startDate) : null;
+                                                const endDateObj = dept.endDate ? new Date(dept.endDate) : null;
+                                                const isValidStartDate = startDateObj && !isNaN(startDateObj.getTime());
+                                                const isValidEndDate = endDateObj && !isNaN(endDateObj.getTime());
+                                                const employeeIds = dept.employeeIds || [];
+                                                
+                                                return (
+                                                  <div key={idx} className="p-2 bg-white dark:bg-gray-900 rounded">
+                                                    <p className="font-medium text-sm">{dept.department}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                      {isValidStartDate && isValidEndDate
+                                                        ? `${startDateObj.toLocaleDateString('ru-RU')} - ${endDateObj.toLocaleDateString('ru-RU')}`
+                                                        : dept.startDate && dept.endDate
+                                                        ? `${dept.startDate} - ${dept.endDate}`
+                                                        : 'Даты не указаны'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                                                      Сотрудников: {Array.isArray(employeeIds) ? employeeIds.length : 0}
+                                                    </p>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <p className="text-sm text-gray-500 dark:text-gray-400">Нет информации об участках</p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* Вкладка Маршрутные листы */}
+                {activeTab === 'route' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Маршрутные листы</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {routeSheets.length} листов
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          placeholder="Поиск по ФИО, ИИН..."
+                          value={routeSheetSearch}
+                          onChange={(e) => setRouteSheetSearch(e.target.value)}
+                          className="w-64"
+                        />
+                        <Input
+                          type="date"
+                          value={routeSheetDateFilter}
+                          onChange={(e) => setRouteSheetDateFilter(e.target.value)}
+                          className="w-auto"
+                        />
+                        {(routeSheetSearch || routeSheetDateFilter) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setRouteSheetSearch('');
+                              setRouteSheetDateFilter('');
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!progress.approved ? (
+                      <Card>
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                            Маршрутные листы создаются автоматически после утверждения календарного плана
+                          </p>
+                        </div>
+                      </Card>
+                    ) : routeSheets.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Route className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Маршрутные листы не найдены</h3>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Маршрутные листы будут созданы автоматически после утверждения плана
+                          </p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-4 py-3 text-left">Пациент</th>
+                                <th className="px-4 py-3 text-left">ИИН</th>
+                                <th className="px-4 py-3 text-left">Должность</th>
+                                <th className="px-4 py-3 text-left">Дата визита</th>
+                                <th className="px-4 py-3 text-left">Прогресс</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-right">Действия</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {routeSheets
+                                .filter(rs => {
+                                  const matchesSearch = !routeSheetSearch || 
+                                    rs.patientName?.toLowerCase().includes(routeSheetSearch.toLowerCase()) ||
+                                    rs.iin?.includes(routeSheetSearch);
+                                  const matchesDate = !routeSheetDateFilter || rs.visitDate === routeSheetDateFilter;
+                                  return matchesSearch && matchesDate;
+                                })
+                                .map((rs) => {
+                                  const completed = rs.services?.filter((s: any) => s.status === 'completed').length || 0;
+                                  const total = rs.services?.length || 0;
+                                  const isCompleted = total > 0 && completed === total;
+                                  return (
+                                    <>
+                                      <tr key={rs.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <td className="px-4 py-3 font-medium">{rs.patientName}</td>
+                                        <td className="px-4 py-3">{rs.iin || '-'}</td>
+                                        <td className="px-4 py-3">{rs.position}</td>
+                                        <td className="px-4 py-3">
+                                          {rs.visitDate ? new Date(rs.visitDate).toLocaleDateString('ru-RU') : '-'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 min-w-[100px]">
+                                              <div 
+                                                className={`h-2 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
+                                              />
+                                            </div>
+                                            <span className="text-xs text-gray-500">{completed}/{total}</span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <span className={`px-2 py-1 text-xs rounded ${
+                                            isCompleted 
+                                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                              : completed > 0
+                                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                                          }`}>
+                                            {isCompleted ? 'Завершен' : completed > 0 ? 'В процессе' : 'Не начат'}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setExpandedRouteSheet(expandedRouteSheet === rs.id ? null : rs.id)}
+                                          >
+                                            <Eye className="h-4 w-4 mr-1" />
+                                            {expandedRouteSheet === rs.id ? 'Скрыть' : 'Детали'}
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                      {expandedRouteSheet === rs.id && (
+                                        <tr key={`${rs.id}-expanded`}>
+                                          <td colSpan={7} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
+                                            <div className="space-y-3">
+                                              <h4 className="font-semibold mb-2">Услуги:</h4>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                {rs.services?.map((service: any) => (
+                                                  <div key={service.id} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900 rounded border">
+                                                    <div className={`w-3 h-3 rounded-full ${service.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                                    <span className="text-sm">{service.name}</span>
+                                                    {service.cabinet && (
+                                                      <span className="text-xs text-gray-500">({service.cabinet})</span>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </Drawer>
     </div>
   );
 }

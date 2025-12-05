@@ -228,7 +228,12 @@ class WorkflowStoreAPI {
       startDate: plan.start_date,
       endDate: plan.end_date,
       employeeIds: plan.employee_ids || [],
-      departmentsInfo: plan.departments_info || undefined,
+      departmentsInfo: plan.departments_info ? plan.departments_info.map((dept: any) => ({
+        department: dept.department,
+        startDate: dept.start_date || dept.startDate,
+        endDate: dept.end_date || dept.endDate,
+        employeeIds: dept.employee_ids || dept.employeeIds || [],
+      })) : undefined,
       harmfulFactors: plan.harmful_factors || [],
       selectedDoctors: plan.selected_doctors || [],
       status: plan.status,
