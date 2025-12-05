@@ -21,7 +21,17 @@ interface Contract {
   amount: number;
   people_count: number;
   execution_date: string;
-  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'executed' | 'cancelled';
+  status:
+    | 'draft'
+    | 'pending_approval'
+    | 'approved'
+    | 'active'
+    | 'in_progress'
+    | 'partially_executed'
+    | 'rejected'
+    | 'sent'
+    | 'executed'
+    | 'cancelled';
   employer_bin?: string;
   employer_phone?: string;
   employer_name?: string;
@@ -253,6 +263,9 @@ export default function ContractsPage() {
       draft: 'Черновик',
       pending_approval: 'Ожидает согласования',
       approved: 'Согласован',
+      active: 'Действует',
+      in_progress: 'В процессе исполнения',
+      partially_executed: 'Частично исполнен',
       rejected: 'Отклонен',
       sent: 'Отправлен',
       executed: 'Исполнен',
@@ -266,6 +279,9 @@ export default function ContractsPage() {
       draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
       pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      active: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      in_progress: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      partially_executed: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
       rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       sent: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       executed: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
@@ -892,6 +908,9 @@ export default function ContractsPage() {
                   <option value="draft">Черновик</option>
                   <option value="pending_approval">Ожидает согласования</option>
                   <option value="approved">Согласован</option>
+                  <option value="active">Действует</option>
+                  <option value="in_progress">В процессе исполнения</option>
+                  <option value="partially_executed">Частично исполнен</option>
                   <option value="rejected">Отклонен</option>
                   <option value="sent">Отправлен</option>
                   <option value="executed">Исполнен</option>

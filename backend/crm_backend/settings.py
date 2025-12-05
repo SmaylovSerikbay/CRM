@@ -81,6 +81,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Стандартный backend с паролем
+]
+
+# Кастомная модель пользователя
+AUTH_USER_MODEL = 'api.User'
+
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = 'Asia/Almaty'
 USE_I18N = True

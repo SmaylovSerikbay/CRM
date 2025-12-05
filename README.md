@@ -85,7 +85,8 @@ docker-compose up --build
 
 ### Утилиты
 - `make migrate` - Применить миграции Django
-- `make createsuperuser` - Создать суперпользователя
+- `make create-admin` - Создать администратора с OTP авторизацией
+- `make createsuperuser` - Создать суперпользователя (старый метод)
 - `make shell-backend` - Войти в shell backend контейнера
 - `make shell-frontend` - Войти в shell frontend контейнера
 - `make clean` - Очистить все контейнеры и volumes
@@ -117,6 +118,33 @@ docker-compose up --build
 - Framer Motion
 - Recharts
 
+## 🔐 Admin панель
+
+Django Admin панель доступна по адресу:
+- **Development**: http://localhost:8001/admin/
+- **Production**: http://localhost:8000/admin/
+
+### Авторизация через OTP
+
+Admin панель использует OTP авторизацию через WhatsApp (как и фронтенд):
+
+1. **Создайте администратора:**
+   ```bash
+   make create-admin
+   # Или напрямую:
+   docker-compose exec backend python manage.py create_admin_user +77001234567
+   ```
+
+2. **Войдите в admin:**
+   - Откройте http://localhost:8001/admin/
+   - Введите номер телефона
+   - Получите код в WhatsApp
+   - Введите код и войдите
+
+> **📖 Подробная документация:** 
+> - [docs/ADMIN_QUICK_START.md](./docs/ADMIN_QUICK_START.md) - Быстрый старт
+> - [docs/ADMIN_OTP_AUTH.md](./docs/ADMIN_OTP_AUTH.md) - Полная документация
+
 ## 🔐 Переменные окружения
 
 Проект использует отдельные .env файлы для разных окружений:
@@ -131,7 +159,7 @@ docker-compose up --build
 - `SECRET_KEY` - Django секретный ключ ⚠️
 - `DEBUG` - Режим отладки
 - `ALLOWED_HOSTS` - Разрешенные хосты
-- `GREEN_API_*` - Настройки Green API
+- `GREEN_API_*` - Настройки Green API для OTP
 
 **Frontend:**
 - `NEXT_PUBLIC_API_URL` - URL backend API
