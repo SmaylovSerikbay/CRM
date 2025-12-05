@@ -1282,6 +1282,69 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws.add_data_validation(exam_date_validation)
         exam_date_validation.add(f"J{data_start_row}:J{data_end_row}")
 
+        # 5) Валидация для текстовых полей с подсказками
+        # Колонка B - ФИО
+        fio_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        fio_validation.error = "❌ ФИО обязательно для заполнения"
+        fio_validation.errorTitle = "Пустое поле"
+        fio_validation.prompt = "👤 Введите полное ФИО сотрудника\n\nФормат: Фамилия Имя Отчество\n\nПримеры:\n• Иванов Иван Иванович\n• Петрова Мария Петровна"
+        fio_validation.promptTitle = "ФИО сотрудника"
+        ws.add_data_validation(fio_validation)
+        fio_validation.add(f"B{data_start_row}:B{data_end_row}")
+
+        # Колонка F - Объект или участок
+        department_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        department_validation.error = "❌ Объект или участок обязательны для заполнения"
+        department_validation.errorTitle = "Пустое поле"
+        department_validation.prompt = "🏢 Укажите место работы сотрудника\n\nПримеры:\n• ТОО \"Компания\" - Отдел продаж\n• Производственный участок №1\n• Административный корпус"
+        department_validation.promptTitle = "Объект или участок"
+        ws.add_data_validation(department_validation)
+        department_validation.add(f"F{data_start_row}:F{data_end_row}")
+
+        # Колонка G - Занимаемая должность
+        position_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        position_validation.error = "❌ Должность обязательна для заполнения"
+        position_validation.errorTitle = "Пустое поле"
+        position_validation.prompt = "💼 Укажите должность сотрудника\n\nПримеры:\n• Оператор станков с ЧПУ\n• Главный бухгалтер\n• Инженер-технолог\n• Водитель погрузчика"
+        position_validation.promptTitle = "Занимаемая должность"
+        ws.add_data_validation(position_validation)
+        position_validation.add(f"G{data_start_row}:G{data_end_row}")
+
+        # Колонка L - Примечание (необязательное, только подсказка)
+        notes_validation = DataValidation(
+            type="textLength",
+            operator="lessThan",
+            formula1="1000",
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=False
+        )
+        notes_validation.prompt = "📝 Дополнительная информация о сотруднике (необязательно)\n\nПримеры:\n• Работает по совместительству\n• Временно отсутствует\n• Находится в декретном отпуске"
+        notes_validation.promptTitle = "Примечание"
+        ws.add_data_validation(notes_validation)
+        notes_validation.add(f"L{data_start_row}:L{data_end_row}")
+
         # Скрываем справочные листы для удобства пользователя
         gender_sheet.sheet_state = "hidden"
         harmful_sheet.sheet_state = "hidden"
