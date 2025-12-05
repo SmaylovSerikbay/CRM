@@ -8,12 +8,14 @@ import { Input } from '@/components/ui/Input';
 import { 
   FileText, CheckCircle, Clock, Send, X, Download, Upload, History, 
   Search, Filter, Building2, Calendar, Users, DollarSign, ChevronRight,
-  AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, Eye, MoreVertical
+  AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, Eye, MoreVertical, Route, FileCheck
 } from 'lucide-react';
-import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
+import { Drawer } from '@/components/ui/Drawer';
+import { Card } from '@/components/ui/Card';
 
 interface Contract {
   id: string;
@@ -60,6 +62,17 @@ function EmployerContractsContent() {
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
   
+  // Данные для Drawer
+  const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
+  const [calendarPlans, setCalendarPlans] = useState<CalendarPlan[]>([]);
+  const [routeSheets, setRouteSheets] = useState<any[]>([]);
+  const [showContractDrawer, setShowContractDrawer] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'contingent' | 'plan' | 'route'>('contingent');
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+  const [routeSheetSearch, setRouteSheetSearch] = useState('');
+  const [routeSheetDateFilter, setRouteSheetDateFilter] = useState('');
+  const [expandedRouteSheet, setExpandedRouteSheet] = useState<string | null>(null);
+  
   // Фильтры и поиск
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -102,6 +115,20 @@ function EmployerContractsContent() {
         executedAt: c.executed_at,
       }));
       setContracts(mappedContracts);
+      
+      // Загружаем контингент и календарные планы для Drawer
+      try {
+        const contingentData = await workflowStoreAPI.getContingent();
+        setContingent(contingentData);
+        
+        const plansData = await workflowStoreAPI.getCalendarPlans();
+        setCalendarPlans(plansData);
+        
+        const sheetsData = await workflowStoreAPI.getRouteSheets();
+        setRouteSheets(sheetsData);
+      } catch (error) {
+        console.error('Error loading contingent/plans:', error);
+      }
       
       if (binFromUrl) {
         const contract = mappedContracts.find((c: Contract) => c.employer_bin === binFromUrl);
@@ -182,6 +209,79 @@ function EmployerContractsContent() {
       executed: 'Исполнен',
     };
     return labels[action] || action;
+  };
+
+  // Функции для работы с Drawer
+  const getContingentCount = (contractId: string): number => {
+    return contingent.filter(emp => emp.contractId === contractId).length;
+  };
+
+  const getCalendarPlansCount = (contractId: string): number => {
+    return calendarPlans.filter(plan => plan.contractId === contractId).length;
+  };
+
+  const hasApprovedPlan = (contractId: string): boolean => {
+    return calendarPlans.some(plan => 
+      plan.contractId === contractId && 
+      (plan.status === 'approved' || plan.status === 'sent_to_ses')
+    );
+  };
+
+  const getContractProgress = (contractId: string) => {
+    const hasContingent = getContingentCount(contractId) > 0;
+    const hasPlan = getCalendarPlansCount(contractId) > 0;
+    const hasApproved = hasApprovedPlan(contractId);
+    
+    return {
+      contingent: hasContingent,
+      plan: hasPlan,
+      approved: hasApproved,
+      completed: hasContingent && hasPlan && hasApproved,
+    };
+  };
+
+  const handleOpenContractDrawer = (contractId: string) => {
+    setShowContractDrawer(contractId);
+    setActiveTab('contingent');
+  };
+
+  const loadRouteSheetsForContract = async (contractId: string) => {
+    try {
+      const allSheets = await workflowStoreAPI.getRouteSheets();
+      const contractEmployeeIds = contingent.filter(emp => emp.contractId === contractId).map(emp => emp.id);
+      const contractSheets = allSheets.filter(rs => contractEmployeeIds.includes(rs.patientId));
+      setRouteSheets(contractSheets);
+    } catch (error) {
+      console.error('Error loading route sheets:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showContractDrawer && activeTab === 'route') {
+      loadRouteSheetsForContract(showContractDrawer);
+    }
+  }, [showContractDrawer, activeTab, contingent]);
+
+  const getPlanStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      draft: 'Черновик',
+      pending_clinic: 'Ожидает утверждения клиникой',
+      pending_employer: 'Ожидает утверждения работодателем',
+      approved: 'Утвержден',
+      sent_to_ses: 'Отправлен в СЭС',
+    };
+    return labels[status] || status;
+  };
+
+  const getPlanStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+      pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   // Фильтрация и поиск
@@ -518,6 +618,32 @@ function EmployerContractsContent() {
                                   Исполнить
                                 </Button>
                               )}
+                              {/* Кнопка для утвержденных и исполненных договоров */}
+                              {(contract.status === 'approved' || contract.status === 'executed') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenContractDrawer(contract.id)}
+                                  title="Управление договором"
+                                  className="relative"
+                                >
+                                  <FileCheck className="h-4 w-4 mr-2" />
+                                  Документы
+                                  {/* Индикатор прогресса */}
+                                  <div className="ml-2 flex items-center gap-1">
+                                    {(() => {
+                                      const progress = getContractProgress(contract.id);
+                                      return (
+                                        <>
+                                          <div className={`w-2 h-2 rounded-full ${progress.contingent ? 'bg-green-500' : 'bg-gray-300'}`} title="Контингент" />
+                                          <div className={`w-2 h-2 rounded-full ${progress.plan ? 'bg-green-500' : 'bg-gray-300'}`} title="План" />
+                                          <div className={`w-2 h-2 rounded-full ${progress.approved ? 'bg-green-500' : 'bg-gray-300'}`} title="Утвержден" />
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -751,6 +877,439 @@ function EmployerContractsContent() {
           </div>
         )}
       </main>
+
+      {/* Drawer для управления договором */}
+      <Drawer
+        isOpen={showContractDrawer !== null}
+        onClose={() => {
+          setShowContractDrawer(null);
+          setActiveTab('contingent');
+        }}
+        title={showContractDrawer ? `Договор №${contracts.find(c => c.id === showContractDrawer)?.contract_number}` : 'Управление договором'}
+        width="w-[1400px]"
+      >
+        {showContractDrawer && (() => {
+          const contract = contracts.find(c => c.id === showContractDrawer);
+          const contractContingent = contingent.filter(emp => emp.contractId === showContractDrawer);
+          const contractPlans = calendarPlans.filter(plan => plan.contractId === showContractDrawer);
+          const progress = getContractProgress(showContractDrawer);
+          
+          return (
+            <div className="flex flex-col h-full">
+              {/* Вкладки */}
+              <div className="border-b border-gray-200 dark:border-gray-800 px-6">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setActiveTab('contingent')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'contingent'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Контингент
+                      {progress.contingent && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {contractContingent.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                          {contractContingent.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('plan')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'plan'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Календарный план
+                      {progress.approved && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {contractPlans.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                          {contractPlans.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('route')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'route'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                    disabled={!progress.approved}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4" />
+                      Маршрутные листы
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Содержимое вкладок */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Вкладка Контингент */}
+                {activeTab === 'contingent' && (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Контингент договора</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {contractContingent.length} сотрудников
+                      </p>
+                    </div>
+
+                    {contractContingent.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Контингент не загружен</h3>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Клиника еще не загрузила список сотрудников
+                          </p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-3 py-2 text-left">ФИО</th>
+                                <th className="px-3 py-2 text-left">Должность</th>
+                                <th className="px-3 py-2 text-left">Объект/участок</th>
+                                <th className="px-3 py-2 text-left">Вредные факторы</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {contractContingent.map((emp) => (
+                                <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                  <td className="px-3 py-2 font-medium">{emp.name}</td>
+                                  <td className="px-3 py-2">{emp.position}</td>
+                                  <td className="px-3 py-2">{emp.department}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {emp.harmfulFactors?.slice(0, 2).map((factor, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                          {factor}
+                                        </span>
+                                      ))}
+                                      {emp.harmfulFactors && emp.harmfulFactors.length > 2 && (
+                                        <span className="text-xs text-gray-500">+{emp.harmfulFactors.length - 2}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* Вкладка Календарный план */}
+                {activeTab === 'plan' && (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Календарные планы</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {contractPlans.length} планов
+                      </p>
+                    </div>
+
+                    {contractPlans.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Планы не созданы</h3>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Клиника еще не создала календарный план для этого договора
+                          </p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-4 py-3 text-left">Объект/участок</th>
+                                <th className="px-4 py-3 text-left">Период</th>
+                                <th className="px-4 py-3 text-left">Сотрудников</th>
+                                <th className="px-4 py-3 text-left">Участков</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-right">Действия</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {contractPlans.map((plan) => (
+                                <>
+                                  <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <td className="px-4 py-3 font-medium">{plan.department}</td>
+                                    <td className="px-4 py-3">
+                                      {new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}
+                                    </td>
+                                    <td className="px-4 py-3">{plan.employeeIds.length}</td>
+                                    <td className="px-4 py-3">{plan.departmentsInfo?.length || 1}</td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 text-xs rounded ${getPlanStatusColor(plan.status)}`}>
+                                        {getPlanStatusLabel(plan.status)}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      {plan.status === 'pending_employer' && (
+                                        <Button
+                                          size="sm"
+                                          onClick={async () => {
+                                            try {
+                                              await workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'approved');
+                                              const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+                                              setCalendarPlans(updatedPlans);
+                                              showToast('План успешно утвержден', 'success');
+                                            } catch (error: any) {
+                                              showToast(error.message || 'Ошибка утверждения плана', 'error');
+                                            }
+                                          }}
+                                        >
+                                          <CheckCircle className="h-4 w-4 mr-1" />
+                                          Утвердить
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
+                                      >
+                                        <Eye className="h-4 w-4 mr-1" />
+                                        {expandedPlan === plan.id ? 'Скрыть' : 'Детали'}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                  {expandedPlan === plan.id && (
+                                    <tr key={`${plan.id}-expanded`}>
+                                      <td colSpan={6} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
+                                        {plan.departmentsInfo && plan.departmentsInfo.length > 0 ? (
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                              Участки и даты
+                                            </label>
+                                            <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                              {plan.departmentsInfo.map((dept: any, idx: number) => {
+                                                const startDateObj = dept.startDate ? new Date(dept.startDate) : null;
+                                                const endDateObj = dept.endDate ? new Date(dept.endDate) : null;
+                                                const isValidStartDate = startDateObj && !isNaN(startDateObj.getTime());
+                                                const isValidEndDate = endDateObj && !isNaN(endDateObj.getTime());
+                                                const employeeIds = dept.employeeIds || [];
+                                                
+                                                return (
+                                                  <div key={idx} className="p-2 bg-white dark:bg-gray-900 rounded">
+                                                    <p className="font-medium text-sm">{dept.department}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                      {isValidStartDate && isValidEndDate
+                                                        ? `${startDateObj.toLocaleDateString('ru-RU')} - ${endDateObj.toLocaleDateString('ru-RU')}`
+                                                        : dept.startDate && dept.endDate
+                                                        ? `${dept.startDate} - ${dept.endDate}`
+                                                        : 'Даты не указаны'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                                                      Сотрудников: {Array.isArray(employeeIds) ? employeeIds.length : 0}
+                                                    </p>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <p className="text-sm text-gray-500 dark:text-gray-400">Нет информации об участках</p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* Вкладка Маршрутные листы */}
+                {activeTab === 'route' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Маршрутные листы</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {routeSheets.length} листов
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          placeholder="Поиск по ФИО, ИИН..."
+                          value={routeSheetSearch}
+                          onChange={(e) => setRouteSheetSearch(e.target.value)}
+                          className="w-64"
+                        />
+                        <Input
+                          type="date"
+                          value={routeSheetDateFilter}
+                          onChange={(e) => setRouteSheetDateFilter(e.target.value)}
+                          className="w-auto"
+                        />
+                        {(routeSheetSearch || routeSheetDateFilter) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setRouteSheetSearch('');
+                              setRouteSheetDateFilter('');
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!progress.approved ? (
+                      <Card>
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                            Маршрутные листы создаются автоматически после утверждения календарного плана
+                          </p>
+                        </div>
+                      </Card>
+                    ) : routeSheets.length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Route className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Маршрутные листы не найдены</h3>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Маршрутные листы будут созданы автоматически после утверждения плана
+                          </p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-4 py-3 text-left">Пациент</th>
+                                <th className="px-4 py-3 text-left">ИИН</th>
+                                <th className="px-4 py-3 text-left">Должность</th>
+                                <th className="px-4 py-3 text-left">Дата визита</th>
+                                <th className="px-4 py-3 text-left">Прогресс</th>
+                                <th className="px-4 py-3 text-left">Статус</th>
+                                <th className="px-4 py-3 text-right">Действия</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {routeSheets
+                                .filter(rs => {
+                                  const matchesSearch = !routeSheetSearch || 
+                                    rs.patientName?.toLowerCase().includes(routeSheetSearch.toLowerCase()) ||
+                                    rs.iin?.includes(routeSheetSearch);
+                                  const matchesDate = !routeSheetDateFilter || rs.visitDate === routeSheetDateFilter;
+                                  return matchesSearch && matchesDate;
+                                })
+                                .map((rs) => {
+                                  const completed = rs.services?.filter((s: any) => s.status === 'completed').length || 0;
+                                  const total = rs.services?.length || 0;
+                                  const isCompleted = total > 0 && completed === total;
+                                  return (
+                                    <>
+                                      <tr key={rs.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <td className="px-4 py-3 font-medium">{rs.patientName}</td>
+                                        <td className="px-4 py-3">{rs.iin || '-'}</td>
+                                        <td className="px-4 py-3">{rs.position}</td>
+                                        <td className="px-4 py-3">
+                                          {rs.visitDate ? new Date(rs.visitDate).toLocaleDateString('ru-RU') : '-'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 min-w-[100px]">
+                                              <div 
+                                                className={`h-2 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
+                                              />
+                                            </div>
+                                            <span className="text-xs text-gray-500">{completed}/{total}</span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <span className={`px-2 py-1 text-xs rounded ${
+                                            isCompleted 
+                                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                              : completed > 0
+                                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                                          }`}>
+                                            {isCompleted ? 'Завершен' : completed > 0 ? 'В процессе' : 'Не начат'}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setExpandedRouteSheet(expandedRouteSheet === rs.id ? null : rs.id)}
+                                          >
+                                            <Eye className="h-4 w-4 mr-1" />
+                                            {expandedRouteSheet === rs.id ? 'Скрыть' : 'Детали'}
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                      {expandedRouteSheet === rs.id && (
+                                        <tr key={`${rs.id}-expanded`}>
+                                          <td colSpan={7} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
+                                            <div className="space-y-3">
+                                              <h4 className="font-semibold mb-2">Услуги:</h4>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                {rs.services?.map((service: any) => (
+                                                  <div key={service.id} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900 rounded border">
+                                                    <div className={`w-3 h-3 rounded-full ${service.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                                    <span className="text-sm">{service.name}</span>
+                                                    {service.cabinet && (
+                                                      <span className="text-xs text-gray-500">({service.cabinet})</span>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </Drawer>
     </div>
   );
 }
