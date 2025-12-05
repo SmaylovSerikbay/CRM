@@ -2559,12 +2559,27 @@ export default function ContractsPage() {
                                         />
                                       </td>
                                       <td className="px-3 py-2">
-                                        <Input
-                                          value={Array.isArray(editEmployeeData.harmfulFactors) ? editEmployeeData.harmfulFactors.join(', ') : ''}
-                                          onChange={(e) => setEditEmployeeData({ ...editEmployeeData, harmfulFactors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                                          className="w-full"
-                                          placeholder="через запятую"
-                                        />
+                                        <div className="relative">
+                                          <select
+                                            multiple
+                                            value={Array.isArray(editEmployeeData.harmfulFactors) ? editEmployeeData.harmfulFactors : []}
+                                            onChange={(e) => {
+                                              const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                              setEditEmployeeData({ ...editEmployeeData, harmfulFactors: selected });
+                                            }}
+                                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800 min-h-[80px]"
+                                            title="Удерживайте Ctrl (Cmd на Mac) для выбора нескольких факторов"
+                                          >
+                                            {HARMFUL_FACTORS_OPTIONS.map((factor) => (
+                                              <option key={factor} value={factor}>
+                                                {factor}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Ctrl+клик для выбора нескольких
+                                          </p>
+                                        </div>
                                       </td>
                                       <td className="px-3 py-2 text-right">
                                         <div className="flex items-center justify-end gap-2">
