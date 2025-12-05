@@ -10,9 +10,11 @@ import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, UserCheck, 
 import { workflowStoreAPI, CalendarPlan, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/components/ui/Toast';
+import { useSearchParams } from 'next/navigation';
 
 export default function CalendarPlanPage() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const [plans, setPlans] = useState<CalendarPlan[]>([]);
   const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -51,6 +53,13 @@ export default function CalendarPlanPage() {
         // Включаем как утвержденные, так и исполненные договоры
         const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
         setContracts(approvedContracts);
+        
+        // Проверяем параметр contractId из URL
+        const contractIdFromUrl = searchParams.get('contractId');
+        if (contractIdFromUrl && approvedContracts.some((c: any) => c.id === contractIdFromUrl)) {
+          setSelectedContractId(contractIdFromUrl);
+          setShowForm(true);
+        }
         
         // Загружаем контингент (доступен для всех клиник после загрузки работодателем)
         const contingentData = await workflowStoreAPI.getContingent();

@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
-import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
+import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
+import { useRouter } from 'next/navigation';
 
 interface Contract {
   id: string;
@@ -42,6 +43,7 @@ interface ContractHistoryItem {
 
 export default function ContractsPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +53,12 @@ export default function ContractsPage() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
+  // Данные для быстрых действий
+  const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
+  const [calendarPlans, setCalendarPlans] = useState<CalendarPlan[]>([]);
+  const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
+  const [selectedContractForUpload, setSelectedContractForUpload] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
   // Временные состояния для фильтров (до применения)
   const [tempSearchQuery, setTempSearchQuery] = useState('');
   const [tempStatusFilter, setTempStatusFilter] = useState<string>('all');
@@ -107,6 +115,17 @@ export default function ContractsPage() {
         history: c.history,
       }));
       setContracts(mappedContracts);
+      
+      // Загружаем контингент и календарные планы для проверки
+      try {
+        const contingentData = await workflowStoreAPI.getContingent();
+        setContingent(contingentData);
+        
+        const plansData = await workflowStoreAPI.getCalendarPlans();
+        setCalendarPlans(plansData);
+      } catch (error) {
+        console.error('Error loading contingent/plans:', error);
+      }
     } catch (error) {
       console.error('Error loading contracts:', error);
       showToast('Ошибка загрузки договоров', 'error');
@@ -380,6 +399,70 @@ export default function ContractsPage() {
     tempStatusFilter !== statusFilter ||
     tempDateFromFilter !== dateFromFilter ||
     tempDateToFilter !== dateToFilter;
+
+  // Проверка наличия контингента для договора
+  const getContingentCount = (contractId: string): number => {
+    return contingent.filter(emp => emp.contractId === contractId).length;
+  };
+
+  // Проверка наличия календарных планов для договора
+  const getCalendarPlansCount = (contractId: string): number => {
+    return calendarPlans.filter(plan => plan.contractId === contractId).length;
+  };
+
+  // Проверка наличия утвержденного календарного плана
+  const hasApprovedPlan = (contractId: string): boolean => {
+    return calendarPlans.some(plan => 
+      plan.contractId === contractId && 
+      (plan.status === 'approved' || plan.status === 'sent_to_ses')
+    );
+  };
+
+  // Обработчик загрузки контингента
+  const handleUploadContingent = (contractId: string) => {
+    setSelectedContractForUpload(contractId);
+    setShowUploadModal(contractId);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, contractId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
+      const updated = await workflowStoreAPI.getContingent();
+      setContingent(updated);
+      
+      if (result.skipped > 0) {
+        const reasons = result.skipped_reasons || {};
+        const reasonsText = [
+          reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
+          reasons.no_name ? `нет ФИО: ${reasons.no_name}` : '',
+        ].filter(Boolean).join(', ');
+        showToast(`Загружено: ${result.created}, пропущено (${reasonsText || 'разные причины'}): ${result.skipped}`, 'info');
+      } else {
+        showToast('Файл успешно загружен!', 'success');
+      }
+      
+      setShowUploadModal(null);
+      setSelectedContractForUpload('');
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка загрузки файла', 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Обработчик создания календарного плана
+  const handleCreateCalendarPlan = (contractId: string) => {
+    router.push(`/dashboard/clinic/calendar-plan?contractId=${contractId}`);
+  };
+
+  // Обработчик создания маршрутного листа
+  const handleCreateRouteSheet = (contractId: string) => {
+    router.push(`/dashboard/clinic/route-sheet?contractId=${contractId}`);
+  };
 
   if (isLoading) {
     return (
@@ -696,6 +779,74 @@ export default function ContractsPage() {
               </form>
         </Modal>
 
+        {/* Модальное окно загрузки контингента */}
+        <Modal
+          isOpen={showUploadModal !== null}
+          onClose={() => {
+            setShowUploadModal(null);
+            setSelectedContractForUpload('');
+          }}
+          title="Загрузка списка контингента"
+          size="xl"
+        >
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Загрузите Excel-файл со списком сотрудников. Система автоматически присвоит вредные факторы.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await workflowStoreAPI.downloadContingentTemplate();
+                  } catch (error: any) {
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать шаблон
+              </Button>
+            </div>
+
+            {showUploadModal && (
+              <>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Контингент будет загружен для договора: <strong>№{contracts.find(c => c.id === showUploadModal)?.contract_number}</strong>
+                  </p>
+                </div>
+
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
+                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <label className="cursor-pointer">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Выберите Excel-файл или перетащите сюда
+                    </span>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={(e) => handleFileUpload(e, showUploadModal)}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
+                  </p>
+                  {isUploading && (
+                    <div className="mt-4">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Обработка файла...</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+
         <div>
           {filteredContracts.length === 0 && contracts.length > 0 ? (
             <Card>
@@ -819,7 +970,7 @@ export default function ContractsPage() {
                       </span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-right">
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-2 flex-wrap">
                       {(contract.status === 'draft' || contract.status === 'rejected') && (
                         <>
                           <Button
@@ -836,6 +987,50 @@ export default function ContractsPage() {
                           >
                                       <Send className="h-4 w-4 mr-1" />
                                       {contract.status === 'rejected' ? 'Повторно' : 'Отправить'}
+                          </Button>
+                        </>
+                      )}
+                      {/* Кнопки для утвержденных и исполненных договоров */}
+                      {(contract.status === 'approved' || contract.status === 'executed') && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUploadContingent(contract.id)}
+                            title="Загрузить контингент"
+                          >
+                            <Upload className="h-4 w-4 mr-1" />
+                            Контингент
+                            {getContingentCount(contract.id) > 0 && (
+                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                {getContingentCount(contract.id)}
+                              </span>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCreateCalendarPlan(contract.id)}
+                            disabled={getContingentCount(contract.id) === 0}
+                            title={getContingentCount(contract.id) === 0 ? 'Сначала загрузите контингент' : 'Создать календарный план'}
+                          >
+                            <Calendar className="h-4 w-4 mr-1" />
+                            План
+                            {getCalendarPlansCount(contract.id) > 0 && (
+                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                {getCalendarPlansCount(contract.id)}
+                              </span>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCreateRouteSheet(contract.id)}
+                            disabled={!hasApprovedPlan(contract.id)}
+                            title={!hasApprovedPlan(contract.id) ? 'Сначала создайте и утвердите календарный план' : 'Создать маршрутный лист'}
+                          >
+                            <Route className="h-4 w-4 mr-1" />
+                            Маршрут
                           </Button>
                         </>
                       )}
