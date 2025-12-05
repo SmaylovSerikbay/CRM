@@ -12,6 +12,23 @@ import { userStore } from '@/lib/store/user-store';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
 
+// Список стандартных вредных факторов
+const HARMFUL_FACTORS_OPTIONS = [
+  'Шум',
+  'Вибрация',
+  'Пыль',
+  'Химические вещества',
+  'Излучение',
+  'Высотные работы',
+  'Сварочные аэрозоли',
+  'Физические перегрузки',
+  'Работа на высоте',
+  'Электромагнитные поля',
+  'Токсичные вещества',
+  'Повышенная температура',
+  'Пониженная температура',
+];
+
 export default function ContingentPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -318,11 +335,25 @@ export default function ContingentPage() {
 
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
               <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                Выберите Excel-файл или перетащите сюда
+              </p>
               <label className="cursor-pointer">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Выберите Excel-файл или перетащите сюда
-                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isUploading}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const input = document.getElementById('file-upload-input') as HTMLInputElement;
+                    input?.click();
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Выбрать файл
+                </Button>
                 <input
+                  id="file-upload-input"
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={handleFileUpload}
@@ -330,7 +361,7 @@ export default function ContingentPage() {
                   disabled={isUploading}
                 />
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                 Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
               </p>
               {isUploading && (
@@ -556,13 +587,27 @@ export default function ContingentPage() {
                                 />
                               </td>
                               <td className="py-2 px-2">
-                                <input
-                                  type="text"
-                                  value={Array.isArray(editData.harmfulFactors) ? editData.harmfulFactors.join(', ') : ''}
-                                  onChange={(e) => setEditData({ ...editData, harmfulFactors: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })}
-                                  className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800"
-                                  placeholder="через запятую"
-                                />
+                                <div className="relative">
+                                  <select
+                                    multiple
+                                    value={Array.isArray(editData.harmfulFactors) ? editData.harmfulFactors : []}
+                                    onChange={(e) => {
+                                      const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                      setEditData({ ...editData, harmfulFactors: selected });
+                                    }}
+                                    className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-800 min-h-[80px]"
+                                    title="Удерживайте Ctrl (Cmd на Mac) для выбора нескольких факторов"
+                                  >
+                                    {HARMFUL_FACTORS_OPTIONS.map((factor) => (
+                                      <option key={factor} value={factor}>
+                                        {factor}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Ctrl+клик для выбора нескольких
+                                  </p>
+                                </div>
                               </td>
                               <td className="py-2 px-2">
                                 <input
