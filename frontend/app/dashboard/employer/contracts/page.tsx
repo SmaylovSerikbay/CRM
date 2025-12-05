@@ -235,7 +235,7 @@ function EmployerContractsContent() {
       (plan.status === 'approved' || plan.status === 'sent_to_ses')
     );
   };
-
+  
   const getContractProgress = (contractId: string) => {
     const hasContingent = getContingentCount(contractId) > 0;
     const hasPlan = getCalendarPlansCount(contractId) > 0;
