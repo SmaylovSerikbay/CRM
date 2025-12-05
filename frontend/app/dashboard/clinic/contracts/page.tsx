@@ -76,6 +76,8 @@ export default function ContractsPage() {
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [harmfulFactorsList, setHarmfulFactorsList] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [factorSearch, setFactorSearch] = useState('');
+  const [doctorSearch, setDoctorSearch] = useState('');
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -535,11 +537,13 @@ export default function ContractsPage() {
       commonStartDate: '',
       commonEndDate: '',
       departmentDates: {},
-      harmfulFactors: [],
-      selectedDoctors: [],
-    });
-    setPlanCurrentStep(1);
-    setShowCalendarPlanModal(contractId);
+              harmfulFactors: [],
+              selectedDoctors: [],
+            });
+            setPlanCurrentStep(1);
+            setFactorSearch('');
+            setDoctorSearch('');
+            setShowCalendarPlanModal(contractId);
   };
 
   // Получение контингента по участку для выбранного договора
@@ -643,11 +647,13 @@ export default function ContractsPage() {
         commonStartDate: '',
         commonEndDate: '',
         departmentDates: {},
-        harmfulFactors: [],
-        selectedDoctors: [],
-      });
-      setPlanCurrentStep(1);
-      setShowCalendarPlanModal(null);
+              harmfulFactors: [],
+              selectedDoctors: [],
+            });
+            setPlanCurrentStep(1);
+            setFactorSearch('');
+            setDoctorSearch('');
+            setShowCalendarPlanModal(null);
       showToast(`Успешно создан календарный план для ${departmentsInfo.length} ${departmentsInfo.length === 1 ? 'участка' : 'участков'}`, 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка создания плана', 'error');
@@ -1230,6 +1236,8 @@ export default function ContractsPage() {
               selectedDoctors: [],
             });
             setPlanCurrentStep(1);
+            setFactorSearch('');
+            setDoctorSearch('');
           }}
           title="Создать календарный план"
           size="xl"
@@ -1240,6 +1248,32 @@ export default function ContractsPage() {
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   Договор: <strong>№{contracts.find(c => c.id === showCalendarPlanModal)?.contract_number}</strong>
                 </p>
+              </div>
+
+              {/* Индикатор шагов */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center ${planCurrentStep >= 1 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${planCurrentStep >= 1 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                      {planCurrentStep > 1 ? '✓' : '1'}
+                    </div>
+                    <span className="ml-2 text-sm font-medium">Участки</span>
+                  </div>
+                  <div className={`flex-1 h-0.5 mx-2 ${planCurrentStep >= 2 ? 'bg-blue-600 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                  <div className={`flex items-center ${planCurrentStep >= 2 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${planCurrentStep >= 2 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                      {planCurrentStep > 2 ? '✓' : '2'}
+                    </div>
+                    <span className="ml-2 text-sm font-medium">Даты</span>
+                  </div>
+                  <div className={`flex-1 h-0.5 mx-2 ${planCurrentStep >= 3 ? 'bg-blue-600 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                  <div className={`flex items-center ${planCurrentStep >= 3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${planCurrentStep >= 3 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                      3
+                    </div>
+                    <span className="ml-2 text-sm font-medium">Дополнительно</span>
+                  </div>
+                </div>
               </div>
 
               {/* Шаг 1: Выбор участков */}
@@ -1419,6 +1453,440 @@ export default function ContractsPage() {
                       type="button"
                       variant="outline"
                       onClick={() => setPlanCurrentStep(1)}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Назад
+                    </Button>
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowCalendarPlanModal(null)}
+                      >
+                        Отмена
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          // Валидация дат
+                          let isValid = true;
+                          if (planFormData.useCommonDates) {
+                            if (!planFormData.commonStartDate || !planFormData.commonEndDate) {
+                              isValid = false;
+                              showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
+                            }
+                          } else {
+                            for (const dept of planFormData.selectedDepartments) {
+                              const dates = planFormData.departmentDates[dept];
+                              if (!dates || !dates.startDate || !dates.endDate) {
+                                isValid = false;
+                                showToast(`Пожалуйста, укажите даты для объекта/участка: ${dept}`, 'warning');
+                                break;
+                              }
+                            }
+                          }
+                          
+                          if (isValid) {
+                            setPlanCurrentStep(3);
+                          }
+                        }}
+                      >
+                        Далее <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Шаг 3: Дополнительные настройки */}
+              {planCurrentStep === 3 && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Шаг 3: Дополнительные настройки</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      Укажите вредные факторы и выберите врачей (необязательно)
+                    </p>
+                  </div>
+                
+                  {/* Вредные факторы */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Вредные факторы
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 font-normal">(необязательно)</span>
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Выберите вредные факторы для формирования приказа медкомиссии
+                    </p>
+                    
+                    {/* Поиск и кнопки управления */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Input
+                          type="text"
+                          placeholder="Поиск вредных факторов..."
+                          value={factorSearch}
+                          onChange={(e) => setFactorSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const filtered = harmfulFactorsList.filter(factor => 
+                            !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                          );
+                          
+                          const allSelected = filtered.every(factor => planFormData.harmfulFactors.includes(factor));
+                          
+                          if (allSelected) {
+                            setPlanFormData({
+                              ...planFormData,
+                              harmfulFactors: planFormData.harmfulFactors.filter(f => !filtered.includes(f)),
+                            });
+                          } else {
+                            setPlanFormData({
+                              ...planFormData,
+                              harmfulFactors: [...new Set([...planFormData.harmfulFactors, ...filtered])],
+                            });
+                          }
+                        }}
+                        disabled={harmfulFactorsList.length === 0}
+                      >
+                        {harmfulFactorsList.filter(factor => 
+                          !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                        ).every(factor => planFormData.harmfulFactors.includes(factor)) && harmfulFactorsList.filter(factor => 
+                          !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                        ).length > 0 ? 'Снять все' : 'Выбрать все'}
+                      </Button>
+                    </div>
+
+                    {/* Список вредных факторов */}
+                    <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                Вредный фактор
+                              </th>
+                              <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-12">
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    harmfulFactorsList.filter(factor => 
+                                      !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                                    ).length > 0 &&
+                                    harmfulFactorsList.filter(factor => 
+                                      !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                                    ).every(factor => planFormData.harmfulFactors.includes(factor))
+                                  }
+                                  onChange={(e) => {
+                                    const filtered = harmfulFactorsList.filter(factor => 
+                                      !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                                    );
+                                    
+                                    if (e.target.checked) {
+                                      setPlanFormData({
+                                        ...planFormData,
+                                        harmfulFactors: [...new Set([...planFormData.harmfulFactors, ...filtered])],
+                                      });
+                                    } else {
+                                      setPlanFormData({
+                                        ...planFormData,
+                                        harmfulFactors: planFormData.harmfulFactors.filter(f => !filtered.includes(f)),
+                                      });
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                            {harmfulFactorsList
+                              .filter(factor => 
+                                !factorSearch || factor.toLowerCase().includes(factorSearch.toLowerCase())
+                              )
+                              .map((factor) => {
+                                const isSelected = planFormData.harmfulFactors.includes(factor);
+                                return (
+                                  <tr
+                                    key={factor}
+                                    className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+                                      isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                    }`}
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setPlanFormData({
+                                          ...planFormData,
+                                          harmfulFactors: planFormData.harmfulFactors.filter(f => f !== factor),
+                                        });
+                                      } else {
+                                        setPlanFormData({
+                                          ...planFormData,
+                                          harmfulFactors: [...planFormData.harmfulFactors, factor],
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm text-gray-900 dark:text-white">
+                                        {factor}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setPlanFormData({
+                                              ...planFormData,
+                                              harmfulFactors: [...planFormData.harmfulFactors, factor],
+                                            });
+                                          } else {
+                                            setPlanFormData({
+                                              ...planFormData,
+                                              harmfulFactors: planFormData.harmfulFactors.filter(f => f !== factor),
+                                            });
+                                          }
+                                        }}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {planFormData.harmfulFactors.length > 0 && (
+                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          ✓ Выбрано: {planFormData.harmfulFactors.length} {planFormData.harmfulFactors.length === 1 ? 'фактор' : planFormData.harmfulFactors.length < 5 ? 'фактора' : 'факторов'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Выбор врачей */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Врачи клиники
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 font-normal">(необязательно)</span>
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Выберите врачей, которые будут проводить осмотр
+                    </p>
+                    
+                    {/* Поиск и кнопки управления */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Input
+                          type="text"
+                          placeholder="Поиск врачей по имени или специализации..."
+                          value={doctorSearch}
+                          onChange={(e) => setDoctorSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const filtered = doctors.filter(doc => {
+                            const searchLower = doctorSearch.toLowerCase();
+                            return !doctorSearch || 
+                              doc.name?.toLowerCase().includes(searchLower) ||
+                              doc.specialization?.toLowerCase().includes(searchLower);
+                          }).map(d => d.id);
+                          
+                          const allSelected = filtered.every(id => planFormData.selectedDoctors.includes(id));
+                          
+                          if (allSelected) {
+                            setPlanFormData({
+                              ...planFormData,
+                              selectedDoctors: planFormData.selectedDoctors.filter(id => !filtered.includes(id)),
+                            });
+                          } else {
+                            setPlanFormData({
+                              ...planFormData,
+                              selectedDoctors: [...new Set([...planFormData.selectedDoctors, ...filtered])],
+                            });
+                          }
+                        }}
+                        disabled={doctors.length === 0}
+                      >
+                        {doctors.filter(doc => {
+                          const searchLower = doctorSearch.toLowerCase();
+                          return !doctorSearch || 
+                            doc.name?.toLowerCase().includes(searchLower) ||
+                            doc.specialization?.toLowerCase().includes(searchLower);
+                        }).every(doc => planFormData.selectedDoctors.includes(doc.id)) && doctors.filter(doc => {
+                          const searchLower = doctorSearch.toLowerCase();
+                          return !doctorSearch || 
+                            doc.name?.toLowerCase().includes(searchLower) ||
+                            doc.specialization?.toLowerCase().includes(searchLower);
+                        }).length > 0 ? 'Снять все' : 'Выбрать все'}
+                      </Button>
+                    </div>
+
+                    {/* Список врачей */}
+                    {doctors.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        Врачи не добавлены. Добавьте врачей в разделе &quot;Врачи&quot;.
+                      </p>
+                    ) : (
+                      <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div className="max-h-64 overflow-y-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                  Врач
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                  Специализация
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                  Кабинет
+                                </th>
+                                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-12">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      doctors.filter(doc => {
+                                        const searchLower = doctorSearch.toLowerCase();
+                                        return !doctorSearch || 
+                                          doc.name?.toLowerCase().includes(searchLower) ||
+                                          doc.specialization?.toLowerCase().includes(searchLower);
+                                      }).length > 0 &&
+                                      doctors.filter(doc => {
+                                        const searchLower = doctorSearch.toLowerCase();
+                                        return !doctorSearch || 
+                                          doc.name?.toLowerCase().includes(searchLower) ||
+                                          doc.specialization?.toLowerCase().includes(searchLower);
+                                      }).every(doc => planFormData.selectedDoctors.includes(doc.id))
+                                    }
+                                    onChange={(e) => {
+                                      const filtered = doctors.filter(doc => {
+                                        const searchLower = doctorSearch.toLowerCase();
+                                        return !doctorSearch || 
+                                          doc.name?.toLowerCase().includes(searchLower) ||
+                                          doc.specialization?.toLowerCase().includes(searchLower);
+                                      }).map(d => d.id);
+                                      
+                                      if (e.target.checked) {
+                                        setPlanFormData({
+                                          ...planFormData,
+                                          selectedDoctors: [...new Set([...planFormData.selectedDoctors, ...filtered])],
+                                        });
+                                      } else {
+                                        setPlanFormData({
+                                          ...planFormData,
+                                          selectedDoctors: planFormData.selectedDoctors.filter(id => !filtered.includes(id)),
+                                        });
+                                      }
+                                    }}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                              {doctors
+                                .filter(doc => {
+                                  const searchLower = doctorSearch.toLowerCase();
+                                  return !doctorSearch || 
+                                    doc.name?.toLowerCase().includes(searchLower) ||
+                                    doc.specialization?.toLowerCase().includes(searchLower);
+                                })
+                                .map((doctor) => {
+                                  const isSelected = planFormData.selectedDoctors.includes(doctor.id);
+                                  return (
+                                    <tr
+                                      key={doctor.id}
+                                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+                                        isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                      }`}
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          setPlanFormData({
+                                            ...planFormData,
+                                            selectedDoctors: planFormData.selectedDoctors.filter(id => id !== doctor.id),
+                                          });
+                                        } else {
+                                          setPlanFormData({
+                                            ...planFormData,
+                                            selectedDoctors: [...planFormData.selectedDoctors, doctor.id],
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <td className="px-4 py-3">
+                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                          {doctor.name}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                          {doctor.specialization || '—'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                          {doctor.cabinet ? `Каб. ${doctor.cabinet}` : '—'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setPlanFormData({
+                                                ...planFormData,
+                                                selectedDoctors: [...planFormData.selectedDoctors, doctor.id],
+                                              });
+                                            } else {
+                                              setPlanFormData({
+                                                ...planFormData,
+                                                selectedDoctors: planFormData.selectedDoctors.filter(id => id !== doctor.id),
+                                              });
+                                            }
+                                          }}
+                                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {planFormData.selectedDoctors.length > 0 && (
+                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          ✓ Выбрано: {planFormData.selectedDoctors.length} {planFormData.selectedDoctors.length === 1 ? 'врач' : planFormData.selectedDoctors.length < 5 ? 'врача' : 'врачей'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPlanCurrentStep(2)}
                     >
                       <ChevronLeft className="h-4 w-4 mr-1" /> Назад
                     </Button>
