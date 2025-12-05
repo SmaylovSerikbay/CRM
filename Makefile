@@ -75,7 +75,8 @@ endif
 	@echo "  make rebuild-frontend-prod- Пересборка только frontend (prod)"
 	@echo ""
 	@echo "$(YELLOW)Быстрый деплой (рекомендуется):$(NC)"
-	@echo "  make deploy-all           - 🚀 GIT PULL + деплой backend + frontend (~2-3 мин)"
+	@echo "  make deploy-all           - 🚀 GIT PULL + деплой С КЭШЕМ (~2-3 мин) ⚡"
+	@echo "  make deploy-all-full      - 🔄 GIT PULL + ПОЛНАЯ ПЕРЕСБОРКА (~15-20 мин, редко!)"
 	@echo ""
 	@echo "$(YELLOW)Blue-Green Deployment (Zero Downtime):$(NC)"
 	@echo "  make bg-auto              - 🚀 АВТОМАТИЧЕСКИЙ деплой (спросит тип сборки)"
@@ -281,12 +282,21 @@ bg-auto-full: ## 🚀 ПОЛНЫЙ деплой (без кэша, пересбо
 	@echo "$(GREEN)Blue-Green Deployment: Полная пересборка...$(NC)"
 	@FULL_BUILD=1 bash deploy-blue-green.sh auto
 
-# Быстрый деплой с git pull
+# Быстрый деплой с git pull (ИСПОЛЬЗУЕТ КЭШ - БЫСТРО!)
 deploy-all: ## 🚀 GIT PULL + БЫСТРЫЙ ДЕПЛОЙ backend + frontend (~2-3 мин)
 	@echo "$(YELLOW)Git Pull...$(NC)"
 	@git pull
-	@echo "$(GREEN)Blue-Green Deployment: Быстрый деплой backend + frontend...$(NC)"
+	@echo "$(GREEN)Blue-Green Deployment: Быстрый деплой с кэшем (БЕЗ --no-cache)...$(NC)"
+	@echo "$(YELLOW)⚡ Используется FAST_BUILD=1 (с кэшем Docker)$(NC)"
 	@FAST_BUILD=1 bash deploy-blue-green.sh auto
+
+# Полная пересборка (МЕДЛЕННО, только если нужно!)
+deploy-all-full: ## 🔄 GIT PULL + ПОЛНАЯ ПЕРЕСБОРКА (~15-20 мин, используйте редко!)
+	@echo "$(YELLOW)Git Pull...$(NC)"
+	@git pull
+	@echo "$(RED)⚠️  ВНИМАНИЕ: Полная пересборка без кэша (МЕДЛЕННО!)$(NC)"
+	@echo "$(YELLOW)Используйте только если изменились зависимости!$(NC)"
+	@FULL_BUILD=1 bash deploy-blue-green.sh auto
 
 bg-deploy: ## Деплой новой версии (blue-green)
 	@echo "$(GREEN)Blue-Green Deployment: Деплой новой версии...$(NC)"
