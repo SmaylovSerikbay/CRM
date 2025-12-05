@@ -2379,6 +2379,55 @@ class ExpertiseViewSet(viewsets.ModelViewSet):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    def _update_contract_status(self, expertise):
+        """Обновление статуса договора при завершении медосмотра"""
+        # Находим сотрудника по ИИН
+        employee = ContingentEmployee.objects.filter(iin=expertise.iin).first()
+        if not employee or not employee.user:
+            return
+        
+        # Находим активные договоры работодателя с клиникой
+        contracts = Contract.objects.filter(
+            employer=employee.user,
+            clinic=expertise.user,
+            status__in=['in_progress', 'partially_executed']
+        )
+        
+        for contract in contracts:
+            # Подсчитываем завершенные медосмотры
+            total_people = contract.people_count
+            if total_people == 0:
+                continue
+            
+            # Получаем все экспертизы для сотрудников работодателя
+            expertises = Expertise.objects.filter(
+                user=contract.clinic,
+                final_verdict__isnull=False
+            )
+            
+            # Подсчитываем уникальных пациентов с завершенными экспертизами
+            completed_patients = set()
+            for exp in expertises:
+                emp = ContingentEmployee.objects.filter(
+                    user=contract.employer,
+                    iin=exp.iin
+                ).first()
+                if emp:
+                    completed_patients.add(exp.patient_id)
+            
+            completed_count = len(completed_patients)
+            percentage = (completed_count / total_people) * 100 if total_people > 0 else 0
+            
+            # Обновляем статус договора
+            old_status = contract.status
+            if percentage == 100:
+                contract.status = 'executed'
+            elif percentage > 0:
+                contract.status = 'partially_executed'
+            
+            if old_status != contract.status:
+                contract.save()
+    
     def _assign_health_group(self, expertise):
         """Автоматическое присвоение группы здоровья на основе вердикта и заключений врачей"""
         if not expertise.final_verdict:
@@ -2474,6 +2523,10 @@ class ExpertiseViewSet(viewsets.ModelViewSet):
                 instance.referral_sent = True
                 instance.referral_date = timezone.now().date()
                 instance.save()
+        
+        # Обновляем статус договора при завершении экспертизы
+        if instance.final_verdict:
+            self._update_contract_status(instance)
         
         serializer.instance = instance
 
@@ -3776,11 +3829,11 @@ class ContractViewSet(viewsets.ModelViewSet):
                 # Сохраняем текущий статус для проверки
                 current_status = contract.status
                 
-                # Если клиника уже подписала, статус становится 'approved'
+                # Если клиника уже подписала, статус становится 'active' (действует)
                 if contract.approved_by_clinic_at:
-                    contract.status = 'approved'
-                # Если статус 'sent' или 'pending_approval', и работодатель подписывает, статус становится 'approved'
-                elif current_status in ['sent', 'pending_approval']:
+                    contract.status = 'active'
+                # Если статус 'pending_approval', и работодатель подписывает, статус становится 'approved'
+                elif current_status == 'pending_approval':
                     contract.status = 'approved'
                 # Если статус 'draft', меняем на 'pending_approval'
                 elif current_status == 'draft':
@@ -3793,11 +3846,11 @@ class ContractViewSet(viewsets.ModelViewSet):
                 # Сохраняем текущий статус для проверки
                 current_status = contract.status
                 
-                # Если работодатель уже подписал, статус становится 'approved'
+                # Если работодатель уже подписал, статус становится 'active' (действует)
                 if contract.approved_by_employer_at:
-                    contract.status = 'approved'
-                # Если статус 'sent' или 'pending_approval', и клиника подписывает, статус становится 'approved'
-                elif current_status in ['sent', 'pending_approval']:
+                    contract.status = 'active'
+                # Если статус 'pending_approval', и клиника подписывает, статус становится 'approved'
+                elif current_status == 'pending_approval':
                     contract.status = 'approved'
                 # Если статус 'draft', меняем на 'pending_approval'
                 elif current_status == 'draft':
@@ -4070,7 +4123,7 @@ class ContractViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
-        """Исполнение договора"""
+        """Начало исполнения договора (переход в статус 'в процессе')"""
         contract = self.get_object()
         user_id = request.data.get('user_id')
         
@@ -4083,10 +4136,11 @@ class ContractViewSet(viewsets.ModelViewSet):
             if user not in [contract.employer, contract.clinic]:
                 return Response({'error': 'User is not authorized to execute this contract'}, status=status.HTTP_403_FORBIDDEN)
             
-            if contract.status not in ['sent', 'approved']:
-                return Response({'error': 'Contract must be sent or approved before execution'}, status=status.HTTP_400_BAD_REQUEST)
+            if contract.status != 'active':
+                return Response({'error': 'Contract must be active (действует) before starting execution'}, status=status.HTTP_400_BAD_REQUEST)
             
-            contract.status = 'executed'
+            # Переводим договор в статус "в процессе исполнения"
+            contract.status = 'in_progress'
             contract.executed_at = timezone.now()
             contract.save()
             
@@ -4094,6 +4148,69 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['get'])
+    def check_completion(self, request, pk=None):
+        """Проверка статуса исполнения договора на основе завершенных медосмотров"""
+        contract = self.get_object()
+        
+        # Получаем общее количество людей по договору
+        total_people = contract.people_count
+        
+        if total_people == 0:
+            return Response({
+                'status': contract.status,
+                'completed': 0,
+                'total': 0,
+                'percentage': 0,
+                'message': 'Количество людей не указано'
+            }, status=status.HTTP_200_OK)
+        
+        # Подсчитываем количество завершенных медосмотров
+        # Медосмотр считается завершенным, если есть заключение профпатолога (Expertise с final_verdict)
+        completed_count = 0
+        
+        # Получаем всех сотрудников работодателя по договору
+        if contract.employer:
+            # Получаем все экспертизы для сотрудников работодателя
+            expertises = Expertise.objects.filter(
+                user=contract.clinic,
+                final_verdict__isnull=False
+            )
+            
+            # Подсчитываем уникальных пациентов с завершенными экспертизами
+            completed_patients = set()
+            for expertise in expertises:
+                # Проверяем, что пациент относится к работодателю по договору
+                employee = ContingentEmployee.objects.filter(
+                    user=contract.employer,
+                    iin=expertise.iin
+                ).first()
+                if employee:
+                    completed_patients.add(expertise.patient_id)
+            
+            completed_count = len(completed_patients)
+        
+        # Вычисляем процент выполнения
+        percentage = (completed_count / total_people) * 100 if total_people > 0 else 0
+        
+        # Обновляем статус договора на основе прогресса
+        old_status = contract.status
+        if percentage == 100:
+            contract.status = 'executed'
+        elif percentage > 0 and contract.status == 'in_progress':
+            contract.status = 'partially_executed'
+        
+        if old_status != contract.status:
+            contract.save()
+        
+        return Response({
+            'status': contract.status,
+            'completed': completed_count,
+            'total': total_people,
+            'percentage': round(percentage, 2),
+            'message': f'Завершено {completed_count} из {total_people} медосмотров'
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'])
     def upload_scan(self, request, pk=None):

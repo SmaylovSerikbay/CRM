@@ -464,6 +464,11 @@ auto_deploy() {
     # Шаг 4: Очистка
     echo ""
     echo -e "${BLUE}[4/5] Очистка старого окружения...${NC}"
+    
+    # ВАЖНО: Сохраняем старое окружение ДО переключения активного цвета
+    local old_environment="$active"
+    
+    # Теперь переключаем активный цвет
     set_active_color "$inactive"
     rm -f ".deployment-state.backup"
     
@@ -471,8 +476,8 @@ auto_deploy() {
     echo -e "${YELLOW}(для возможности быстрого отката)${NC}"
     sleep 30
     
-    echo -e "${YELLOW}Остановка $active окружения...${NC}"
-    docker compose -f "$COMPOSE_FILE" --profile "$active" down
+    echo -e "${YELLOW}Остановка $old_environment окружения...${NC}"
+    docker compose -f "$COMPOSE_FILE" --profile "$old_environment" down
     
     # Вычисляем время деплоя
     local end_time=$(date +%s)

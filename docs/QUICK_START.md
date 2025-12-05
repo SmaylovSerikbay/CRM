@@ -18,16 +18,25 @@ docker-compose -f docker-compose.dev.yml up --build
 - **Frontend:** http://localhost:3001
 - **Backend API:** http://localhost:8001/api
 
-### 3. Создать суперпользователя (опционально)
+### 3. Создать администратора для admin панели (опционально)
 
 ```bash
-make createsuperuser
+make create-admin
 ```
 
 Или без Make:
 ```bash
-docker-compose exec backend python manage.py createsuperuser
+docker-compose exec backend python manage.py create_admin_user +77001234567
 ```
+
+### 4. Войти в admin панель
+
+- **Admin панель:** http://localhost:8001/admin/
+- Введите номер телефона
+- Получите OTP код в WhatsApp
+- Введите код и войдите
+
+> **📖 Подробнее:** [ADMIN_QUICK_START.md](./ADMIN_QUICK_START.md)
 
 **Готово! 🎉** Проект запущен в dev режиме.
 
@@ -84,11 +93,21 @@ docker-compose up --build
 - **Frontend:** http://localhost:3000
 - **Backend API:** http://localhost:8000/api
 
-### 5. Создать суперпользователя
+### 5. Создать администратора
 
 ```bash
-make createsuperuser
+make create-admin
 ```
+
+Или без Make:
+```bash
+docker-compose exec backend python manage.py create_admin_user +77001234567
+```
+
+### 6. Войти в admin панель
+
+- **Admin панель:** http://localhost:8000/admin/
+- Используйте OTP авторизацию через WhatsApp
 
 **Готово! 🎉** Проект запущен в production режиме.
 

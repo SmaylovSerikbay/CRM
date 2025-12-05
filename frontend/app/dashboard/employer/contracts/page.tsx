@@ -15,7 +15,6 @@ import { userStore } from '@/lib/store/user-store';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
 import { Drawer } from '@/components/ui/Drawer';
-import { Card } from '@/components/ui/Card';
 
 interface Contract {
   id: string;
@@ -24,7 +23,17 @@ interface Contract {
   amount: number;
   people_count: number;
   execution_date: string;
-  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'executed' | 'cancelled';
+  status:
+    | 'draft'
+    | 'pending_approval'
+    | 'approved'
+    | 'active'
+    | 'in_progress'
+    | 'partially_executed'
+    | 'rejected'
+    | 'sent'
+    | 'executed'
+    | 'cancelled';
   employer_bin?: string;
   employer_phone?: string;
   employer_name?: string;
@@ -273,6 +282,22 @@ function EmployerContractsContent() {
     return labels[status] || status;
   };
 
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      draft: 'Черновик',
+      pending_approval: 'Ожидает согласования',
+      approved: 'Согласован',
+      active: 'Действует',
+      in_progress: 'В процессе исполнения',
+      partially_executed: 'Частично исполнен',
+      rejected: 'Отклонен',
+      sent: 'Отправлен',
+      executed: 'Исполнен',
+      cancelled: 'Отменен',
+    };
+    return labels[status] || status;
+  };
+
   const getPlanStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -280,6 +305,22 @@ function EmployerContractsContent() {
       pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
       sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+      pending_approval: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      active: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      in_progress: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      partially_executed: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      sent: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      executed: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -319,6 +360,21 @@ function EmployerContractsContent() {
         label: 'Согласован',
         icon: CheckCircle2,
         colors: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+      },
+      active: {
+        label: 'Действует',
+        icon: CheckCircle,
+        colors: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+      },
+      in_progress: {
+        label: 'В процессе исполнения',
+        icon: Hourglass,
+        colors: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800'
+      },
+      partially_executed: {
+        label: 'Частично исполнен',
+        icon: AlertCircle,
+        colors: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800'
       },
       rejected: {
         label: 'Отклонен',
@@ -434,6 +490,9 @@ function EmployerContractsContent() {
                           <option value="draft">Черновик</option>
                           <option value="pending_approval">Ожидает согласования</option>
                           <option value="approved">Согласован</option>
+                          <option value="active">Действует</option>
+                          <option value="in_progress">В процессе исполнения</option>
+                          <option value="partially_executed">Частично исполнен</option>
                           <option value="rejected">Отклонен</option>
                           <option value="sent">Отправлен</option>
                           <option value="executed">Исполнен</option>
