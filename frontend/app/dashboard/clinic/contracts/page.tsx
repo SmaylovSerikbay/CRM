@@ -864,11 +864,19 @@ export default function ContractsPage() {
     if (!editingEmployee) return;
     
     try {
-      await workflowStoreAPI.updateContingentEmployee(editingEmployee, editEmployeeData);
-      const updated = await workflowStoreAPI.getContingent();
-      setContingent(updated);
+      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingEmployee, editEmployeeData);
+      
+      // Обновляем только конкретную запись в списке, сохраняя порядок
+      setContingent(prevContingent => 
+        prevContingent.map(emp => 
+          emp.id === editingEmployee ? { ...emp, ...updatedEmployee } : emp
+        )
+      );
+      
       setEditingEmployee(null);
       setEditEmployeeData({});
+      setShowHarmfulFactorsDropdown(false);
+      setHarmfulFactorsSearch('');
       showToast('Изменения успешно сохранены', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка сохранения', 'error');
@@ -878,6 +886,8 @@ export default function ContractsPage() {
   const handleCancelEditEmployee = () => {
     setEditingEmployee(null);
     setEditEmployeeData({});
+    setShowHarmfulFactorsDropdown(false);
+    setHarmfulFactorsSearch('');
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {

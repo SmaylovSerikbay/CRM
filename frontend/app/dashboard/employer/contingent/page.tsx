@@ -180,9 +180,15 @@ export default function ContingentPage() {
     
     try {
       console.log('Saving employee data:', editData);
-      await workflowStoreAPI.updateContingentEmployee(editingId, editData);
-      const updated = await workflowStoreAPI.getContingent();
-      setEmployees(updated);
+      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingId, editData);
+      
+      // Обновляем только конкретную запись в списке, сохраняя порядок
+      setEmployees(prevEmployees => 
+        prevEmployees.map(emp => 
+          emp.id === editingId ? { ...emp, ...updatedEmployee } : emp
+        )
+      );
+      
       setEditingId(null);
       setEditData({});
       setShowHarmfulFactorsDropdown(false);
