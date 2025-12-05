@@ -1437,7 +1437,9 @@ export default function CalendarPlanPage() {
                             animate={{ opacity: 1 }}
                             transition={{ delay: index * 0.02 }}
                             className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
-                              expandedPlan === plan.id ? 'bg-gray-50 dark:bg-gray-800/30' : ''
+                              expandedPlan === plan.id 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400' 
+                                : ''
                             }`}
                           >
                             <td className="px-3 py-3">
@@ -1541,34 +1543,84 @@ export default function CalendarPlanPage() {
                           
                           {/* Развернутая информация о нескольких участках */}
                           {expandedPlan === plan.id && plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
-                            <tr>
-                              <td colSpan={6} className="px-3 py-3 bg-gray-50 dark:bg-gray-800/30">
+                            <tr className="bg-blue-50/30 dark:bg-blue-900/10">
+                              <td colSpan={6} className="px-0 py-0">
                                 <AnimatePresence>
                                   <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    className="space-y-3"
+                                    className="overflow-hidden"
                                   >
-                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                                    Детали по участкам:
-                                  </h4>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
-                                      <Card key={idx} className="p-3">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                                          {deptInfo.department}
-                                        </p>
-                                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                                          {new Date(deptInfo.startDate).toLocaleDateString('ru-RU')} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU')}
-                                        </p>
-                                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                                          <Users className="h-3 w-3" />
-                                          <span>{deptInfo.employeeIds?.length || 0} сотрудников</span>
+                                    {/* Соединительная линия */}
+                                    <div className="h-px bg-blue-300 dark:bg-blue-700 mx-4"></div>
+                                    
+                                    <div className="px-4 py-4 bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400">
+                                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center">
+                                          <Calendar className="h-3.5 w-3.5 text-white" />
                                         </div>
-                                      </Card>
-                                    ))}
-                                  </div>
+                                        <span>Детали по участкам календарного плана &quot;{plan.department}&quot; ({plan.departmentsInfo.length})</span>
+                                      </h4>
+                                      
+                                      {/* Подтаблица */}
+                                      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                        <table className="w-full text-sm">
+                                          <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700">
+                                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                №
+                                              </th>
+                                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                Объект/Участок
+                                              </th>
+                                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                Период
+                                              </th>
+                                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                Сотрудников
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                                            {plan.departmentsInfo.map((deptInfo: any, idx: number) => (
+                                              <motion.tr
+                                                key={idx}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: idx * 0.05 }}
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                              >
+                                                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium">
+                                                  {idx + 1}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                    {deptInfo.department}
+                                                  </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                  <div className="flex items-center gap-2">
+                                                    <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                      {new Date(deptInfo.startDate).toLocaleDateString('ru-RU')} - {new Date(deptInfo.endDate).toLocaleDateString('ru-RU')}
+                                                    </span>
+                                                  </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                  <div className="flex items-center gap-2">
+                                                    <Users className="h-3.5 w-3.5 text-purple-500" />
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                                      {deptInfo.employeeIds?.length || 0} {deptInfo.employeeIds?.length === 1 ? 'сотрудник' : deptInfo.employeeIds?.length < 5 ? 'сотрудника' : 'сотрудников'}
+                                                    </span>
+                                                  </div>
+                                                </td>
+                                              </motion.tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
                                   </motion.div>
                                 </AnimatePresence>
                               </td>

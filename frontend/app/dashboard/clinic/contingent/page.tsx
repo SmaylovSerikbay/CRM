@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight, Search, Calendar, Clock, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
@@ -396,6 +396,9 @@ export default function ClinicContingentPage() {
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Общий стаж</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Стаж по должности</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Последний осмотр</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Дата медосмотра</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Врач (ФИО / Специализация)</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Время</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Вредность</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Примечание</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Действия</th>
@@ -492,6 +495,45 @@ export default function ClinicContingentPage() {
                               />
                             </td>
                             <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.visit_date ? (
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                <div className="space-y-1">
+                                  {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                      <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                    </div>
+                                  ))}
+                                  {employee.routeSheetInfo.doctors.length > 2 && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      +{employee.routeSheetInfo.doctors.length - 2} еще
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.time_range ? (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
                               <input
                                 type="text"
                                 value={Array.isArray(editData.harmfulFactors) ? editData.harmfulFactors.join(', ') : ''}
@@ -550,6 +592,45 @@ export default function ClinicContingentPage() {
                             <td className="py-2 px-2">{(employee as any).totalExperienceYears ? `${(employee as any).totalExperienceYears} лет` : '-'}</td>
                             <td className="py-2 px-2">{(employee as any).positionExperienceYears ? `${(employee as any).positionExperienceYears} лет` : '-'}</td>
                             <td className="py-2 px-2">{employee.lastExaminationDate ? new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU') : '-'}</td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.visit_date ? (
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                <div className="space-y-1">
+                                  {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                      <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                    </div>
+                                  ))}
+                                  {employee.routeSheetInfo.doctors.length > 2 && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      +{employee.routeSheetInfo.doctors.length - 2} еще
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.time_range ? (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="py-2 px-2">
                               <div className="flex flex-wrap gap-1 max-w-xs">
                                 {employee.harmfulFactors.length > 0 ? (
@@ -613,7 +694,7 @@ export default function ClinicContingentPage() {
                           <React.Fragment key={contractKey}>
                             {/* Заголовок группы */}
                             <tr className="bg-blue-50 dark:bg-blue-900/20 border-b-2 border-blue-200 dark:border-blue-800">
-                              <td colSpan={13} className="py-3 px-4">
+                              <td colSpan={16} className="py-3 px-4">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3 flex-1">
                                     <button
@@ -685,6 +766,45 @@ export default function ClinicContingentPage() {
                                 <td className="py-2 px-2">{(employee as any).totalExperienceYears ? `${(employee as any).totalExperienceYears} лет` : '-'}</td>
                                 <td className="py-2 px-2">{(employee as any).positionExperienceYears ? `${(employee as any).positionExperienceYears} лет` : '-'}</td>
                                 <td className="py-2 px-2">{employee.lastExaminationDate ? new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU') : '-'}</td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.visit_date ? (
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                    <div className="space-y-1">
+                                      {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                        <div key={idx} className="text-xs">
+                                          <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                          <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                        </div>
+                                      ))}
+                                      {employee.routeSheetInfo.doctors.length > 2 && (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          +{employee.routeSheetInfo.doctors.length - 2} еще
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.time_range ? (
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
                                 <td className="py-2 px-2">
                                   <div className="flex flex-wrap gap-1 max-w-xs">
                                     {employee.harmfulFactors.length > 0 ? (

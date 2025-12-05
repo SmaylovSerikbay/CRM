@@ -1386,6 +1386,49 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 return CalendarPlan.objects.none()
         return CalendarPlan.objects.all().order_by('-created_at')
     
+    def update(self, request, *args, **kwargs):
+        """Обновление календарного плана с автоматическим созданием маршрутных листов при согласовании"""
+        instance = self.get_object()
+        old_status = instance.status
+        new_status = request.data.get('status', old_status)
+        
+        # Выполняем стандартное обновление
+        response = super().update(request, *args, **kwargs)
+        
+        # Если статус изменился на 'approved', создаем маршрутные листы
+        if old_status != 'approved' and new_status == 'approved':
+            try:
+                plan = self.get_object()
+                self._create_route_sheets_for_plan(plan)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error creating route sheets for calendar plan {instance.id}: {str(e)}")
+                # Не прерываем обновление плана, даже если создание маршрутных листов не удалось
+        
+        return response
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Частичное обновление календарного плана с автоматическим созданием маршрутных листов при согласовании"""
+        instance = self.get_object()
+        old_status = instance.status
+        new_status = request.data.get('status', old_status)
+        
+        # Выполняем стандартное частичное обновление
+        response = super().partial_update(request, *args, **kwargs)
+        
+        # Если статус изменился на 'approved', создаем маршрутные листы
+        if old_status != 'approved' and new_status == 'approved':
+            try:
+                plan = self.get_object()
+                self._create_route_sheets_for_plan(plan)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error creating route sheets for calendar plan {instance.id}: {str(e)}")
+        
+        return response
+    
     def perform_update(self, serializer):
         """Обновление календарного плана - только клиника может редактировать свои планы"""
         user_id = self.request.data.get('user') or self.request.query_params.get('user_id')
@@ -1408,6 +1451,134 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'user': 'User not found'})
         else:
             serializer.save()
+    
+    def _create_route_sheets_for_plan(self, plan):
+        """Автоматическое создание маршрутных листов для всех сотрудников календарного плана после согласования"""
+        from datetime import datetime, timedelta
+        
+        clinic_user = plan.user
+        if not clinic_user or clinic_user.role != 'clinic':
+            return
+        
+        # Получаем список врачей из календарного плана
+        selected_doctor_ids = plan.selected_doctors or []
+        doctors_map = {}
+        if selected_doctor_ids:
+            doctors = Doctor.objects.filter(id__in=selected_doctor_ids, user=clinic_user)
+            for doctor in doctors:
+                doctors_map[doctor.specialization] = {
+                    'id': str(doctor.id),
+                    'name': doctor.name,
+                    'cabinet': doctor.cabinet or '',
+                    'specialization': doctor.specialization,
+                }
+        
+        # Обрабатываем информацию по участкам
+        departments_info = plan.departments_info or []
+        if not departments_info:
+            # Если нет информации по участкам, используем общие даты
+            departments_info = [{
+                'department': plan.department,
+                'startDate': plan.start_date.isoformat() if hasattr(plan.start_date, 'isoformat') else str(plan.start_date),
+                'endDate': plan.end_date.isoformat() if hasattr(plan.end_date, 'isoformat') else str(plan.end_date),
+                'employeeIds': plan.employee_ids or [],
+            }]
+        
+        harmful_factors = plan.harmful_factors or []
+        created_count = 0
+        
+        # Создаем маршрутные листы для каждого участка
+        for dept_info in departments_info:
+            department = dept_info.get('department', plan.department)
+            start_date_str = dept_info.get('startDate') or dept_info.get('start_date', '')
+            end_date_str = dept_info.get('endDate') or dept_info.get('end_date', '')
+            employee_ids = dept_info.get('employeeIds') or dept_info.get('employee_ids', [])
+            
+            # Парсим даты
+            try:
+                if isinstance(start_date_str, str):
+                    start_date = datetime.strptime(start_date_str.split('T')[0], '%Y-%m-%d').date()
+                else:
+                    start_date = start_date_str
+                
+                if isinstance(end_date_str, str):
+                    end_date = datetime.strptime(end_date_str.split('T')[0], '%Y-%m-%d').date()
+                else:
+                    end_date = end_date_str
+            except:
+                continue
+            
+            # Получаем сотрудников этого участка
+            employees = ContingentEmployee.objects.filter(
+                id__in=[str(eid) for eid in employee_ids],
+                user__role='employer'
+            )
+            
+            # Создаем маршрутный лист для каждого сотрудника на дату начала периода
+            for employee in employees:
+                # Проверяем, не существует ли уже маршрутный лист
+                existing = RouteSheet.objects.filter(
+                    user=clinic_user,
+                    patient_id=str(employee.id),
+                    visit_date=start_date
+                ).first()
+                
+                if existing:
+                    continue
+                
+                # Получаем вредные факторы сотрудника
+                harmful_factors_emp = []
+                if employee.harmful_factors:
+                    if isinstance(employee.harmful_factors, str):
+                        try:
+                            harmful_factors_emp = json.loads(employee.harmful_factors)
+                        except:
+                            harmful_factors_emp = [f.strip() for f in employee.harmful_factors.split(',') if f.strip()]
+                    elif isinstance(employee.harmful_factors, list):
+                        harmful_factors_emp = employee.harmful_factors
+                
+                # Используем вредные факторы из календарного плана, если они указаны
+                if harmful_factors:
+                    harmful_factors_emp = list(set(harmful_factors_emp + harmful_factors))
+                
+                # Генерируем услуги для маршрутного листа
+                route_sheet_viewset = RouteSheetViewSet()
+                route_sheet_viewset.request = type('obj', (object,), {'data': {}, 'query_params': {}, 'user': clinic_user})()
+                services = route_sheet_viewset._generate_services_for_position(
+                    employee.position,
+                    harmful_factors_emp,
+                    user_id=clinic_user.id
+                )
+                
+                # Назначаем врачей из календарного плана
+                if doctors_map:
+                    for service in services:
+                        specialization = service.get('specialization', service.get('name', ''))
+                        if specialization in doctors_map:
+                            doctor_info = doctors_map[specialization]
+                            service['doctorId'] = doctor_info['id']
+                            service['cabinet'] = doctor_info['cabinet'] or service.get('cabinet', 'Не указан')
+                
+                # Создаем маршрутный лист
+                route_sheet = RouteSheet.objects.create(
+                    user=clinic_user,
+                    patient_id=str(employee.id),
+                    patient_name=employee.name,
+                    iin=employee.iin or '',
+                    position=employee.position,
+                    department=employee.department,
+                    visit_date=start_date,
+                    services=services,
+                )
+                
+                # Создаем лабораторные и функциональные исследования
+                route_sheet_viewset._create_required_tests(route_sheet, employee.position, harmful_factors_emp)
+                
+                created_count += 1
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created {created_count} route sheets for calendar plan {plan.id}")
     
     def perform_destroy(self, instance):
         """Удаление календарного плана - только клиника может удалять свои планы"""

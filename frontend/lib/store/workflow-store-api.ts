@@ -23,6 +23,17 @@ export interface ContingentEmployee {
   contractId?: string;
   contractNumber?: string;
   employerName?: string;
+  routeSheetInfo?: {
+    visit_date?: string;
+    time_range?: string;
+    doctors?: Array<{
+      name: string;
+      specialization: string;
+      cabinet?: string;
+      time?: string;
+    }>;
+    services_count?: number;
+  };
 }
 
 export interface CalendarPlan {
@@ -137,6 +148,7 @@ class WorkflowStoreAPI {
       contractId: emp.contract ? emp.contract.toString() : undefined,
       contractNumber: emp.contract_number || undefined,
       employerName: emp.employer_name || undefined,
+      routeSheetInfo: emp.route_sheet_info || undefined,
     }));
   }
 
