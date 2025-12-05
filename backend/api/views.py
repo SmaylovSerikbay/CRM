@@ -805,9 +805,11 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws = wb.active
         ws.title = "Список контингента"
 
-        # Заголовок документа
+        # Заголовок документа с текущим годом
+        from datetime import datetime
+        current_year = datetime.now().year
         ws.merge_cells('A1:K1')
-        ws['A1'] = 'СПИСОК лиц, подлежащих обязательному медицинскому осмотру в 2025 году'
+        ws['A1'] = f'СПИСОК лиц, подлежащих обязательному медицинскому осмотру в {current_year} году'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
