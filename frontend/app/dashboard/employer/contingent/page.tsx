@@ -179,13 +179,17 @@ export default function ContingentPage() {
     if (!editingId) return;
     
     try {
+      console.log('Saving employee data:', editData);
       await workflowStoreAPI.updateContingentEmployee(editingId, editData);
       const updated = await workflowStoreAPI.getContingent();
       setEmployees(updated);
       setEditingId(null);
       setEditData({});
+      setShowHarmfulFactorsDropdown(false);
+      setHarmfulFactorsSearch('');
       showToast('Изменения успешно сохранены', 'success');
     } catch (error: any) {
+      console.error('Error saving employee:', error);
       showToast(error.message || 'Ошибка сохранения', 'error');
     }
   };
@@ -193,6 +197,8 @@ export default function ContingentPage() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditData({});
+    setShowHarmfulFactorsDropdown(false);
+    setHarmfulFactorsSearch('');
   };
 
   const handleNextStep = () => {
