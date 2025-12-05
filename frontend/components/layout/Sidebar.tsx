@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { userStore, ClinicUserRole } from '@/lib/store/user-store';
 import { useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 interface MenuItem {
   title: string;
@@ -222,6 +223,10 @@ export function Sidebar({ role }: SidebarProps) {
 
         {/* Settings and Logout */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-1">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-sm text-gray-700 dark:text-gray-300">Тема</span>
+            <ThemeToggle />
+          </div>
           <Link
             href="/dashboard/settings"
             className={cn(

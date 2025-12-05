@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/lib/theme-provider";
+import { ThemeScript } from "./theme-script";
 
 export const metadata: Metadata = {
   title: "Медицинская платформа CRM",
@@ -12,8 +14,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
-      <body className="antialiased">{children}</body>
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
+      <body className="antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

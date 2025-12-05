@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { userStore } from '@/lib/store/user-store';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="text-xl font-semibold">MedCRM</div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <Link href="/auth">
               <Button variant="ghost" size="sm">Войти</Button>
             </Link>
