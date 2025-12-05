@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
@@ -286,6 +287,12 @@ export default function ContractsPage() {
   };
 
   const handleShowHistory = async (contractId: string) => {
+    if (showHistory === contractId) {
+      // Закрываем если уже открыта
+      setShowHistory(null);
+      return;
+    }
+    
     try {
       const history = await workflowStoreAPI.getContractHistory(contractId);
       setContractHistory(history);
@@ -525,17 +532,28 @@ export default function ContractsPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-6 py-4">
-
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">
-                {editingContract ? 'Редактировать договор' : 'Создать договор'}
-              </h2>
+        {/* Модальное окно создания/редактирования договора */}
+        <Modal
+          isOpen={showForm}
+          onClose={() => {
+            setShowForm(false);
+            setFoundEmployer(null);
+            setBinSearched(false);
+            setEditingContract(null);
+            setFormData({
+              employer_bin: '',
+              employer_phone: '',
+              contract_number: '',
+              contract_date: '',
+              amount: '',
+              people_count: '',
+              execution_date: '',
+              notes: '',
+            });
+          }}
+          title={editingContract ? 'Редактировать договор' : 'Создать договор'}
+          size="xl"
+        >
               <form onSubmit={editingContract ? handleUpdate : handleSubmit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   {!editingContract && (
@@ -652,7 +670,7 @@ export default function ContractsPage() {
                     rows={3}
                   />
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 pt-2">
                   <Button type="submit" className="flex-1">
                     {editingContract ? 'Сохранить изменения' : 'Создать и отправить'}
                   </Button>
@@ -676,11 +694,9 @@ export default function ContractsPage() {
                   </Button>
                 </div>
               </form>
-            </Card>
-          </motion.div>
-        )}
+        </Modal>
 
-        <div className="space-y-3">
+        <div>
           {filteredContracts.length === 0 && contracts.length > 0 ? (
             <Card>
               <div className="text-center py-12">
@@ -710,55 +726,100 @@ export default function ContractsPage() {
               </div>
             </Card>
           ) : (
-            <>
-              {paginatedContracts.map((contract) => (
-                <Card key={contract.id} className="hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <h3 className="text-base font-semibold">Договор №{contract.contract_number}</h3>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+              {/* Таблица */}
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Номер договора
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Работодатель
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        БИН
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Дата договора
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Сумма
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Сотрудников
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Дата исполнения
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Статус
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Действия
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {paginatedContracts.map((contract, index) => {
+                      const isExpanded = editingContract?.id === contract.id || showHistory === contract.id || showResendForm === contract.id;
+                      
+                      return (
+                        <>
+                          <motion.tr
+                            key={contract.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: index * 0.02 }}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                              showHistory === contract.id 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400' 
+                                : isExpanded ? 'bg-gray-50 dark:bg-gray-800/30' : ''
+                            }`}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                №{contract.contract_number}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                                {contract.employer_name || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.employer_bin || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.contract_date}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {contract.amount.toLocaleString('ru-RU')} ₸
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.people_count}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm text-gray-900 dark:text-white">
+                                {contract.execution_date}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getStatusColor(contract.status)}`}>
                         {getStatusLabel(contract.status)}
                       </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Дата договора</p>
-                        <p className="font-medium text-sm">{contract.contract_date}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сумма</p>
-                        <p className="font-medium text-sm">{contract.amount.toLocaleString()} ₸</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Сотрудников</p>
-                        <p className="font-medium text-sm">{contract.people_count}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Исполнение</p>
-                        <p className="font-medium text-sm">{contract.execution_date}</p>
-                      </div>
-                      {contract.employer_bin && (
-                        <div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">БИН</p>
-                          <p className="font-medium text-sm">{contract.employer_bin}</p>
-                        </div>
-                      )}
-                      {contract.employer_name && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Работодатель</p>
-                          <p className="font-medium text-sm truncate">{contract.employer_name}</p>
-                        </div>
-                      )}
-                      {contract.notes && (
-                        <div className="col-span-full">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Примечания</p>
-                          <p className="font-medium text-sm">{contract.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2 mt-3 flex-wrap">
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-2">
                       {(contract.status === 'draft' || contract.status === 'rejected') && (
                         <>
                           <Button
@@ -766,15 +827,15 @@ export default function ContractsPage() {
                             variant="outline"
                             onClick={() => handleEdit(contract)}
                           >
-                            <Edit className="h-4 w-4 mr-2" />
+                                      <Edit className="h-4 w-4 mr-1" />
                             Редактировать
                           </Button>
                           <Button
                             size="sm"
                             onClick={() => setShowResendForm(contract.id)}
                           >
-                            <Send className="h-4 w-4 mr-2" />
-                            {contract.status === 'rejected' ? 'Отправить повторно' : 'Отправить на согласование'}
+                                      <Send className="h-4 w-4 mr-1" />
+                                      {contract.status === 'rejected' ? 'Повторно' : 'Отправить'}
                           </Button>
                         </>
                       )}
@@ -783,18 +844,27 @@ export default function ContractsPage() {
                         variant="outline"
                         onClick={() => handleShowHistory(contract.id)}
                       >
-                        <History className="h-4 w-4 mr-2" />
-                        История
+                                  <History className="h-4 w-4 mr-1" />
+                                  {showHistory === contract.id ? 'Скрыть' : 'История'}
                       </Button>
                     </div>
+                            </td>
+                          </motion.tr>
 
+                          {/* Форма повторной отправки */}
                     {showResendForm === contract.id && (
+                            <tr>
+                              <td colSpan={9} className="px-4 py-3 bg-gray-50 dark:bg-gray-800/30">
+                                <AnimatePresence>
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
                       >
+                                    <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
+                                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                                        {contract.status === 'rejected' ? 'Повторная отправка на согласование' : 'Отправка на согласование'}
+                                      </h4>
                         <div className="space-y-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -803,7 +873,7 @@ export default function ContractsPage() {
                             <textarea
                               value={resendComment}
                               onChange={(e) => setResendComment(e.target.value)}
-                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
+                                            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
                               rows={3}
                               placeholder="Добавьте комментарий к договору..."
                             />
@@ -829,81 +899,167 @@ export default function ContractsPage() {
                             </Button>
                           </div>
                         </div>
+                                    </Card>
                       </motion.div>
+                                </AnimatePresence>
+                              </td>
+                            </tr>
                     )}
 
+                          {/* История */}
                     {showHistory === contract.id && (
+                            <tr className="bg-blue-50/30 dark:bg-blue-900/10">
+                              <td colSpan={9} className="px-0 py-0">
+                                <AnimatePresence>
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">История изменений</h4>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowHistory(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                                    className="overflow-hidden"
+                                  >
+                                    {/* Соединительная линия */}
+                                    <div className="h-px bg-blue-300 dark:bg-blue-700 mx-4"></div>
+                                    
+                                    <div className="px-4 py-4 bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400">
+                                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center">
+                                          <History className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <div className="space-y-3">
+                                        <span>История изменений договора №{contract.contract_number} ({contractHistory.length})</span>
+                                      </h4>
+                                      
+                                      {/* Подтаблица истории */}
+                                      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm max-h-96 overflow-y-auto">
                           {contractHistory.length === 0 ? (
-                            <p className="text-sm text-gray-500">Нет записей в истории</p>
-                          ) : (
-                            contractHistory.map((item) => (
-                              <div key={item.id} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium text-sm">{getActionLabel(item.action)}</span>
+                                          <div className="p-8 text-center">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                              Нет записей в истории
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <table className="w-full text-sm">
+                                            <thead className="sticky top-0 bg-gray-100 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700 z-10">
+                                              <tr>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Дата
+                                                </th>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Действие
+                                                </th>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Статус
+                                                </th>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Пользователь
+                                                </th>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Комментарий
+                                                </th>
+                                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">
+                                                  Изменения
+                                                </th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                                              {contractHistory.map((item, idx) => (
+                                                <motion.tr
+                                                  key={item.id}
+                                                  initial={{ opacity: 0, x: -10 }}
+                                                  animate={{ opacity: 1, x: 0 }}
+                                                  transition={{ delay: idx * 0.05 }}
+                                                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                                >
+                                                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                                                    {new Date(item.created_at).toLocaleString('ru-RU', { 
+                                                      day: '2-digit', 
+                                                      month: '2-digit', 
+                                                      year: 'numeric',
+                                                      hour: '2-digit',
+                                                      minute: '2-digit'
+                                                    })}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                      {getActionLabel(item.action)}
+                                                    </span>
+                                                  </td>
+                                                  <td className="px-4 py-3">
                                       {item.new_status && (
-                                        <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusColor(item.new_status)}`}>
+                                                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getStatusColor(item.new_status)}`}>
                                           {getStatusLabel(item.new_status)}
                                         </span>
                                       )}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                                                      <div className="font-medium">{item.user_name || 'Система'}</div>
+                                                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'}
                                     </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
-                                    </p>
-                                    {item.comment && (
-                                      <p className="text-sm mt-2 text-gray-700 dark:text-gray-300">
-                                        {item.comment}
-                                      </p>
-                                    )}
-                                    {item.changes && Object.keys(item.changes).length > 0 && (
-                                      <div className="mt-2 text-xs">
-                                        <p className="font-medium mb-1">Изменения:</p>
-                                        {Object.entries(item.changes).map(([key, value]: [string, any]) => (
-                                          <p key={key} className="text-gray-600 dark:text-gray-400">
+                                                    </div>
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                      {item.comment || '—'}
+                                                    </span>
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                    {item.changes && Object.keys(item.changes).length > 0 ? (
+                                                      <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                        {Object.entries(item.changes).slice(0, 2).map(([key, value]: [string, any]) => (
+                                                          <div key={key}>
                                             {key}: {value.old} → {value.new}
-                                          </p>
-                                        ))}
                                       </div>
+                                                        ))}
+                                                        {Object.keys(item.changes).length > 2 && (
+                                                          <div className="text-gray-500">+{Object.keys(item.changes).length - 2} еще</div>
                                     )}
                                   </div>
-                                  <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                                    {new Date(item.created_at).toLocaleString('ru-RU')}
-                                  </span>
-                                </div>
-                              </div>
-                            ))
+                                                    ) : (
+                                                      <span className="text-sm text-gray-400">—</span>
+                                                    )}
+                                                  </td>
+                                                </motion.tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
                           )}
+                                      </div>
                         </div>
                       </motion.div>
+                                </AnimatePresence>
+                              </td>
+                            </tr>
                     )}
+                        </>
+                      );
+                    })}
+                  </tbody>
+                </table>
                   </div>
-                </div>
-              </Card>
-              ))}
               
               {/* Пагинация */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     Страница {currentPage} из {totalPages}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">На странице:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                      >
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -930,7 +1086,7 @@ export default function ContractsPage() {
                           <button
                             key={pageNum}
                             onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 text-sm rounded ${
+                              className={`px-3 py-1 text-sm rounded transition-colors ${
                               currentPage === pageNum
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -949,10 +1105,11 @@ export default function ContractsPage() {
                     >
                       Вперед
                     </Button>
+                    </div>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </main>

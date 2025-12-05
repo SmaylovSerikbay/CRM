@@ -399,327 +399,302 @@ function EmployerContractsContent() {
             </div>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {paginatedContracts.map((contract: Contract, index: number) => {
-              const statusConfig = getStatusConfig(contract.status);
-              const StatusIcon = statusConfig.icon;
-              
-              return (
-                <motion.div
-                  key={contract.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card className="hover:shadow-lg transition-all duration-200 border-gray-200 dark:border-gray-800">
-                    <div className="p-6">
-                      {/* Заголовок карточки */}
-                      <div className="flex items-start justify-between mb-6">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-                                <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                                  Договор №{contract.contract_number}
-                                </h3>
-                                {contract.clinic_name && (
-                                  <div className="flex items-center gap-1.5 mt-1">
-                                    <Building2 className="h-3.5 w-3.5 text-gray-400" />
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                      {contract.clinic_name}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${statusConfig.colors}`}>
-                              <StatusIcon className="h-3.5 w-3.5" />
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
+            {/* Таблица */}
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Номер договора
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Клиника
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Дата договора
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Сумма
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Сотрудников
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Дата исполнения
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Статус
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {paginatedContracts.map((contract: Contract, index: number) => {
+                    const statusConfig = getStatusConfig(contract.status);
+                    const StatusIcon = statusConfig.icon;
+                    const isExpanded = selectedContract?.id === contract.id || showHistory === contract.id || showRejectForm === contract.id;
+                    
+                    return (
+                      <>
+                        <motion.tr
+                          key={contract.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: index * 0.02 }}
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                            isExpanded ? 'bg-gray-50 dark:bg-gray-800/30' : ''
+                          }`}
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              №{contract.contract_number}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                              {contract.clinic_name || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {new Date(contract.contract_date).toLocaleDateString('ru-RU')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {contract.amount.toLocaleString('ru-RU')} ₸
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {contract.people_count}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {new Date(contract.execution_date).toLocaleDateString('ru-RU')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${statusConfig.colors}`}>
+                              <StatusIcon className="h-3.5 w-3.5 mr-1" />
                               <span>{statusConfig.label}</span>
-                            </div>
-                          </div>
-
-                          {/* Основная информация */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 mt-0.5">
-                                <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                  Дата договора
-                                </p>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  {new Date(contract.contract_date).toLocaleDateString('ru-RU')}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 mt-0.5">
-                                <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                  Сумма
-                                </p>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  {contract.amount.toLocaleString('ru-RU')} ₸
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 mt-0.5">
-                                <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                  Сотрудников
-                                </p>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  {contract.people_count}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 mt-0.5">
-                                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                  Исполнение
-                                </p>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  {new Date(contract.execution_date).toLocaleDateString('ru-RU')}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {contract.notes && (
-                            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                Примечания
-                              </p>
-                              <p className="text-sm text-gray-700 dark:text-gray-300">
-                                {contract.notes}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Действия */}
-                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
-                        <div className="flex items-center gap-2">
-                          {(contract.status === 'sent' || contract.status === 'pending_approval') && !contract.approvedByEmployerAt ? (
-                            <>
-                              <Button 
-                                onClick={() => handleApprove(contract.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Подписать
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                onClick={() => setShowRejectForm(showRejectForm === contract.id ? null : contract.id)}
-                                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-                              >
-                                <XCircle className="h-4 w-4 mr-2" />
-                                Отклонить
-                              </Button>
-                            </>
-                          ) : contract.status === 'approved' ? (
-                            <Button 
-                              onClick={() => handleExecute(contract.id)} 
-                              variant="outline"
-                              className="border-purple-300 text-purple-600 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Отметить исполненным
-                            </Button>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedContract(selectedContract?.id === contract.id ? null : contract)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {selectedContract?.id === contract.id ? 'Скрыть' : 'Подробнее'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleShowHistory(contract.id)}
-                          >
-                            <History className="h-4 w-4 mr-2" />
-                            История
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Форма отклонения */}
-                      <AnimatePresence>
-                        {showRejectForm === contract.id && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 overflow-hidden"
-                          >
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Причина отклонения</h4>
-                            <textarea
-                              value={rejectReason}
-                              onChange={(e) => setRejectReason(e.target.value)}
-                              placeholder="Укажите причину отклонения договора..."
-                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent resize-none"
-                              rows={4}
-                              required
-                            />
-                            <div className="flex gap-2 mt-3">
-                              <Button 
-                                onClick={() => handleReject(contract.id)} 
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                              >
-                                Отклонить договор
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                onClick={() => { setShowRejectForm(null); setRejectReason(''); }}
-                              >
-                                Отмена
-                              </Button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* История */}
-                      <AnimatePresence>
-                        {showHistory === contract.id && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 overflow-hidden"
-                          >
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className="font-semibold text-gray-900 dark:text-white">История изменений</h4>
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {(contract.status === 'sent' || contract.status === 'pending_approval') && !contract.approvedByEmployerAt && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(contract.id)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Подписать
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setShowRejectForm(showRejectForm === contract.id ? null : contract.id)}
+                                    className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-1" />
+                                    Отклонить
+                                  </Button>
+                                </>
+                              )}
+                              {contract.status === 'approved' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleExecute(contract.id)}
+                                  variant="outline"
+                                  className="border-purple-300 text-purple-600 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Исполнить
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setShowHistory(null)}
+                                onClick={() => setSelectedContract(selectedContract?.id === contract.id ? null : contract)}
                               >
-                                <X className="h-4 w-4" />
+                                <Eye className="h-4 w-4 mr-1" />
+                                {selectedContract?.id === contract.id ? 'Скрыть' : 'Подробнее'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleShowHistory(contract.id)}
+                              >
+                                <History className="h-4 w-4 mr-1" />
+                                История
                               </Button>
                             </div>
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
-                              {contractHistory.length === 0 ? (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                                  Нет записей в истории
-                                </p>
-                              ) : (
-                                contractHistory.map((item: ContractHistoryItem) => {
-                                  const itemStatusConfig = getStatusConfig(item.new_status || item.old_status);
-                                  const ItemStatusIcon = itemStatusConfig.icon;
-                                  return (
-                                    <div key={item.id} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                      <div className="flex-shrink-0 mt-0.5">
-                                        <div className={`p-2 rounded-lg ${itemStatusConfig.colors.split(' ')[0]}`}>
-                                          <ItemStatusIcon className="h-4 w-4" />
-                                        </div>
+                          </td>
+                        </motion.tr>
+                        
+                        {/* Развернутая информация */}
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={8} className="px-4 py-3 bg-gray-50 dark:bg-gray-800/30">
+                              <AnimatePresence>
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="space-y-4"
+                                >
+                                  {/* Форма отклонения */}
+                                  {showRejectForm === contract.id && (
+                                    <Card className="p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10">
+                                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Причина отклонения</h4>
+                                      <textarea
+                                        value={rejectReason}
+                                        onChange={(e) => setRejectReason(e.target.value)}
+                                        placeholder="Укажите причину отклонения договора..."
+                                        className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent resize-none"
+                                        rows={4}
+                                        required
+                                      />
+                                      <div className="flex gap-2 mt-3">
+                                        <Button
+                                          onClick={() => handleReject(contract.id)}
+                                          className="bg-red-600 hover:bg-red-700 text-white"
+                                        >
+                                          Отклонить договор
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => { setShowRejectForm(null); setRejectReason(''); }}
+                                        >
+                                          Отмена
+                                        </Button>
                                       </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                            {getActionLabel(item.action)}
-                                          </span>
-                                          {item.new_status && (
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${itemStatusConfig.colors}`}>
-                                              {itemStatusConfig.label}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                          {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
-                                        </p>
-                                        {item.comment && (
-                                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                                            {item.comment}
-                                          </p>
-                                        )}
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                                          {new Date(item.created_at).toLocaleString('ru-RU')}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                                    </Card>
+                                  )}
 
-                      {/* Детальная информация */}
-                      <AnimatePresence>
-                        {selectedContract?.id === contract.id && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 overflow-hidden"
-                          >
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Детальная информация</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">ID договора</p>
-                                <p className="font-medium text-gray-900 dark:text-white">{contract.id}</p>
-                              </div>
-                              {contract.createdAt && (
-                                <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Создан</p>
-                                  <p className="font-medium text-gray-900 dark:text-white">
-                                    {new Date(contract.createdAt).toLocaleString('ru-RU')}
-                                  </p>
-                                </div>
-                              )}
-                              {contract.approvedByEmployerAt && (
-                                <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Подписан работодателем</p>
-                                  <p className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {new Date(contract.approvedByEmployerAt).toLocaleString('ru-RU')}
-                                  </p>
-                                </div>
-                              )}
-                              {contract.approvedByClinicAt && (
-                                <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Подписан клиникой</p>
-                                  <p className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {new Date(contract.approvedByClinicAt).toLocaleString('ru-RU')}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
+                                  {/* История */}
+                                  {showHistory === contract.id && (
+                                    <Card className="p-4">
+                                      <div className="flex items-center justify-between mb-4">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white">История изменений</h4>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => setShowHistory(null)}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                                        {contractHistory.length === 0 ? (
+                                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                            Нет записей в истории
+                                          </p>
+                                        ) : (
+                                          contractHistory.map((item: ContractHistoryItem) => {
+                                            const itemStatusConfig = getStatusConfig(item.new_status || item.old_status);
+                                            const ItemStatusIcon = itemStatusConfig.icon;
+                                            return (
+                                              <div key={item.id} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                                <div className="flex-shrink-0 mt-0.5">
+                                                  <div className={`p-2 rounded-lg ${itemStatusConfig.colors.split(' ')[0]}`}>
+                                                    <ItemStatusIcon className="h-4 w-4" />
+                                                  </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                      {getActionLabel(item.action)}
+                                                    </span>
+                                                    {item.new_status && (
+                                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${itemStatusConfig.colors}`}>
+                                                        {itemStatusConfig.label}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                    {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
+                                                  </p>
+                                                  {item.comment && (
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                                      {item.comment}
+                                                    </p>
+                                                  )}
+                                                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    {new Date(item.created_at).toLocaleString('ru-RU')}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    </Card>
+                                  )}
+
+                                  {/* Детальная информация */}
+                                  {selectedContract?.id === contract.id && (
+                                    <Card className="p-4">
+                                      <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Детальная информация</h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div>
+                                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">ID договора</p>
+                                          <p className="text-sm font-medium text-gray-900 dark:text-white">{contract.id}</p>
+                                        </div>
+                                        {contract.createdAt && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Создан</p>
+                                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                              {new Date(contract.createdAt).toLocaleString('ru-RU')}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {contract.approvedByEmployerAt && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Подписан работодателем</p>
+                                            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                                              {new Date(contract.approvedByEmployerAt).toLocaleString('ru-RU')}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {contract.approvedByClinicAt && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Подписан клиникой</p>
+                                            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                                              {new Date(contract.approvedByClinicAt).toLocaleString('ru-RU')}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {contract.notes && (
+                                          <div className="col-span-full">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Примечания</p>
+                                            <p className="text-sm text-gray-700 dark:text-gray-300">{contract.notes}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </Card>
+                                  )}
+                                </motion.div>
+                              </AnimatePresence>
+                            </td>
+                          </tr>
                         )}
-                      </AnimatePresence>
-                    </div>
-                  </Card>
-                </motion.div>
-              );
-            })}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             
-            {/* Улучшенная пагинация */}
+            {/* Пагинация */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Страница</span>
                   <select

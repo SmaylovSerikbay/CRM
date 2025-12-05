@@ -16,6 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
 class ContingentEmployeeSerializer(serializers.ModelSerializer):
     contract_number = serializers.SerializerMethodField()
     employer_name = serializers.SerializerMethodField()
+    route_sheet_info = serializers.SerializerMethodField()
     
     def validate_iin(self, value):
         """Валидация ИИН: должен содержать ровно 12 цифр или быть пустым"""
@@ -38,10 +39,62 @@ class ContingentEmployeeSerializer(serializers.ModelSerializer):
             return obj.contract.employer_name
         return None
     
+    def get_route_sheet_info(self, obj):
+        """Получение информации о маршрутных листах для сотрудника"""
+        from .models import RouteSheet, Doctor
+        
+        # Находим все маршрутные листы для этого сотрудника
+        route_sheets = RouteSheet.objects.filter(patient_id=str(obj.id)).order_by('-visit_date')
+        
+        if not route_sheets.exists():
+            return None
+        
+        # Берем последний (самый актуальный) маршрутный лист
+        latest_route_sheet = route_sheets.first()
+        
+        # Получаем информацию о врачах из услуг
+        doctors_info = []
+        services = latest_route_sheet.services if isinstance(latest_route_sheet.services, list) else []
+        
+        for service in services:
+            doctor_id = service.get('doctorId') or service.get('doctor_id', '')
+            if doctor_id:
+                try:
+                    doctor = Doctor.objects.get(id=doctor_id)
+                    doctors_info.append({
+                        'name': doctor.name,
+                        'specialization': doctor.specialization,
+                        'cabinet': doctor.cabinet or service.get('cabinet', ''),
+                        'time': service.get('time', ''),
+                    })
+                except Doctor.DoesNotExist:
+                    # Если врач не найден, используем данные из услуги
+                    doctors_info.append({
+                        'name': service.get('name', ''),
+                        'specialization': service.get('specialization', service.get('name', '')),
+                        'cabinet': service.get('cabinet', ''),
+                        'time': service.get('time', ''),
+                    })
+        
+        # Определяем время начала и конца
+        times = [s.get('time', '') for s in services if s.get('time')]
+        time_range = None
+        if times:
+            sorted_times = sorted([t for t in times if t])
+            if sorted_times:
+                time_range = f"{sorted_times[0]} - {sorted_times[-1]}"
+        
+        return {
+            'visit_date': latest_route_sheet.visit_date.isoformat() if latest_route_sheet.visit_date else None,
+            'time_range': time_range,
+            'doctors': doctors_info,
+            'services_count': len(services),
+        }
+    
     class Meta:
         model = ContingentEmployee
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name']
+        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name', 'route_sheet_info']
 
 
 class CalendarPlanSerializer(serializers.ModelSerializer):

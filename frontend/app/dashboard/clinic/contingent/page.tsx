@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
+import { Upload, FileSpreadsheet, CheckCircle, ArrowRight, Download, Edit2, Trash2, X, Save, QrCode, Filter, List, Grid, ChevronDown, ChevronRight, Search, Calendar, Clock, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { userStore } from '@/lib/store/user-store';
@@ -27,6 +28,9 @@ export default function ClinicContingentPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
   const [qrCodeModal, setQrCodeModal] = useState<{ employeeId: string; qrUrl: string } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,6 +86,12 @@ export default function ClinicContingentPage() {
       } else {
         showToast('Файл успешно загружен!', 'success');
       }
+      
+      // Закрываем модальное окно после успешной загрузки
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setUploadSuccess(false);
+      }, 2000);
     } catch (error: any) {
       showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
@@ -129,6 +139,7 @@ export default function ClinicContingentPage() {
       harmfulFactors: employee.harmfulFactors,
       notes: (employee as any).notes,
     });
+    setShowEditModal(true);
   };
 
   const handleSaveEdit = async () => {
@@ -140,6 +151,7 @@ export default function ClinicContingentPage() {
       setEmployees(updated);
       setEditingId(null);
       setEditData({});
+      setShowEditModal(false);
       showToast('Изменения успешно сохранены', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка сохранения', 'error');
@@ -149,6 +161,7 @@ export default function ClinicContingentPage() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditData({});
+    setShowEditModal(false);
   };
 
   // Фильтрация и группировка
@@ -156,6 +169,15 @@ export default function ClinicContingentPage() {
     let filtered = employees;
     if (filterContractId) {
       filtered = filtered.filter(emp => emp.contractId === filterContractId);
+    }
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(emp => 
+        emp.name?.toLowerCase().includes(query) ||
+        emp.position?.toLowerCase().includes(query) ||
+        emp.department?.toLowerCase().includes(query) ||
+        (emp as any).notes?.toLowerCase().includes(query)
+      );
     }
     return filtered;
   };
@@ -218,121 +240,45 @@ export default function ClinicContingentPage() {
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Sticky Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40 flex-shrink-0">
-        <div className="px-6 py-4">
+        <div className="px-4 py-3">
           <div className="flex items-center justify-between mb-4">
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold">Список контингента</h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Загрузите Excel-файл со списком сотрудников. Система автоматически присвоит вредные факторы.
+                Управление списком сотрудников
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 ml-4">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Всего: {employees.length} | Показано: {filteredEmployees.length}
               </div>
+              <Button onClick={() => setShowUploadModal(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Загрузить файл
+              </Button>
             </div>
           </div>
+          
+          {/* Поиск */}
+          {employees.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Поиск по ФИО, должности, объекту..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-10"
+              />
+            </div>
+          )}
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-6 py-4">
-        {/* Upload Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <Card>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400" />
-                <h2 className="text-xl font-semibold">Загрузка списка контингента</h2>
-              </div>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await workflowStoreAPI.downloadContingentTemplate();
-                  } catch (error: any) {
-                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
-                  }
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Скачать шаблон
-              </Button>
-            </div>
-            
-            {uploadSuccess && (
-              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <p className="text-green-700 dark:text-green-300">
-                    Файл успешно загружен! Вредные факторы автоматически присвоены {employees.length} сотрудникам.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Выбор договора */}
-            {contracts.length > 0 && (
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Выберите договор для загрузки контингента:
-                </label>
-                <select
-                  value={selectedContractId}
-                  onChange={(e) => setSelectedContractId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="">-- Выберите договор --</option>
-                  {contracts.map((contract: any) => (
-                    <option key={contract.id} value={contract.id}>
-                      Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')} - {contract.employer_name || `БИН: ${contract.employer_bin}`}{contract.status === 'executed' ? ' (Исполнен)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Контингент будет загружен для выбранного работодателя по договору
-                </p>
-              </div>
-            )}
-
-            {contracts.length === 0 && !isLoading && (
-              <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-yellow-700 dark:text-yellow-300">
-                  У вас нет подтвержденных договоров. Сначала необходимо создать и подтвердить договор с работодателем.
-                </p>
-              </div>
-            )}
-
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
-              <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <label className="cursor-pointer">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Выберите Excel-файл или перетащите сюда
-                </span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  disabled={isUploading}
-                />
-              </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
-              </p>
-              {isUploading && (
-                <div className="mt-4">
-                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Обработка файла...</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        </motion.div>
-
+      <main className="flex-1 overflow-y-auto px-4 py-4">
         {/* Employees List */}
         {employees.length > 0 && (
           <motion.div
@@ -450,6 +396,9 @@ export default function ClinicContingentPage() {
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Общий стаж</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Стаж по должности</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Последний осмотр</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Дата медосмотра</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Врач (ФИО / Специализация)</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Время</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Вредность</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Примечание</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap">Действия</th>
@@ -546,6 +495,45 @@ export default function ClinicContingentPage() {
                               />
                             </td>
                             <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.visit_date ? (
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                <div className="space-y-1">
+                                  {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                      <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                    </div>
+                                  ))}
+                                  {employee.routeSheetInfo.doctors.length > 2 && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      +{employee.routeSheetInfo.doctors.length - 2} еще
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.time_range ? (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
                               <input
                                 type="text"
                                 value={Array.isArray(editData.harmfulFactors) ? editData.harmfulFactors.join(', ') : ''}
@@ -604,6 +592,45 @@ export default function ClinicContingentPage() {
                             <td className="py-2 px-2">{(employee as any).totalExperienceYears ? `${(employee as any).totalExperienceYears} лет` : '-'}</td>
                             <td className="py-2 px-2">{(employee as any).positionExperienceYears ? `${(employee as any).positionExperienceYears} лет` : '-'}</td>
                             <td className="py-2 px-2">{employee.lastExaminationDate ? new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU') : '-'}</td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.visit_date ? (
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                <div className="space-y-1">
+                                  {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                      <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                    </div>
+                                  ))}
+                                  {employee.routeSheetInfo.doctors.length > 2 && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      +{employee.routeSheetInfo.doctors.length - 2} еще
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2">
+                              {employee.routeSheetInfo?.time_range ? (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="py-2 px-2">
                               <div className="flex flex-wrap gap-1 max-w-xs">
                                 {employee.harmfulFactors.length > 0 ? (
@@ -667,7 +694,7 @@ export default function ClinicContingentPage() {
                           <React.Fragment key={contractKey}>
                             {/* Заголовок группы */}
                             <tr className="bg-blue-50 dark:bg-blue-900/20 border-b-2 border-blue-200 dark:border-blue-800">
-                              <td colSpan={13} className="py-3 px-4">
+                              <td colSpan={16} className="py-3 px-4">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3 flex-1">
                                     <button
@@ -739,6 +766,45 @@ export default function ClinicContingentPage() {
                                 <td className="py-2 px-2">{(employee as any).totalExperienceYears ? `${(employee as any).totalExperienceYears} лет` : '-'}</td>
                                 <td className="py-2 px-2">{(employee as any).positionExperienceYears ? `${(employee as any).positionExperienceYears} лет` : '-'}</td>
                                 <td className="py-2 px-2">{employee.lastExaminationDate ? new Date(employee.lastExaminationDate).toLocaleDateString('ru-RU') : '-'}</td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.visit_date ? (
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="text-xs">{new Date(employee.routeSheetInfo.visit_date).toLocaleDateString('ru-RU')}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.doctors && employee.routeSheetInfo.doctors.length > 0 ? (
+                                    <div className="space-y-1">
+                                      {employee.routeSheetInfo.doctors.slice(0, 2).map((doctor, idx) => (
+                                        <div key={idx} className="text-xs">
+                                          <div className="font-medium text-gray-900 dark:text-white">{doctor.name}</div>
+                                          <div className="text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                                        </div>
+                                      ))}
+                                      {employee.routeSheetInfo.doctors.length > 2 && (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          +{employee.routeSheetInfo.doctors.length - 2} еще
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {employee.routeSheetInfo?.time_range ? (
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="text-xs">{employee.routeSheetInfo.time_range}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
                                 <td className="py-2 px-2">
                                   <div className="flex flex-wrap gap-1 max-w-xs">
                                     {employee.harmfulFactors.length > 0 ? (
@@ -886,6 +952,104 @@ export default function ClinicContingentPage() {
             </div>
           </Card>
         )}
+
+        {/* Модальное окно загрузки файла */}
+        <Modal
+          isOpen={showUploadModal}
+          onClose={() => {
+            setShowUploadModal(false);
+            setUploadSuccess(false);
+          }}
+          title="Загрузка списка контингента"
+          size="xl"
+        >
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Загрузите Excel-файл со списком сотрудников. Система автоматически присвоит вредные факторы.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await workflowStoreAPI.downloadContingentTemplate();
+                  } catch (error: any) {
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать шаблон
+              </Button>
+            </div>
+            
+            {uploadSuccess && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                <p className="text-green-700 dark:text-green-300">
+                  Файл успешно загружен! Вредные факторы автоматически присвоены {employees.length} сотрудникам.
+                </p>
+              </div>
+            )}
+
+            {contracts.length > 0 ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Выберите договор для загрузки контингента:
+                  </label>
+                  <select
+                    value={selectedContractId}
+                    onChange={(e) => setSelectedContractId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="">-- Выберите договор --</option>
+                    {contracts.map((contract: any) => (
+                      <option key={contract.id} value={contract.id}>
+                        Договор №{contract.contract_number} от {new Date(contract.contract_date).toLocaleDateString('ru-RU')} - {contract.employer_name || `БИН: ${contract.employer_bin}`}{contract.status === 'executed' ? ' (Исполнен)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Контингент будет загружен для выбранного работодателя по договору
+                  </p>
+                </div>
+
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
+                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <label className="cursor-pointer">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Выберите Excel-файл или перетащите сюда
+                    </span>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Поддерживаются файлы .xlsx, .xls. Формат согласно приказу №131: № п/п, ФИО, Дата рождения, Пол, Объект или участок, Занимаемая должность, Общий стаж, Стаж по занимаемой должности, Дата последнего медосмотра, Профессиональная вредность, Примечание
+                  </p>
+                  {isUploading && (
+                    <div className="mt-4">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Обработка файла...</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  У вас нет подтвержденных договоров. Сначала необходимо создать и подтвердить договор с работодателем.
+                </p>
+              </div>
+            )}
+          </div>
+        </Modal>
 
         {/* QR Code Modal */}
         {qrCodeModal && (
