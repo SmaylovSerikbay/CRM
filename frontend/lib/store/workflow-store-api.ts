@@ -195,7 +195,22 @@ class WorkflowStoreAPI {
 
   async updateContingentEmployee(employeeId: string, data: Partial<ContingentEmployee>): Promise<ContingentEmployee> {
     const userId = this.getUserId();
-    const updated: any = await apiClient.updateContingentEmployee(userId, employeeId, data);
+    // Преобразуем camelCase в snake_case для бэкенда
+    const backendData: any = {};
+    if (data.name !== undefined) backendData.name = data.name;
+    if (data.position !== undefined) backendData.position = data.position;
+    if (data.department !== undefined) backendData.department = data.department;
+    if (data.birthDate !== undefined) backendData.birth_date = data.birthDate;
+    if (data.gender !== undefined) backendData.gender = data.gender;
+    if (data.harmfulFactors !== undefined) backendData.harmful_factors = data.harmfulFactors;
+    if (data.lastExaminationDate !== undefined) backendData.last_examination_date = data.lastExaminationDate;
+    if (data.totalExperienceYears !== undefined) backendData.total_experience_years = data.totalExperienceYears;
+    if (data.positionExperienceYears !== undefined) backendData.position_experience_years = data.positionExperienceYears;
+    if (data.notes !== undefined) backendData.notes = data.notes;
+    if (data.iin !== undefined) backendData.iin = data.iin;
+    if (data.phone !== undefined) backendData.phone = data.phone;
+    
+    const updated: any = await apiClient.updateContingentEmployee(userId, employeeId, backendData);
     return {
       id: updated.id.toString(),
       name: updated.name,
@@ -213,6 +228,48 @@ class WorkflowStoreAPI {
       positionExperienceYears: updated.position_experience_years,
       notes: updated.notes,
       quarter: updated.quarter,
+    };
+  }
+
+  async createContingentEmployee(data: Partial<ContingentEmployee> & { contractId: string }): Promise<ContingentEmployee> {
+    const userId = this.getUserId();
+    // Преобразуем camelCase в snake_case для бэкенда
+    const backendData: any = {
+      contract: parseInt(data.contractId, 10), // Преобразуем в число для ForeignKey
+    };
+    if (data.name !== undefined) backendData.name = data.name;
+    if (data.position !== undefined) backendData.position = data.position;
+    if (data.department !== undefined) backendData.department = data.department;
+    if (data.birthDate !== undefined) backendData.birth_date = data.birthDate;
+    if (data.gender !== undefined) backendData.gender = data.gender;
+    if (data.harmfulFactors !== undefined) backendData.harmful_factors = data.harmfulFactors;
+    if (data.lastExaminationDate !== undefined) backendData.last_examination_date = data.lastExaminationDate;
+    if (data.totalExperienceYears !== undefined) backendData.total_experience_years = data.totalExperienceYears;
+    if (data.positionExperienceYears !== undefined) backendData.position_experience_years = data.positionExperienceYears;
+    if (data.notes !== undefined) backendData.notes = data.notes;
+    if (data.iin !== undefined) backendData.iin = data.iin;
+    if (data.phone !== undefined) backendData.phone = data.phone;
+    if (data.quarter !== undefined) backendData.quarter = data.quarter;
+    
+    const created: any = await apiClient.createContingentEmployee(userId, backendData);
+    return {
+      id: created.id.toString(),
+      name: created.name,
+      position: created.position,
+      department: created.department,
+      iin: created.iin,
+      phone: created.phone,
+      birthDate: created.birth_date,
+      gender: created.gender,
+      harmfulFactors: created.harmful_factors || [],
+      requiresExamination: created.requires_examination !== false,
+      lastExaminationDate: created.last_examination_date,
+      nextExaminationDate: created.next_examination_date,
+      totalExperienceYears: created.total_experience_years,
+      positionExperienceYears: created.position_experience_years,
+      notes: created.notes,
+      quarter: created.quarter,
+      contractId: created.contract ? created.contract.toString() : undefined,
     };
   }
 

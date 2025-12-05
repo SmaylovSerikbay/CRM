@@ -607,6 +607,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             workbook = load_workbook(excel_file)
             worksheet = workbook.active
             
+            # ВАЛИДАЦИЯ СТРУКТУРЫ ФАЙЛА
+            # Проверяем, что это наш шаблон по характерным признакам
+            
+            # 1. Проверяем заголовок документа в первой строке
+            first_cell = worksheet['A1'].value
+            if not first_cell or 'СПИСОК лиц, подлежащих обязательному медицинскому осмотру' not in str(first_cell):
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 2. Проверяем наличие ссылки на приказ во второй строке
+            second_cell = worksheet['A2'].value
+            if not second_cell or '№ ҚР ДСМ-131/2020' not in str(second_cell):
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             # Пропускаем заголовки (первые 2-3 строки могут быть заголовками)
             # Ищем строку с заголовками колонок
             header_row = None
@@ -617,7 +636,10 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     break
             
             if not header_row:
-                return Response({'error': 'Не найдены заголовки таблицы'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    'error': 'Не найдены заголовки таблицы в шаблоне',
+                    'detail': 'Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Маппинг колонок (поиск по заголовкам)
             column_map = {}
@@ -652,6 +674,24 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     column_map['phone'] = idx
                 elif 'квартал' in val:
                     column_map['quarter'] = idx
+            
+            # 3. Проверяем наличие обязательных колонок
+            required_columns = ['name', 'department', 'position']
+            missing_columns = []
+            for col in required_columns:
+                if col not in column_map:
+                    col_names = {
+                        'name': 'ФИО',
+                        'department': 'Объект/участок',
+                        'position': 'Занимаемая должность'
+                    }
+                    missing_columns.append(col_names.get(col, col))
+            
+            if missing_columns:
+                return Response({
+                    'error': 'Загружаемый файл не соответствует шаблону',
+                    'detail': f'Отсутствуют обязательные колонки: {", ".join(missing_columns)}. Пожалуйста, скачайте последний действующий шаблон и заполните его'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             created_employees = []
             skipped = 0
@@ -772,6 +812,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     skipped += 1
                     continue
                 
+                # Нормализуем телефон для GreenAPI (формат 7XXXXXXXXXX)
+                phone_raw = str(row[column_map.get('phone', 6) - 1].value or '').strip() if column_map.get('phone') else ''
+                phone_normalized = ''
+                if phone_raw:
+                    # Убираем все символы кроме цифр
+                    phone_digits = ''.join(filter(str.isdigit, phone_raw))
+                    # Если начинается с 8, заменяем на 7
+                    if phone_digits.startswith('8') and len(phone_digits) == 11:
+                        phone_normalized = '7' + phone_digits[1:]
+                    # Если начинается с 7 и длина 11 цифр
+                    elif phone_digits.startswith('7') and len(phone_digits) == 11:
+                        phone_normalized = phone_digits
+                    # Если 10 цифр без кода страны, добавляем 7
+                    elif len(phone_digits) == 10:
+                        phone_normalized = '7' + phone_digits
+                    # Иначе оставляем как есть (может быть международный номер)
+                    else:
+                        phone_normalized = phone_digits
+                
                 employee = ContingentEmployee.objects.create(
                     user=user,
                     contract=contract,
@@ -786,7 +845,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     harmful_factors=harmful_factors,
                     notes=str(row[column_map.get('notes', 11) - 1].value or '').strip() if column_map.get('notes') else '',
                     iin=iin,
-                    phone=str(row[column_map.get('phone', 6) - 1].value or '').strip() if column_map.get('phone') else '',
+                    phone=phone_normalized,
                     quarter=str(row[column_map.get('quarter', 1) - 1].value or '').strip() if column_map.get('quarter') else '',
                     requires_examination=True,
                 )
@@ -839,9 +898,11 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws = wb.active
         ws.title = "Список контингента"
 
-        # Заголовок документа
+        # Заголовок документа с текущим годом
+        from datetime import datetime
+        current_year = datetime.now().year
         ws.merge_cells('A1:K1')
-        ws['A1'] = 'СПИСОК лиц, подлежащих обязательному медицинскому осмотру в 2025 году'
+        ws['A1'] = f'СПИСОК лиц, подлежащих обязательному медицинскому осмотру в {current_year} году'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
@@ -855,6 +916,23 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         ws['H3'] = '1 квартал'
         ws['H3'].font = Font(bold=True)
         ws['H3'].alignment = Alignment(horizontal='center')
+        
+        # Добавляем комментарий для ячейки квартала
+        from openpyxl.comments import Comment
+        quarter_comment = Comment(
+            "📅 ВЫБОР КВАРТАЛА\n\n"
+            "Кликните на эту ячейку и выберите квартал из выпадающего списка.\n\n"
+            "Доступные варианты:\n"
+            "• 1 квартал (январь-март)\n"
+            "• 2 квартал (апрель-июнь)\n"
+            "• 3 квартал (июль-сентябрь)\n"
+            "• 4 квартал (октябрь-декабрь)\n\n"
+            "⚠️ Выбранный квартал будет применен ко всему списку контингента",
+            "Система"
+        )
+        quarter_comment.width = 350
+        quarter_comment.height = 180
+        ws['H3'].comment = quarter_comment
         
         # Добавляем выпадающий список для квартала
         quarter_validation = DataValidation(
@@ -878,6 +956,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             'ФИО',
             'Дата рождения',
             'Пол',
+            'Телефон',
             'Объект или участок',
             'Занимаемая должность',
             'Общий стаж',
@@ -894,8 +973,57 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
             
-            # Добавляем комментарии к заголовкам колонок с выпадающими списками
-            if col_idx == 4:  # Колонка "Пол"
+            # Добавляем комментарии к заголовкам колонок с инструкциями
+            if col_idx == 1:  # Колонка "№ п/п"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "🔢 ПОРЯДКОВЫЙ НОМЕР\n\n"
+                    "Укажите порядковый номер сотрудника в списке.\n\n"
+                    "Примеры:\n"
+                    "• 1\n"
+                    "• 2\n"
+                    "• 3\n"
+                    "• ...\n\n"
+                    "ℹ️ Нумерация должна быть последовательной",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 150
+                cell.comment = comment
+            elif col_idx == 2:  # Колонка "ФИО"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "👤 ФИО СОТРУДНИКА\n\n"
+                    "Введите полное ФИО сотрудника.\n\n"
+                    "Формат:\n"
+                    "Фамилия Имя Отчество\n\n"
+                    "Примеры:\n"
+                    "• Иванов Иван Иванович\n"
+                    "• Петрова Мария Петровна\n"
+                    "• Сидоров Алексей Владимирович\n\n"
+                    "⚠️ Это обязательное поле!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 160
+                cell.comment = comment
+            elif col_idx == 3:  # Колонка "Дата рождения"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📅 ФОРМАТ ДАТЫ\n\n"
+                    "Введите дату в формате:\n"
+                    "ДД.ММ.ГГГГ\n\n"
+                    "Примеры:\n"
+                    "• 29.03.1976\n"
+                    "• 15.05.1985\n"
+                    "• 01.01.1990\n\n"
+                    "⚠️ Обязательно используйте точки между числами!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 150
+                cell.comment = comment
+            elif col_idx == 4:  # Колонка "Пол"
                 from openpyxl.comments import Comment
                 comment = Comment(
                     "📋 ВЫПАДАЮЩИЙ СПИСОК\n\n"
@@ -908,7 +1036,108 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 comment.width = 300
                 comment.height = 120
                 cell.comment = comment
-            elif col_idx == 10:  # Колонка "Профессиональная вредность"
+            elif col_idx == 5:  # Колонка "Телефон"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📱 ТЕЛЕФОН (необязательно)\n\n"
+                    "Введите номер телефона сотрудника для отправки уведомлений в WhatsApp.\n\n"
+                    "Формат (любой из вариантов):\n"
+                    "• +77001234567\n"
+                    "• 87001234567\n"
+                    "• 77001234567\n"
+                    "• 7001234567\n\n"
+                    "⚠️ Номер будет автоматически преобразован в формат 7XXXXXXXXXX\n\n"
+                    "ℹ️ Это поле можно оставить пустым",
+                    "Система"
+                )
+                comment.width = 320
+                comment.height = 170
+                cell.comment = comment
+            elif col_idx == 6:  # Колонка "Объект или участок"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "🏢 ОБЪЕКТ ИЛИ УЧАСТОК\n\n"
+                    "Укажите место работы сотрудника:\n"
+                    "• Название объекта\n"
+                    "• Участок\n"
+                    "• Отдел\n"
+                    "• Цех\n\n"
+                    "Примеры:\n"
+                    "• ТОО \"Компания\" - Отдел продаж\n"
+                    "• Производственный участок №1\n"
+                    "• Административный корпус\n"
+                    "• Цех металлообработки\n\n"
+                    "⚠️ Это обязательное поле!",
+                    "Система"
+                )
+                comment.width = 320
+                comment.height = 180
+                cell.comment = comment
+            elif col_idx == 7:  # Колонка "Занимаемая должность"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "💼 ЗАНИМАЕМАЯ ДОЛЖНОСТЬ\n\n"
+                    "Укажите должность сотрудника согласно штатному расписанию.\n\n"
+                    "Примеры:\n"
+                    "• Оператор станков с ЧПУ\n"
+                    "• Главный бухгалтер\n"
+                    "• Инженер-технолог\n"
+                    "• Водитель погрузчика\n"
+                    "• Менеджер по продажам\n"
+                    "• Электромонтер\n\n"
+                    "⚠️ Это обязательное поле!",
+                    "Система"
+                )
+                comment.width = 320
+                comment.height = 180
+                cell.comment = comment
+            elif col_idx == 8:  # Колонка "Общий стаж"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "🔢 ТОЛЬКО ЦИФРЫ\n\n"
+                    "Введите количество лет общего стажа работы.\n\n"
+                    "Примеры:\n"
+                    "• 20\n"
+                    "• 15\n"
+                    "• 5\n\n"
+                    "⚠️ Вводите только цифры без текста!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 140
+                cell.comment = comment
+            elif col_idx == 9:  # Колонка "Стаж по занимаемой должности"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "🔢 ТОЛЬКО ЦИФРЫ\n\n"
+                    "Введите количество лет стажа по текущей должности.\n\n"
+                    "Примеры:\n"
+                    "• 18\n"
+                    "• 10\n"
+                    "• 3\n\n"
+                    "⚠️ Вводите только цифры без текста!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 140
+                cell.comment = comment
+            elif col_idx == 10:  # Колонка "Дата последнего медосмотра"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📅 ФОРМАТ ДАТЫ\n\n"
+                    "Введите дату в формате:\n"
+                    "ДД.ММ.ГГГГ\n\n"
+                    "Примеры:\n"
+                    "• 22.01.2024\n"
+                    "• 15.03.2023\n"
+                    "• 01.12.2024\n\n"
+                    "⚠️ Обязательно используйте точки между числами!",
+                    "Система"
+                )
+                comment.width = 300
+                comment.height = 150
+                cell.comment = comment
+            elif col_idx == 11:  # Колонка "Профессиональная вредность"
                 from openpyxl.comments import Comment
                 comment = Comment(
                     "📋 ВЫПАДАЮЩИЙ СПИСОК\n\n"
@@ -925,20 +1154,40 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 comment.width = 350
                 comment.height = 180
                 cell.comment = comment
+            elif col_idx == 12:  # Колонка "Примечание"
+                from openpyxl.comments import Comment
+                comment = Comment(
+                    "📝 ПРИМЕЧАНИЕ (необязательно)\n\n"
+                    "Здесь можно указать дополнительную информацию о сотруднике.\n\n"
+                    "Примеры:\n"
+                    "• Работает по совместительству\n"
+                    "• Временно отсутствует\n"
+                    "• Находится в декретном отпуске\n"
+                    "• Имеет медицинские противопоказания\n"
+                    "• Любая другая важная информация\n\n"
+                    "ℹ️ Это поле можно оставить пустым",
+                    "Система"
+                )
+                comment.width = 320
+                comment.height = 180
+                cell.comment = comment
 
         # Пример данных
         example_data = [
-            ['1', 'Иванов Иван Иванович', '29.03.1976', 'мужской', 'ТОО "Компания" - Отдел', 'Оператор', '20', '18', '22.01.2024г', 'п.33 «Профессии и работы»', ''],
-            ['2', 'Петрова Мария Петровна', '15.05.1985', 'женский', 'ТОО "Компания" - Офис', 'Бухгалтер', '15', '10', '24.01.2024г', 'п.14 «Работа на ПК»', '']
+            ['1', 'Иванов Иван Иванович', '29.03.1976', 'мужской', '77001234567', 'ТОО "Компания" - Отдел', 'Оператор', '20', '18', '22.01.2024', 'п.33 «Профессии и работы»', ''],
+            ['2', 'Петрова Мария Петровна', '15.05.1985', 'женский', '', 'ТОО "Компания" - Офис', 'Бухгалтер', '15', '10', '24.01.2024', 'п.14 «Работа на ПК»', '']
         ]
 
         for row_idx, row_data in enumerate(example_data, start=header_row + 1):
             for col_idx, value in enumerate(row_data, start=1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                # Устанавливаем текстовый формат для колонки телефона (E)
+                if col_idx == 5:  # Колонка "Телефон"
+                    cell.number_format = '@'  # Текстовый формат
 
         # Настройка ширины колонок
-        column_widths = [8, 30, 15, 10, 30, 25, 12, 25, 20, 40, 20]
+        column_widths = [8, 30, 15, 10, 15, 30, 25, 12, 25, 20, 40, 20]
         for col_idx, width in enumerate(column_widths, start=1):
             ws.column_dimensions[get_column_letter(col_idx)].width = width
 
@@ -966,7 +1215,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         gender_validation.prompt = "📋 Кликните на стрелку ▼ справа и выберите:\n• мужской\n• женский"
         gender_validation.promptTitle = "Выбор пола"
         ws.add_data_validation(gender_validation)
-        gender_validation.add(f"D{data_start_row}:D{data_end_row}")
+        gender_validation.add(f"D{data_start_row}:D{data_end_row}")  # Колонка D - Пол
         
         # Создаем справочный лист для документации (необязательно для работы списка)
         gender_sheet = wb.create_sheet(title="Ref_Gender")
@@ -1036,8 +1285,158 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         harmful_validation.promptTitle = "Выбор профессиональной вредности"
         ws.add_data_validation(harmful_validation)
 
-        # Колонка "Профессиональная вредность" (J)
-        harmful_validation.add(f"J{data_start_row}:J{data_end_row}")
+        # Колонка "Профессиональная вредность" (K)
+        harmful_validation.add(f"K{data_start_row}:K{data_end_row}")
+
+        # 3) Валидация для числовых полей (Общий стаж и Стаж по должности)
+        # Колонка H - Общий стаж
+        experience_validation = DataValidation(
+            type="whole",
+            operator="greaterThanOrEqual",
+            formula1="0",
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        experience_validation.error = "❌ Введите только целое число (количество лет стажа)"
+        experience_validation.errorTitle = "Неверный формат"
+        experience_validation.prompt = "🔢 Введите количество лет общего стажа работы\n\nПримеры: 20, 15, 5\n\nВводите только цифры без текста!"
+        experience_validation.promptTitle = "Общий стаж (лет)"
+        ws.add_data_validation(experience_validation)
+        experience_validation.add(f"H{data_start_row}:H{data_end_row}")
+
+        # Колонка I - Стаж по занимаемой должности
+        position_experience_validation = DataValidation(
+            type="whole",
+            operator="greaterThanOrEqual",
+            formula1="0",
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        position_experience_validation.error = "❌ Введите только целое число (количество лет стажа)"
+        position_experience_validation.errorTitle = "Неверный формат"
+        position_experience_validation.prompt = "🔢 Введите количество лет стажа по текущей должности\n\nПримеры: 18, 10, 3\n\nВводите только цифры без текста!"
+        position_experience_validation.promptTitle = "Стаж по должности (лет)"
+        ws.add_data_validation(position_experience_validation)
+        position_experience_validation.add(f"I{data_start_row}:I{data_end_row}")
+
+        # 3.5) Валидация для телефона (колонка E)
+        # Используем текстовую валидацию с проверкой длины
+        phone_validation = DataValidation(
+            type="textLength",
+            operator="between",
+            formula1="10",
+            formula2="12",
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        phone_validation.error = "❌ Номер телефона должен содержать от 10 до 12 цифр\n\nПримеры правильных форматов:\n• 77001234567 (11 цифр)\n• 7001234567 (10 цифр)\n• +77001234567 (12 символов)"
+        phone_validation.errorTitle = "Неверный формат телефона"
+        phone_validation.prompt = "📱 Введите номер телефона (10-12 цифр)\n\nФормат:\n• 77001234567\n• +77001234567\n• 87001234567\n\n⚠️ Номер будет преобразован в формат 7XXXXXXXXXX для WhatsApp"
+        phone_validation.promptTitle = "Телефон (необязательно)"
+        ws.add_data_validation(phone_validation)
+        phone_validation.add(f"E{data_start_row}:E{data_end_row}")
+        
+        # Устанавливаем формат ячеек телефона как текст, чтобы избежать научной нотации
+        for row in range(data_start_row, data_end_row + 1):
+            cell = ws[f'E{row}']
+            cell.number_format = '@'  # @ означает текстовый формат
+
+        # 4) Валидация для дат (Дата рождения и Дата последнего медосмотра)
+        # Колонка C - Дата рождения
+        birth_date_validation = DataValidation(
+            type="custom",
+            formula1='=AND(LEN(C5)=10, ISNUMBER(DATEVALUE(C5)))',
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        birth_date_validation.error = "❌ Введите дату в формате ДД.ММ.ГГГГ\n\nПример: 29.03.1976"
+        birth_date_validation.errorTitle = "Неверный формат даты"
+        birth_date_validation.prompt = "📅 Введите дату рождения в формате:\nДД.ММ.ГГГГ\n\nПримеры:\n• 29.03.1976\n• 15.05.1985\n• 01.01.1990"
+        birth_date_validation.promptTitle = "Дата рождения"
+        ws.add_data_validation(birth_date_validation)
+        birth_date_validation.add(f"C{data_start_row}:C{data_end_row}")
+
+        # Колонка J - Дата последнего медосмотра
+        exam_date_validation = DataValidation(
+            type="custom",
+            formula1='=AND(LEN(J5)=10, ISNUMBER(DATEVALUE(J5)))',
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        exam_date_validation.error = "❌ Введите дату в формате ДД.ММ.ГГГГ\n\nПример: 22.01.2024"
+        exam_date_validation.errorTitle = "Неверный формат даты"
+        exam_date_validation.prompt = "📅 Введите дату последнего медосмотра в формате:\nДД.ММ.ГГГГ\n\nПримеры:\n• 22.01.2024\n• 15.03.2023\n• 01.12.2024"
+        exam_date_validation.promptTitle = "Дата последнего медосмотра"
+        ws.add_data_validation(exam_date_validation)
+        exam_date_validation.add(f"J{data_start_row}:J{data_end_row}")
+
+        # 5) Валидация для текстовых полей с подсказками
+        # Колонка B - ФИО
+        fio_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        fio_validation.error = "❌ ФИО обязательно для заполнения"
+        fio_validation.errorTitle = "Пустое поле"
+        fio_validation.prompt = "👤 Введите полное ФИО сотрудника\n\nФормат: Фамилия Имя Отчество\n\nПримеры:\n• Иванов Иван Иванович\n• Петрова Мария Петровна"
+        fio_validation.promptTitle = "ФИО сотрудника"
+        ws.add_data_validation(fio_validation)
+        fio_validation.add(f"B{data_start_row}:B{data_end_row}")
+
+        # Колонка F - Объект или участок
+        department_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        department_validation.error = "❌ Объект или участок обязательны для заполнения"
+        department_validation.errorTitle = "Пустое поле"
+        department_validation.prompt = "🏢 Укажите место работы сотрудника\n\nПримеры:\n• ТОО \"Компания\" - Отдел продаж\n• Производственный участок №1\n• Административный корпус"
+        department_validation.promptTitle = "Объект или участок"
+        ws.add_data_validation(department_validation)
+        department_validation.add(f"F{data_start_row}:F{data_end_row}")
+
+        # Колонка G - Занимаемая должность
+        position_validation = DataValidation(
+            type="textLength",
+            operator="greaterThan",
+            formula1="0",
+            allow_blank=False,
+            showInputMessage=True,
+            showErrorMessage=True
+        )
+        position_validation.error = "❌ Должность обязательна для заполнения"
+        position_validation.errorTitle = "Пустое поле"
+        position_validation.prompt = "💼 Укажите должность сотрудника\n\nПримеры:\n• Оператор станков с ЧПУ\n• Главный бухгалтер\n• Инженер-технолог\n• Водитель погрузчика"
+        position_validation.promptTitle = "Занимаемая должность"
+        ws.add_data_validation(position_validation)
+        position_validation.add(f"G{data_start_row}:G{data_end_row}")
+
+        # Колонка L - Примечание (необязательное, только подсказка)
+        notes_validation = DataValidation(
+            type="textLength",
+            operator="lessThan",
+            formula1="1000",
+            allow_blank=True,
+            showInputMessage=True,
+            showErrorMessage=False
+        )
+        notes_validation.prompt = "📝 Дополнительная информация о сотруднике (необязательно)\n\nПримеры:\n• Работает по совместительству\n• Временно отсутствует\n• Находится в декретном отпуске"
+        notes_validation.promptTitle = "Примечание"
+        ws.add_data_validation(notes_validation)
+        notes_validation.add(f"L{data_start_row}:L{data_end_row}")
 
         # Скрываем справочные листы для удобства пользователя
         gender_sheet.sheet_state = "hidden"
