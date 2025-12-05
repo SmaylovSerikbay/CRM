@@ -106,10 +106,7 @@ export function Sidebar({ role }: SidebarProps) {
   const allClinicMenu: MenuItem[] = [
     { title: 'Дашборд', href: '/dashboard/clinic', icon: LayoutDashboard },
     { title: 'Договоры', href: '/dashboard/clinic/contracts', icon: FileText },
-    { title: 'Контингент', href: '/dashboard/clinic/contingent', icon: Users },
     { title: 'Врачи', href: '/dashboard/clinic/doctors', icon: Stethoscope },
-    { title: 'Календарный план', href: '/dashboard/clinic/calendar-plan', icon: Calendar },
-    { title: 'Маршрутные листы', href: '/dashboard/clinic/route-sheet', icon: FileText },
     { title: 'Электронная очередь', href: '/dashboard/clinic/queue', icon: Clock },
     { title: 'История осмотров', href: '/dashboard/clinic/patient-history', icon: Calendar },
     { title: 'Лабораторные исследования', href: '/dashboard/clinic/laboratory-tests', icon: FlaskConical },
@@ -127,10 +124,10 @@ export function Sidebar({ role }: SidebarProps) {
     if (!clinicRole) return allClinicMenu;
 
     const roleAccess: Record<ClinicUserRole, string[]> = {
-      manager: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/contingent', '/dashboard/clinic/doctors', '/dashboard/clinic/calendar-plan', '/dashboard/clinic/route-sheet', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/final-act', '/dashboard/clinic/health-plan', '/dashboard/clinic/referrals'],
-      profpathologist: ['/dashboard/clinic', '/dashboard/clinic/expertise', '/dashboard/clinic/medical-commission', '/dashboard/clinic/route-sheet', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/referrals'],
-      doctor: ['/dashboard/clinic', '/dashboard/clinic/medical-commission', '/dashboard/clinic/route-sheet', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
-      receptionist: ['/dashboard/clinic', '/dashboard/clinic/route-sheet', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/medical-commission', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
+      manager: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/doctors', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/final-act', '/dashboard/clinic/health-plan', '/dashboard/clinic/referrals'],
+      profpathologist: ['/dashboard/clinic', '/dashboard/clinic/expertise', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/referrals'],
+      doctor: ['/dashboard/clinic', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
+      receptionist: ['/dashboard/clinic', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/medical-commission', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
     };
 
     const allowedPaths = roleAccess[clinicRole];
