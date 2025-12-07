@@ -186,6 +186,12 @@ function EmployerContractsContent() {
         approvedByClinicAt: c.approved_by_clinic_at,
         sentAt: c.sent_at,
         executedAt: c.executed_at,
+        // Поля для двухэтапного исполнения
+        execution_type: c.execution_type,
+        executed_by_clinic_at: c.executed_by_clinic_at,
+        execution_notes: c.execution_notes,
+        confirmed_by_employer_at: c.confirmed_by_employer_at,
+        employer_rejection_reason: c.employer_rejection_reason,
       }));
       setContracts(mappedContracts);
       
@@ -244,19 +250,6 @@ function EmployerContractsContent() {
       loadContracts();
     } catch (error: any) {
       showToast(error.message || 'Ошибка отклонения договора', 'error');
-    }
-  };
-
-  const handleExecute = async (contractId: string) => {
-    if (!confirm('Отметить договор как исполненный?')) return;
-    
-    try {
-      await workflowStoreAPI.executeContract(contractId);
-      showToast('Договор отмечен как исполненный!', 'success');
-      loadContracts();
-      setSelectedContract(null);
-    } catch (error: any) {
-      showToast(error.message || 'Ошибка', 'error');
     }
   };
 
@@ -896,17 +889,6 @@ function EmployerContractsContent() {
                                   </Button>
                                 </>
                               )}
-                              {contract.status === 'approved' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleExecute(contract.id)}
-                                  variant="outline"
-                                  className="border-purple-300 text-purple-600 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400"
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Исполнить
-                                </Button>
-                              )}
                               {/* Кнопки подтверждения/отклонения исполнения */}
                               {contract.executed_by_clinic_at && !contract.confirmed_by_employer_at && !contract.employer_rejection_reason && (
                                 <>
@@ -1148,9 +1130,50 @@ function EmployerContractsContent() {
                                             </p>
                                           </div>
                                         )}
+                                        {/* Информация об исполнении */}
+                                        {contract.executed_by_clinic_at && (
+                                          <>
+                                            <div>
+                                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Отмечено клиникой как исполненное</p>
+                                              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                                {new Date(contract.executed_by_clinic_at).toLocaleString('ru-RU')}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Тип исполнения</p>
+                                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                                {contract.execution_type === 'full' ? '✅ Полное исполнение' : '⚠️ Частичное исполнение'}
+                                              </p>
+                                            </div>
+                                            {contract.execution_notes && (
+                                              <div className="col-span-full">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Примечания клиники к исполнению</p>
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                  {contract.execution_notes}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </>
+                                        )}
+                                        {contract.confirmed_by_employer_at && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Подтверждено работодателем</p>
+                                            <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                                              {new Date(contract.confirmed_by_employer_at).toLocaleString('ru-RU')}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {contract.employer_rejection_reason && (
+                                          <div className="col-span-full">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Причина отклонения исполнения</p>
+                                            <p className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                                              {contract.employer_rejection_reason}
+                                            </p>
+                                          </div>
+                                        )}
                                         {contract.notes && (
                                           <div className="col-span-full">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Примечания</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Примечания к договору</p>
                                             <p className="text-sm text-gray-700 dark:text-gray-300">{contract.notes}</p>
                                           </div>
                                         )}
