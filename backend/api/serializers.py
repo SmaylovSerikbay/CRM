@@ -36,7 +36,8 @@ class ContingentEmployeeSerializer(serializers.ModelSerializer):
         if obj.contract:
             if obj.contract.employer:
                 return obj.contract.employer.registration_data.get('name') if obj.contract.employer.registration_data else None
-            return obj.contract.employer_name
+            # Если employer не установлен, возвращаем None (имя можно получить только из связанного пользователя)
+            return None
         return None
     
     def get_route_sheet_info(self, obj):

@@ -4032,9 +4032,22 @@ class ContractViewSet(viewsets.ModelViewSet):
                     if employer_bin:
                         # Нормализуем БИН для поиска
                         bin_normalized = ''.join(str(employer_bin).strip().split())
-                        return Contract.objects.filter(
-                            Q(employer=user) | Q(employer_bin=bin_normalized) | Q(employer_bin=employer_bin)
-                        )
+                        
+                        # Ищем договоры по разным вариантам БИН
+                        # 1. employer = user (прямая связь)
+                        # 2. employer_bin совпадает с нормализованным БИН
+                        # 3. employer_bin совпадает с исходным БИН (на случай если в БД хранится с пробелами)
+                        contracts = Contract.objects.filter(
+                            Q(employer=user) | 
+                            Q(employer_bin=bin_normalized) | 
+                            Q(employer_bin=employer_bin) |
+                            Q(employer_bin=str(employer_bin).strip())
+                        ).distinct()
+                        
+                        print(f"[ContractViewSet] Employer {user.id} BIN: {employer_bin}, normalized: {bin_normalized}")
+                        print(f"[ContractViewSet] Found {contracts.count()} contracts")
+                        
+                        return contracts
                     else:
                         return Contract.objects.filter(employer=user)
                 # Клиника видит свои договоры
@@ -4074,8 +4087,12 @@ class ContractViewSet(viewsets.ModelViewSet):
                     # Нормализуем БИН
                     bin_normalized = ''.join(str(employer_bin).strip().split())
                     
+                    print(f"[ContractCreate] Searching for employer with BIN: {employer_bin}, normalized: {bin_normalized}")
+                    
                     # Ищем по полям 'bin' и 'inn' в registration_data
                     employers = User.objects.filter(role='employer')
+                    print(f"[ContractCreate] Total employers in DB: {employers.count()}")
+                    
                     for emp in employers:
                         reg_data = emp.registration_data or {}
                         emp_bin = str(reg_data.get('bin', '')).strip()
@@ -4087,12 +4104,19 @@ class ContractViewSet(viewsets.ModelViewSet):
                         
                         if emp_bin_normalized == bin_normalized or emp_inn_normalized == bin_normalized:
                             employer = emp
+                            print(f"[ContractCreate] Found employer: {emp.id}, name: {reg_data.get('name', 'N/A')}")
                             break
+                    
+                    if not employer:
+                        print(f"[ContractCreate] WARNING: Employer not found for BIN: {employer_bin}")
                 
                 # Добавляем clinic в данные для сериализатора
                 data['clinic'] = user.id
                 if employer:
                     data['employer'] = employer.id
+                    print(f"[ContractCreate] Contract will be linked to employer: {employer.id}")
+                else:
+                    print(f"[ContractCreate] Contract will be created without employer link, only with employer_bin: {employer_bin}")
                 # Устанавливаем is_subcontracted по умолчанию
                 if 'is_subcontracted' not in data:
                     data['is_subcontracted'] = False

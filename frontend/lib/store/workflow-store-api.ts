@@ -193,8 +193,7 @@ class WorkflowStoreAPI {
     await apiClient.deleteAllContingentEmployees(userId);
   }
 
-  async updateContingentEmployee(employeeId: string, data: Partial<ContingentEmployee>): Promise<ContingentEmployee> {
-    const userId = this.getUserId();
+  async updateContingentEmployee(userId: string, employeeId: string, data: Partial<ContingentEmployee>): Promise<ContingentEmployee> {
     // Преобразуем camelCase в snake_case для бэкенда
     const backendData: any = {};
     if (data.name !== undefined) backendData.name = data.name;
@@ -228,6 +227,10 @@ class WorkflowStoreAPI {
       positionExperienceYears: updated.position_experience_years,
       notes: updated.notes,
       quarter: updated.quarter,
+      contractId: updated.contract ? updated.contract.toString() : undefined,
+      contractNumber: updated.contract_number || undefined,
+      employerName: updated.employer_name || undefined,
+      routeSheetInfo: updated.route_sheet_info || undefined,
     };
   }
 
@@ -270,6 +273,9 @@ class WorkflowStoreAPI {
       notes: created.notes,
       quarter: created.quarter,
       contractId: created.contract ? created.contract.toString() : undefined,
+      contractNumber: created.contract_number || undefined,
+      employerName: created.employer_name || undefined,
+      routeSheetInfo: created.route_sheet_info || undefined,
     };
   }
 
