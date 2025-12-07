@@ -1277,7 +1277,8 @@ export default function ContractsPage() {
     }
     
     try {
-      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingEmployee, editData);
+      const user = userStore.getCurrentUser();
+      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(user?.id || '', editingEmployee, editData);
       
       // Обновляем только конкретную запись в списке, сохраняя порядок
       setContingent(prevContingent => 
