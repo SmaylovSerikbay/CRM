@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { 
   FileText, CheckCircle, Clock, Send, X, Download, Upload, History, 
-  Search, Filter, Building2, Calendar, Users, DollarSign, ChevronRight,
+  Search, Filter, Building2, Calendar, Users, DollarSign, ChevronRight, ChevronDown, ChevronLeft,
   AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, Eye, MoreVertical, Route, FileCheck
 } from 'lucide-react';
 import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
@@ -123,6 +123,9 @@ function EmployerContractsContent() {
   const [showContractDrawer, setShowContractDrawer] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'contingent' | 'plan' | 'route'>('contingent');
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+  const [expandedDepartment, setExpandedDepartment] = useState<string | null>(null);
+  const [departmentEmployeeSearch, setDepartmentEmployeeSearch] = useState<Record<string, string>>({});
+  const [departmentEmployeePage, setDepartmentEmployeePage] = useState<Record<string, number>>({});
   const [routeSheetSearch, setRouteSheetSearch] = useState('');
   const [routeSheetDateFilter, setRouteSheetDateFilter] = useState('');
   const [expandedRouteSheet, setExpandedRouteSheet] = useState<string | null>(null);
@@ -304,6 +307,10 @@ function EmployerContractsContent() {
       approved: hasApproved,
       completed: hasContingent && hasPlan && hasApproved,
     };
+  };
+
+  const getEmployeesByIds = (employeeIds: string[]): ContingentEmployee[] => {
+    return contingent.filter(emp => employeeIds.includes(emp.id));
   };
 
   const handleOpenContractDrawer = (contractId: string) => {
@@ -1524,27 +1531,163 @@ function EmployerContractsContent() {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                               Участки и даты
                                             </label>
-                                            <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                            <div className="space-y-3 max-h-[600px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                               {plan.departmentsInfo.map((dept: any, idx: number) => {
                                                 const startDateObj = dept.startDate ? new Date(dept.startDate) : null;
                                                 const endDateObj = dept.endDate ? new Date(dept.endDate) : null;
                                                 const isValidStartDate = startDateObj && !isNaN(startDateObj.getTime());
                                                 const isValidEndDate = endDateObj && !isNaN(endDateObj.getTime());
                                                 const employeeIds = dept.employeeIds || [];
+                                                const deptKey = `${plan.id}-${idx}`;
+                                                const isExpanded = expandedDepartment === deptKey;
+                                                const employees = getEmployeesByIds(employeeIds);
+                                                
+                                                // Поиск и пагинация
+                                                const searchQuery = departmentEmployeeSearch[deptKey] || '';
+                                                const filteredEmployees = employees.filter(emp => 
+                                                  emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                  emp.iin.includes(searchQuery) ||
+                                                  emp.position.toLowerCase().includes(searchQuery.toLowerCase())
+                                                );
+                                                const currentPage = departmentEmployeePage[deptKey] || 1;
+                                                const itemsPerPage = 20;
+                                                const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+                                                const startIdx = (currentPage - 1) * itemsPerPage;
+                                                const paginatedEmployees = filteredEmployees.slice(startIdx, startIdx + itemsPerPage);
                                                 
                                                 return (
-                                                  <div key={idx} className="p-2 bg-white dark:bg-gray-900 rounded">
-                                                    <p className="font-medium text-sm">{dept.department}</p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                                                      {isValidStartDate && isValidEndDate
-                                                        ? `${startDateObj.toLocaleDateString('ru-RU')} - ${endDateObj.toLocaleDateString('ru-RU')}`
-                                                        : dept.startDate && dept.endDate
-                                                        ? `${dept.startDate} - ${dept.endDate}`
-                                                        : 'Даты не указаны'}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                                                      Сотрудников: {Array.isArray(employeeIds) ? employeeIds.length : 0}
-                                                    </p>
+                                                  <div key={idx} className="p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <div className="flex-1">
+                                                        <p className="font-medium text-sm">{dept.department}</p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                          {isValidStartDate && isValidEndDate
+                                                            ? `${startDateObj.toLocaleDateString('ru-RU')} - ${endDateObj.toLocaleDateString('ru-RU')}`
+                                                            : dept.startDate && dept.endDate
+                                                            ? `${dept.startDate} - ${dept.endDate}`
+                                                            : 'Даты не указаны'}
+                                                        </p>
+                                                      </div>
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setExpandedDepartment(isExpanded ? null : deptKey)}
+                                                        className="ml-2"
+                                                      >
+                                                        {isExpanded ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                                                        Сотрудников: {employeeIds.length}
+                                                      </Button>
+                                                    </div>
+                                                    
+                                                    {isExpanded && (
+                                                      <div className="mt-3 space-y-2">
+                                                        {/* Поиск */}
+                                                        {employeeIds.length > 10 && (
+                                                          <div className="flex items-center gap-2">
+                                                            <Input
+                                                              type="text"
+                                                              placeholder="Поиск по ФИО, ИИН, должности..."
+                                                              value={searchQuery}
+                                                              onChange={(e) => {
+                                                                setDepartmentEmployeeSearch({
+                                                                  ...departmentEmployeeSearch,
+                                                                  [deptKey]: e.target.value
+                                                                });
+                                                                setDepartmentEmployeePage({
+                                                                  ...departmentEmployeePage,
+                                                                  [deptKey]: 1
+                                                                });
+                                                              }}
+                                                              className="flex-1"
+                                                            />
+                                                            {searchQuery && (
+                                                              <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                  setDepartmentEmployeeSearch({
+                                                                    ...departmentEmployeeSearch,
+                                                                    [deptKey]: ''
+                                                                  });
+                                                                }}
+                                                              >
+                                                                <X className="h-4 w-4" />
+                                                              </Button>
+                                                            )}
+                                                          </div>
+                                                        )}
+                                                        
+                                                        {/* Список сотрудников */}
+                                                        {paginatedEmployees.length > 0 ? (
+                                                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                            <table className="w-full text-xs">
+                                                              <thead className="bg-gray-100 dark:bg-gray-800">
+                                                                <tr>
+                                                                  <th className="px-2 py-2 text-left">ФИО</th>
+                                                                  <th className="px-2 py-2 text-left">ИИН</th>
+                                                                  <th className="px-2 py-2 text-left">Должность</th>
+                                                                  <th className="px-2 py-2 text-left">Дата рождения</th>
+                                                                </tr>
+                                                              </thead>
+                                                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                                                {paginatedEmployees.map((emp) => (
+                                                                  <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                    <td className="px-2 py-2">{emp.name}</td>
+                                                                    <td className="px-2 py-2">{emp.iin}</td>
+                                                                    <td className="px-2 py-2">{emp.position}</td>
+                                                                    <td className="px-2 py-2">{emp.birthDate}</td>
+                                                                  </tr>
+                                                                ))}
+                                                              </tbody>
+                                                            </table>
+                                                          </div>
+                                                        ) : (
+                                                          <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
+                                                            {searchQuery ? 'Сотрудники не найдены' : 'Нет сотрудников'}
+                                                          </p>
+                                                        )}
+                                                        
+                                                        {/* Пагинация */}
+                                                        {totalPages > 1 && (
+                                                          <div className="flex items-center justify-between pt-2">
+                                                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                              Показано {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredEmployees.length)} из {filteredEmployees.length}
+                                                            </p>
+                                                            <div className="flex items-center gap-1">
+                                                              <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                  setDepartmentEmployeePage({
+                                                                    ...departmentEmployeePage,
+                                                                    [deptKey]: Math.max(1, currentPage - 1)
+                                                                  });
+                                                                }}
+                                                                disabled={currentPage === 1}
+                                                              >
+                                                                <ChevronLeft className="h-3 w-3" />
+                                                              </Button>
+                                                              <span className="text-xs px-2">
+                                                                {currentPage} / {totalPages}
+                                                              </span>
+                                                              <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                  setDepartmentEmployeePage({
+                                                                    ...departmentEmployeePage,
+                                                                    [deptKey]: Math.min(totalPages, currentPage + 1)
+                                                                  });
+                                                                }}
+                                                                disabled={currentPage === totalPages}
+                                                              >
+                                                                <ChevronRight className="h-3 w-3" />
+                                                              </Button>
+                                                            </div>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    )}
                                                   </div>
                                                 );
                                               })}
