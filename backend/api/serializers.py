@@ -321,26 +321,44 @@ class ContractSerializer(serializers.ModelSerializer):
     def get_clinic_name(self, obj):
         # Если договор передан на субподряд, показываем оригинальную клинику
         # чтобы работодатель всегда видел клинику, с которой он заключал договор
-        if obj.is_subcontracted and obj.original_clinic:
-            return obj.original_clinic.registration_data.get('name', '') if obj.original_clinic.registration_data else ''
-        # Иначе показываем текущую клинику
-        return obj.clinic.registration_data.get('name', '') if obj.clinic and obj.clinic.registration_data else ''
+        try:
+            if obj.is_subcontracted and obj.original_clinic:
+                if obj.original_clinic.registration_data and isinstance(obj.original_clinic.registration_data, dict):
+                    return obj.original_clinic.registration_data.get('name', '')
+                return ''
+            # Иначе показываем текущую клинику
+            if obj.clinic and obj.clinic.registration_data and isinstance(obj.clinic.registration_data, dict):
+                return obj.clinic.registration_data.get('name', '')
+            return ''
+        except (AttributeError, TypeError):
+            return ''
     
     def get_employer_name(self, obj):
         """Получаем имя работодателя"""
-        return obj.employer.registration_data.get('name', '') if obj.employer and obj.employer.registration_data else None
+        try:
+            if obj.employer and obj.employer.registration_data and isinstance(obj.employer.registration_data, dict):
+                return obj.employer.registration_data.get('name', '')
+            return None
+        except (AttributeError, TypeError):
+            return None
     
     def get_original_clinic_name(self, obj):
         """Получаем имя оригинальной клиники"""
-        if obj.original_clinic and obj.original_clinic.registration_data:
-            return obj.original_clinic.registration_data.get('name', '')
-        return None
+        try:
+            if obj.original_clinic and obj.original_clinic.registration_data and isinstance(obj.original_clinic.registration_data, dict):
+                return obj.original_clinic.registration_data.get('name', '')
+            return None
+        except (AttributeError, TypeError):
+            return None
     
     def get_subcontractor_clinic_name(self, obj):
         """Получаем имя клиники-субподрядчика"""
-        if obj.subcontractor_clinic and obj.subcontractor_clinic.registration_data:
-            return obj.subcontractor_clinic.registration_data.get('name', '')
-        return None
+        try:
+            if obj.subcontractor_clinic and obj.subcontractor_clinic.registration_data and isinstance(obj.subcontractor_clinic.registration_data, dict):
+                return obj.subcontractor_clinic.registration_data.get('name', '')
+            return None
+        except (AttributeError, TypeError):
+            return None
     
     def to_representation(self, instance):
         """Кастомная логика для скрытия данных от субподрядчика"""
