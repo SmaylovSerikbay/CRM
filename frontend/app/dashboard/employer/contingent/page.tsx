@@ -220,7 +220,8 @@ export default function ContingentPage() {
     }
     
     try {
-      await workflowStoreAPI.updateContingentEmployee(userStore.user?.id || '', editingId, editData);
+      const user = userStore.getCurrentUser();
+      await workflowStoreAPI.updateContingentEmployee(user?.id || '', editingId, editData);
       
       // Обновляем список сотрудников
       const updated = await workflowStoreAPI.getContingent();
