@@ -420,6 +420,15 @@ class Contract(models.Model):
     approved_by_clinic_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата согласования клиникой')
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата отправки')
     executed_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата исполнения')
+    # Поля для двухэтапного исполнения договора
+    execution_type = models.CharField(max_length=20, null=True, blank=True, choices=[
+        ('full', 'Полное исполнение'),
+        ('partial', 'Частичное исполнение'),
+    ], verbose_name='Тип исполнения', help_text='Тип исполнения, указанный клиникой')
+    executed_by_clinic_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата отметки исполнения клиникой')
+    execution_notes = models.TextField(blank=True, verbose_name='Примечания к исполнению', help_text='Примечания клиники при отметке исполнения')
+    confirmed_by_employer_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата подтверждения работодателем')
+    employer_rejection_reason = models.TextField(blank=True, verbose_name='Причина отклонения работодателем', help_text='Причина отклонения исполнения работодателем')
     # Поля для субподряда
     SUBCONTRACT_STATUS_CHOICES = [
         ('pending', 'Ожидает подтверждения'),

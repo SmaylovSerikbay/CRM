@@ -84,6 +84,12 @@ interface Contract {
   sentAt?: string;
   executedAt?: string;
   history?: any[];
+  // Поля для двухэтапного исполнения
+  execution_type?: 'full' | 'partial';
+  executed_by_clinic_at?: string;
+  execution_notes?: string;
+  confirmed_by_employer_at?: string;
+  employer_rejection_reason?: string;
 }
 
 interface ContractHistoryItem {
@@ -900,6 +906,68 @@ function EmployerContractsContent() {
                                   <CheckCircle className="h-4 w-4 mr-1" />
                                   Исполнить
                                 </Button>
+                              )}
+                              {/* Кнопки подтверждения/отклонения исполнения */}
+                              {contract.executed_by_clinic_at && !contract.confirmed_by_employer_at && !contract.employer_rejection_reason && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (confirm('Подтвердить исполнение договора?')) {
+                                        try {
+                                          await workflowStoreAPI.confirmExecutionByEmployer(contract.id);
+                                          showToast('Исполнение договора подтверждено', 'success');
+                                          loadContracts();
+                                        } catch (error: any) {
+                                          showToast(error.message || 'Ошибка подтверждения', 'error');
+                                        }
+                                      }
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Подтвердить исполнение
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const reason = prompt('Укажите причину отклонения исполнения:');
+                                      if (reason && reason.trim()) {
+                                        workflowStoreAPI.rejectExecutionByEmployer(contract.id, reason)
+                                          .then(() => {
+                                            showToast('Исполнение отклонено', 'success');
+                                            loadContracts();
+                                          })
+                                          .catch((error: any) => {
+                                            showToast(error.message || 'Ошибка отклонения', 'error');
+                                          });
+                                      }
+                                    }}
+                                    className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-1" />
+                                    Отклонить исполнение
+                                  </Button>
+                                </>
+                              )}
+                              {/* Индикатор подтверждения исполнения */}
+                              {contract.confirmed_by_employer_at && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  <span className="text-xs text-green-700 dark:text-green-300">
+                                    Исполнение подтверждено
+                                  </span>
+                                </div>
+                              )}
+                              {/* Индикатор отклонения исполнения */}
+                              {contract.employer_rejection_reason && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                  <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                  <span className="text-xs text-red-700 dark:text-red-300">
+                                    Исполнение отклонено
+                                  </span>
+                                </div>
                               )}
                               {/* Кнопка для утвержденных и исполненных договоров */}
                               {(contract.status === 'approved' || contract.status === 'executed') && (

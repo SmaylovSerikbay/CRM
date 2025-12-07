@@ -5006,6 +5006,206 @@ class ContractViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(contract)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def mark_executed_by_clinic(self, request, pk=None):
+        """Клиника отмечает договор как исполненный (полностью или частично)"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        execution_type = request.data.get('execution_type')  # 'full' или 'partial'
+        execution_notes = request.data.get('execution_notes', '')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not execution_type or execution_type not in ['full', 'partial']:
+            return Response({'error': 'execution_type is required and must be "full" or "partial"'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Только клиника может отметить исполнение
+            if user != contract.clinic:
+                return Response({'error': 'Only clinic can mark contract as executed'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Договор должен быть в статусе 'active' или 'in_progress'
+            if contract.status not in ['active', 'in_progress', 'partially_executed']:
+                return Response({'error': f'Cannot mark contract as executed in status {contract.status}'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            old_status = contract.status
+            
+            # Обновляем поля
+            contract.execution_type = execution_type
+            contract.executed_by_clinic_at = timezone.now()
+            contract.execution_notes = execution_notes
+            
+            # Меняем статус на "ожидает подтверждения работодателем"
+            # Используем существующий статус 'partially_executed' для частичного исполнения
+            # и 'executed' для полного, но добавляем флаг что ждем подтверждения
+            if execution_type == 'partial':
+                contract.status = 'partially_executed'
+            else:
+                contract.status = 'executed'
+            
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            execution_type_label = 'Полное исполнение' if execution_type == 'full' else 'Частичное исполнение'
+            ContractHistory.objects.create(
+                contract=contract,
+                action='executed',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=old_status,
+                new_status=contract.status,
+                comment=f'Клиника отметила договор как исполненный. Тип: {execution_type_label}. {execution_notes}'
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def confirm_execution_by_employer(self, request, pk=None):
+        """Работодатель подтверждает исполнение договора"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Проверяем, является ли пользователь работодателем
+            is_employer = False
+            if user.role == 'employer':
+                if contract.employer and user == contract.employer:
+                    is_employer = True
+                elif contract.employer_bin:
+                    reg_data = user.registration_data or {}
+                    user_bin = reg_data.get('bin') or reg_data.get('inn')
+                    if user_bin:
+                        contract_bin_normalized = ''.join(str(contract.employer_bin).strip().split())
+                        user_bin_normalized = ''.join(str(user_bin).strip().split())
+                        if contract_bin_normalized == user_bin_normalized:
+                            is_employer = True
+                            if not contract.employer:
+                                contract.employer = user
+            
+            if not is_employer:
+                return Response({'error': 'Only employer can confirm execution'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Договор должен быть отмечен клиникой как исполненный
+            if not contract.executed_by_clinic_at:
+                return Response({'error': 'Contract must be marked as executed by clinic first'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что еще не подтверждено и не отклонено
+            if contract.confirmed_by_employer_at:
+                return Response({'error': 'Contract execution already confirmed by employer'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if contract.employer_rejection_reason:
+                return Response({'error': 'Contract execution was rejected by employer'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            old_status = contract.status
+            
+            # Подтверждаем исполнение
+            contract.confirmed_by_employer_at = timezone.now()
+            # Статус остается 'executed' или 'partially_executed' в зависимости от типа исполнения
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='executed',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=old_status,
+                new_status=contract.status,
+                comment='Работодатель подтвердил исполнение договора'
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def reject_execution_by_employer(self, request, pk=None):
+        """Работодатель отклоняет исполнение договора с указанием причины"""
+        contract = self.get_object()
+        user_id = request.data.get('user_id')
+        rejection_reason = request.data.get('rejection_reason', '')
+        
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not rejection_reason:
+            return Response({'error': 'rejection_reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Проверяем, является ли пользователь работодателем
+            is_employer = False
+            if user.role == 'employer':
+                if contract.employer and user == contract.employer:
+                    is_employer = True
+                elif contract.employer_bin:
+                    reg_data = user.registration_data or {}
+                    user_bin = reg_data.get('bin') or reg_data.get('inn')
+                    if user_bin:
+                        contract_bin_normalized = ''.join(str(contract.employer_bin).strip().split())
+                        user_bin_normalized = ''.join(str(user_bin).strip().split())
+                        if contract_bin_normalized == user_bin_normalized:
+                            is_employer = True
+                            if not contract.employer:
+                                contract.employer = user
+            
+            if not is_employer:
+                return Response({'error': 'Only employer can reject execution'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Договор должен быть отмечен клиникой как исполненный
+            if not contract.executed_by_clinic_at:
+                return Response({'error': 'Contract must be marked as executed by clinic first'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Проверяем что еще не подтверждено и не отклонено
+            if contract.confirmed_by_employer_at:
+                return Response({'error': 'Contract execution already confirmed by employer'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if contract.employer_rejection_reason:
+                return Response({'error': 'Contract execution already rejected by employer'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            old_status = contract.status
+            
+            # Отклоняем исполнение
+            contract.employer_rejection_reason = rejection_reason
+            # Возвращаем статус обратно в 'in_progress'
+            contract.status = 'in_progress'
+            contract.save()
+            
+            # Создаем запись в истории
+            user_name = user.registration_data.get('name', '') if user.registration_data else ''
+            ContractHistory.objects.create(
+                contract=contract,
+                action='rejected',
+                user=user,
+                user_role=user.role,
+                user_name=user_name,
+                old_status=old_status,
+                new_status='in_progress',
+                comment=f'Работодатель отклонил исполнение договора. Причина: {rejection_reason}'
+            )
+            
+            serializer = self.get_serializer(contract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 

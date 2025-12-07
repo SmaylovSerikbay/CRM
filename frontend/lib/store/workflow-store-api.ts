@@ -880,6 +880,21 @@ class WorkflowStoreAPI {
     const userId = this.getUserId();
     await apiClient.executeContract(contractId, userId);
   }
+
+  async markExecutedByClinic(contractId: string, executionType: 'full' | 'partial', executionNotes: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.markExecutedByClinic(contractId, userId, executionType, executionNotes);
+  }
+
+  async confirmExecutionByEmployer(contractId: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.confirmExecutionByEmployer(contractId, userId);
+  }
+
+  async rejectExecutionByEmployer(contractId: string, rejectionReason: string): Promise<void> {
+    const userId = this.getUserId();
+    await apiClient.rejectExecutionByEmployer(contractId, userId, rejectionReason);
+  }
 }
 
 export const workflowStoreAPI = new WorkflowStoreAPI();

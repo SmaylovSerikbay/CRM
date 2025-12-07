@@ -361,6 +361,34 @@ class ApiClient {
     });
   }
 
+  async markExecutedByClinic(contractId: string, userId: string, executionType: 'full' | 'partial', executionNotes: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/mark_executed_by_clinic/`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        user_id: userId,
+        execution_type: executionType,
+        execution_notes: executionNotes
+      }),
+    });
+  }
+
+  async confirmExecutionByEmployer(contractId: string, userId: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/confirm_execution_by_employer/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  async rejectExecutionByEmployer(contractId: string, userId: string, rejectionReason: string): Promise<any> {
+    return this.request(`/contracts/${contractId}/reject_execution_by_employer/`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        user_id: userId,
+        rejection_reason: rejectionReason
+      }),
+    });
+  }
+
   async getHarmfulFactorsList(): Promise<string[]> {
     // Список вредных факторов согласно приказу №131
     return [

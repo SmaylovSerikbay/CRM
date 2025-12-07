@@ -86,6 +86,12 @@ interface Contract {
   subcontractor_clinic_name?: string;
   subcontracted_at?: string;
   subcontract_rejection_reason?: string;
+  // Поля для двухэтапного исполнения
+  execution_type?: 'full' | 'partial';
+  executed_by_clinic_at?: string;
+  execution_notes?: string;
+  confirmed_by_employer_at?: string;
+  employer_rejection_reason?: string;
 }
 
 interface ContractHistoryItem {
@@ -187,6 +193,12 @@ export default function ContractsPage() {
   const [searchingSubcontractBin, setSearchingSubcontractBin] = useState(false);
   const [foundSubcontractClinic, setFoundSubcontractClinic] = useState<any>(null);
   const [subcontractBinSearched, setSubcontractBinSearched] = useState(false);
+  
+  // Состояния для отметки исполнения
+  const [showExecutionModal, setShowExecutionModal] = useState<string | null>(null);
+  const [executionType, setExecutionType] = useState<'full' | 'partial'>('full');
+  const [executionNotes, setExecutionNotes] = useState('');
+  const [isMarkingExecution, setIsMarkingExecution] = useState(false);
   
   const [formData, setFormData] = useState({
     employer_bin: '',
@@ -360,6 +372,27 @@ export default function ContractsPage() {
       loadContracts();
     } catch (error: any) {
       showToast(error.message || 'Ошибка отклонения субподряда', 'error');
+    }
+  };
+
+  const handleMarkExecution = async () => {
+    if (!showExecutionModal) {
+      showToast('Ошибка: договор не выбран', 'error');
+      return;
+    }
+
+    setIsMarkingExecution(true);
+    try {
+      await workflowStoreAPI.markExecutedByClinic(showExecutionModal, executionType, executionNotes);
+      showToast(`Договор отмечен как ${executionType === 'full' ? 'полностью' : 'частично'} исполненный. Ожидается подтверждение работодателя.`, 'success');
+      setShowExecutionModal(null);
+      setExecutionType('full');
+      setExecutionNotes('');
+      loadContracts();
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка отметки исполнения', 'error');
+    } finally {
+      setIsMarkingExecution(false);
     }
   };
 
@@ -2907,6 +2940,44 @@ export default function ContractsPage() {
                           </div>
                         </Button>
                       )}
+                      {/* Кнопка отметки исполнения - только для активных договоров, которые еще не отмечены как исполненные */}
+                      {(contract.status === 'active' || contract.status === 'in_progress') && !contract.executed_by_clinic_at && (
+                        <Button
+                          size="sm"
+                          onClick={() => setShowExecutionModal(contract.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Отметить исполнение
+                        </Button>
+                      )}
+                      {/* Индикатор ожидания подтверждения работодателем */}
+                      {contract.executed_by_clinic_at && !contract.confirmed_by_employer_at && !contract.employer_rejection_reason && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                          <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                          <span className="text-xs text-yellow-700 dark:text-yellow-300">
+                            Ожидает подтверждения работодателя
+                          </span>
+                        </div>
+                      )}
+                      {/* Индикатор подтверждения работодателем */}
+                      {contract.confirmed_by_employer_at && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <span className="text-xs text-green-700 dark:text-green-300">
+                            Подтверждено работодателем
+                          </span>
+                        </div>
+                      )}
+                      {/* Индикатор отклонения работодателем */}
+                      {contract.employer_rejection_reason && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                          <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          <span className="text-xs text-red-700 dark:text-red-300">
+                            Отклонено работодателем
+                          </span>
+                        </div>
+                      )}
                       {/* Кнопка передачи на субподряд - только для договоров, которые еще не переданы */}
                       {!contract.is_subcontracted && (contract.status === 'approved' || contract.status === 'active' || contract.status === 'in_progress') && (
                         <Button
@@ -4128,6 +4199,108 @@ export default function ContractsPage() {
                 <>
                   <Handshake className="h-4 w-4 mr-2" />
                   Передать на субподряд
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Модальное окно для отметки исполнения */}
+      <Modal
+        isOpen={showExecutionModal !== null}
+        onClose={() => {
+          setShowExecutionModal(null);
+          setExecutionType('full');
+          setExecutionNotes('');
+        }}
+        title="Отметить исполнение договора"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              После отметки исполнения договор будет отправлен работодателю на подтверждение. 
+              Работодатель сможет подтвердить или отклонить исполнение с указанием причины.
+            </p>
+          </div>
+
+          {/* Тип исполнения */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Тип исполнения <span className="text-red-500">*</span>
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center p-3 border border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <input
+                  type="radio"
+                  name="executionType"
+                  value="full"
+                  checked={executionType === 'full'}
+                  onChange={(e) => setExecutionType(e.target.value as 'full' | 'partial')}
+                  className="mr-3"
+                />
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Полное исполнение</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Все работы по договору выполнены</p>
+                </div>
+              </label>
+              <label className="flex items-center p-3 border border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <input
+                  type="radio"
+                  name="executionType"
+                  value="partial"
+                  checked={executionType === 'partial'}
+                  onChange={(e) => setExecutionType(e.target.value as 'full' | 'partial')}
+                  className="mr-3"
+                />
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Частичное исполнение</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Часть работ выполнена, остальные в процессе</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Примечания */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Примечания
+            </label>
+            <textarea
+              value={executionNotes}
+              onChange={(e) => setExecutionNotes(e.target.value)}
+              placeholder="Укажите детали исполнения, количество обследованных сотрудников и другую важную информацию..."
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
+              rows={4}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowExecutionModal(null);
+                setExecutionType('full');
+                setExecutionNotes('');
+              }}
+              disabled={isMarkingExecution}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleMarkExecution}
+              disabled={isMarkingExecution}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isMarkingExecution ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Отправка...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Отметить исполнение
                 </>
               )}
             </Button>

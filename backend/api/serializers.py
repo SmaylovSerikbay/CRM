@@ -370,7 +370,7 @@ class ContractSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contract
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_by_employer_at', 'approved_by_clinic_at', 'sent_at', 'executed_at', 'subcontracted_at', 'subcontract_accepted_at', 'subcontract_rejected_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_by_employer_at', 'approved_by_clinic_at', 'sent_at', 'executed_at', 'subcontracted_at', 'subcontract_accepted_at', 'subcontract_rejected_at', 'executed_by_clinic_at', 'confirmed_by_employer_at']
         extra_kwargs = {
             'employer': {'required': False, 'allow_null': True},
             'clinic': {'required': False, 'allow_null': True},
