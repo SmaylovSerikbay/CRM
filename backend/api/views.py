@@ -1847,15 +1847,21 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         # Выполняем стандартное обновление
         response = super().update(request, *args, **kwargs)
         
+        # Получаем обновленный объект из базы данных
+        updated_instance = self.get_object()
+        actual_new_status = updated_instance.status
+        
         # Если статус изменился на 'approved', создаем маршрутные листы
-        if old_status != 'approved' and new_status == 'approved':
+        if old_status != 'approved' and actual_new_status == 'approved':
             try:
-                plan = self.get_object()
-                self._create_route_sheets_for_plan(plan)
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Creating route sheets for calendar plan {updated_instance.id} (status changed from {old_status} to {actual_new_status})")
+                self._create_route_sheets_for_plan(updated_instance)
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error creating route sheets for calendar plan {instance.id}: {str(e)}")
+                logger.error(f"Error creating route sheets for calendar plan {updated_instance.id}: {str(e)}", exc_info=True)
                 # Не прерываем обновление плана, даже если создание маршрутных листов не удалось
         
         return response
@@ -1869,15 +1875,21 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         # Выполняем стандартное частичное обновление
         response = super().partial_update(request, *args, **kwargs)
         
+        # Получаем обновленный объект из базы данных
+        updated_instance = self.get_object()
+        actual_new_status = updated_instance.status
+        
         # Если статус изменился на 'approved', создаем маршрутные листы
-        if old_status != 'approved' and new_status == 'approved':
+        if old_status != 'approved' and actual_new_status == 'approved':
             try:
-                plan = self.get_object()
-                self._create_route_sheets_for_plan(plan)
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Creating route sheets for calendar plan {updated_instance.id} (status changed from {old_status} to {actual_new_status})")
+                self._create_route_sheets_for_plan(updated_instance)
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error creating route sheets for calendar plan {instance.id}: {str(e)}")
+                logger.error(f"Error creating route sheets for calendar plan {updated_instance.id}: {str(e)}", exc_info=True)
         
         return response
     
@@ -1907,10 +1919,18 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
     def _create_route_sheets_for_plan(self, plan):
         """Автоматическое создание маршрутных листов для всех сотрудников календарного плана после согласования"""
         from datetime import datetime, timedelta
+        import logging
+        import json
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"Starting route sheets creation for calendar plan {plan.id}")
         
         clinic_user = plan.user
         if not clinic_user or clinic_user.role != 'clinic':
+            logger.warning(f"Plan {plan.id} user is not a clinic user: {clinic_user}")
             return
+        
+        logger.info(f"Clinic user: {clinic_user.id}, role: {clinic_user.role}")
         
         # Получаем список врачей из календарного плана
         selected_doctor_ids = plan.selected_doctors or []
@@ -1936,8 +1956,18 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 'employeeIds': plan.employee_ids or [],
             }]
         
+        logger.info(f"Processing {len(departments_info)} departments for plan {plan.id}")
+        
         harmful_factors = plan.harmful_factors or []
         created_count = 0
+        
+        # Проверяем, что есть сотрудники для обработки
+        total_employee_ids = set()
+        for dept_info in departments_info:
+            employee_ids = dept_info.get('employeeIds') or dept_info.get('employee_ids', [])
+            total_employee_ids.update([str(eid) for eid in employee_ids])
+        
+        logger.info(f"Total unique employee IDs in plan: {len(total_employee_ids)}, IDs: {list(total_employee_ids)}")
         
         # Создаем маршрутные листы для каждого участка
         for dept_info in departments_info:
@@ -1945,6 +1975,8 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             start_date_str = dept_info.get('startDate') or dept_info.get('start_date', '')
             end_date_str = dept_info.get('endDate') or dept_info.get('end_date', '')
             employee_ids = dept_info.get('employeeIds') or dept_info.get('employee_ids', [])
+            
+            logger.info(f"Processing department {department}, employee_ids from plan: {employee_ids}, types: {[type(eid).__name__ for eid in employee_ids]}")
             
             # Парсим даты
             try:
@@ -1961,10 +1993,31 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 continue
             
             # Получаем сотрудников этого участка
+            # Преобразуем employee_ids в строки и числа для поиска
+            employee_ids_str = [str(eid) for eid in employee_ids]
+            employee_ids_int = []
+            for eid in employee_ids:
+                try:
+                    employee_ids_int.append(int(eid))
+                except (ValueError, TypeError):
+                    pass
+            
+            logger.info(f"Searching for employees with IDs: str={employee_ids_str}, int={employee_ids_int}")
+            
+            # Ищем сотрудников по ID независимо от роли пользователя
+            # Сотрудники могут быть загружены как работодателем, так и клиникой по договору
             employees = ContingentEmployee.objects.filter(
-                id__in=[str(eid) for eid in employee_ids],
-                user__role='employer'
+                Q(id__in=employee_ids_str) | Q(id__in=employee_ids_int)
             )
+            
+            logger.info(f"Found {employees.count()} employees for department {department} (searching for {len(employee_ids)} IDs)")
+            
+            if employees.count() > 0:
+                logger.info(f"Employee details: IDs={[str(e.id) for e in employees]}, Users={[e.user.id if e.user else 'no user' for e in employees]}, Roles={[e.user.role if e.user else 'no user' for e in employees]}")
+            else:
+                # Если не найдены, проверяем, существуют ли такие ID вообще
+                all_employees_check = ContingentEmployee.objects.all()
+                logger.warning(f"No employees found. Total employees in DB: {all_employees_check.count()}, Sample IDs: {[str(e.id) for e in all_employees_check[:5]]}")
             
             # Создаем маршрутный лист для каждого сотрудника на дату начала периода
             for employee in employees:
@@ -2027,10 +2080,10 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
                 route_sheet_viewset._create_required_tests(route_sheet, employee.position, harmful_factors_emp)
                 
                 created_count += 1
+                logger.info(f"Created route sheet ID {route_sheet.id} for employee {employee.id} ({employee.name}) on {start_date}, patient_id={route_sheet.patient_id}")
         
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Created {created_count} route sheets for calendar plan {plan.id}")
+        total_employees_in_plan = sum(len(dept_info.get('employeeIds') or dept_info.get('employee_ids', [])) for dept_info in departments_info)
+        logger.info(f"Successfully created {created_count} route sheets for calendar plan {plan.id} (total employees in plan: {total_employees_in_plan})")
     
     def perform_destroy(self, instance):
         """Удаление календарного плана - только клиника может удалять свои планы"""
@@ -2133,7 +2186,57 @@ class RouteSheetViewSet(viewsets.ModelViewSet):
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
-                return RouteSheet.objects.filter(user=user)
+                # Если пользователь - клиника, возвращаем маршрутные листы, созданные этой клиникой
+                if user.role == 'clinic':
+                    return RouteSheet.objects.filter(user=user)
+                # Если пользователь - работодатель, возвращаем маршрутные листы для его сотрудников
+                elif user.role == 'employer':
+                    # Находим все утвержденные договоры с этим работодателем
+                    user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
+                    contracts = Contract.objects.filter(
+                        Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
+                        status='approved'
+                    )
+                    # Находим ID сотрудников из контингента по этим договорам
+                    # Контингент, загруженный самим работодателем
+                    employer_employees = ContingentEmployee.objects.filter(user=user)
+                    # Контингент, загруженный клиникой по договорам
+                    clinic_employees = ContingentEmployee.objects.filter(
+                        contract__in=contracts,
+                        user__role='clinic'
+                    )
+                    # Также находим сотрудников из календарных планов по договорам
+                    calendar_plans = CalendarPlan.objects.filter(contract__in=contracts)
+                    plan_employee_ids = set()
+                    for plan in calendar_plans:
+                        if plan.employee_ids:
+                            for emp_id in plan.employee_ids:
+                                plan_employee_ids.add(str(emp_id))
+                    
+                    # Объединяем ID всех сотрудников (строковые и числовые для поиска)
+                    all_employee_ids_str = set()
+                    all_employee_ids_int = set()
+                    for emp in employer_employees:
+                        all_employee_ids_str.add(str(emp.id))
+                        all_employee_ids_int.add(emp.id)
+                    for emp in clinic_employees:
+                        all_employee_ids_str.add(str(emp.id))
+                        all_employee_ids_int.add(emp.id)
+                    for emp_id in plan_employee_ids:
+                        all_employee_ids_str.add(str(emp_id))
+                        try:
+                            all_employee_ids_int.add(int(emp_id))
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Возвращаем маршрутные листы для этих сотрудников
+                    # patient_id хранится как строка, поэтому ищем по строковым ID
+                    return RouteSheet.objects.filter(
+                        Q(patient_id__in=all_employee_ids_str) | 
+                        Q(patient_id__in=[str(eid) for eid in all_employee_ids_int])
+                    )
+                else:
+                    return RouteSheet.objects.filter(user=user)
             except User.DoesNotExist:
                 return RouteSheet.objects.none()
         return RouteSheet.objects.all()

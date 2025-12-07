@@ -134,18 +134,13 @@ export default function EmployerCalendarPlanPage() {
         icon: CheckCircle,
         colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
       },
-      sent_to_ses: {
-        label: 'Отправлен в СЭС',
-        icon: Download,
-        colors: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-      },
     };
     return configs[status] || configs.draft;
   };
 
   // Фильтруем планы, которые ожидают утверждения работодателем
   const pendingPlans = plans.filter(p => p.status === 'pending_employer');
-  const approvedPlans = plans.filter(p => p.status === 'approved' || p.status === 'sent_to_ses');
+  const approvedPlans = plans.filter(p => p.status === 'approved');
   
   // Пагинация
   const allPlans = [...pendingPlans, ...approvedPlans];

@@ -222,16 +222,6 @@ function CalendarPlanPageContent() {
     }
   };
 
-  const handleSendToSES = async (id: string) => {
-    try {
-      await workflowStoreAPI.updateCalendarPlanStatus(id, 'sent_to_ses');
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setPlans(updatedPlans);
-      showToast('План успешно отправлен в СЭС', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Ошибка отправки в СЭС', 'error');
-    }
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Вы уверены, что хотите удалить этот календарный план?')) {
@@ -340,11 +330,6 @@ function CalendarPlanPageContent() {
         label: 'Утвержден',
         icon: CheckCircle,
         colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-      },
-      sent_to_ses: {
-        label: 'Отправлен в СЭС',
-        icon: Download,
-        colors: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
       },
     };
     return configs[status] || configs.draft;
@@ -1520,14 +1505,6 @@ function CalendarPlanPageContent() {
                                   </>
                                 )}
                                 {plan.status === 'approved' && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleSendToSES(plan.id)}
-                                  >
-                                    Отправить в СЭС
-                                  </Button>
-                                )}
-                                {(plan.status === 'approved' || plan.status === 'sent_to_ses') && (
                                   <Button
                                     size="sm"
                                     variant="outline"

@@ -292,7 +292,7 @@ function EmployerContractsContent() {
   const hasApprovedPlan = (contractId: string): boolean => {
     return calendarPlans.some(plan => 
       plan.contractId === contractId && 
-      (plan.status === 'approved' || plan.status === 'sent_to_ses')
+      plan.status === 'approved'
     );
   };
   
@@ -487,8 +487,44 @@ function EmployerContractsContent() {
   const loadRouteSheetsForContract = async (contractId: string) => {
     try {
       const allSheets = await workflowStoreAPI.getRouteSheets();
-      const contractEmployeeIds = contingent.filter(emp => emp.contractId === contractId).map(emp => emp.id);
-      const contractSheets = allSheets.filter(rs => contractEmployeeIds.includes(rs.patientId));
+      
+      // Находим все календарные планы для этого договора
+      const contractPlans = calendarPlans.filter(plan => plan.contractId === contractId);
+      
+      // Собираем ID всех сотрудников из календарных планов договора
+      const planEmployeeIds = new Set<string>();
+      contractPlans.forEach(plan => {
+        if (plan.employeeIds && Array.isArray(plan.employeeIds)) {
+          plan.employeeIds.forEach((id: any) => {
+            // Нормализуем ID к строке для сравнения
+            planEmployeeIds.add(String(id));
+          });
+        }
+      });
+      
+      // Также добавляем сотрудников из контингента, связанных с договором
+      const contractEmployeeIds = contingent
+        .filter(emp => emp.contractId === contractId)
+        .map(emp => String(emp.id));
+      contractEmployeeIds.forEach(id => planEmployeeIds.add(id));
+      
+      // Фильтруем маршрутные листы по сотрудникам из планов и контингента
+      // Нормализуем patientId к строке для сравнения
+      const contractSheets = allSheets.filter(rs => {
+        const patientIdStr = String(rs.patientId);
+        return planEmployeeIds.has(patientIdStr) || contractEmployeeIds.includes(patientIdStr);
+      });
+      
+      console.log('Route sheets filter debug:', {
+        contractId,
+        allSheetsCount: allSheets.length,
+        contractPlansCount: contractPlans.length,
+        planEmployeeIds: Array.from(planEmployeeIds),
+        contractEmployeeIds,
+        filteredSheetsCount: contractSheets.length,
+        samplePatientIds: allSheets.slice(0, 5).map(rs => rs.patientId)
+      });
+      
       setRouteSheets(contractSheets);
     } catch (error) {
       console.error('Error loading route sheets:', error);
@@ -499,7 +535,7 @@ function EmployerContractsContent() {
     if (showContractDrawer && activeTab === 'route') {
       loadRouteSheetsForContract(showContractDrawer);
     }
-  }, [showContractDrawer, activeTab, contingent]);
+  }, [showContractDrawer, activeTab, contingent, calendarPlans]);
 
   const getPlanStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -507,7 +543,6 @@ function EmployerContractsContent() {
       pending_clinic: 'Ожидает утверждения клиникой',
       pending_employer: 'Ожидает утверждения работодателем',
       approved: 'Утвержден',
-      sent_to_ses: 'Отправлен в СЭС',
     };
     return labels[status] || status;
   };
@@ -534,7 +569,6 @@ function EmployerContractsContent() {
       pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
