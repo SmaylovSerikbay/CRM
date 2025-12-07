@@ -1,9 +1,26 @@
 from rest_framework import serializers
+from decimal import Decimal, InvalidOperation
 from .models import (
     User, ContingentEmployee, CalendarPlan, RouteSheet, DoctorExamination, Expertise,
     EmergencyNotification, HealthImprovementPlan, RecommendationTracking, Doctor,
     LaboratoryTest, FunctionalTest, Referral, PatientQueue, Contract, ContractHistory
 )
+
+
+class SafeDecimalField(serializers.DecimalField):
+    """DecimalField с безопасной обработкой некорректных значений"""
+    def to_representation(self, value):
+        if value is None:
+            return None
+        try:
+            # Пытаемся преобразовать в Decimal
+            decimal_value = Decimal(str(value))
+            # Квантуем до нужного количества знаков после запятой
+            quantized = decimal_value.quantize(Decimal('0.01'))
+            return str(quantized)
+        except (InvalidOperation, ValueError, TypeError, AttributeError):
+            # Если не удалось преобразовать, возвращаем None
+            return None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -314,7 +331,7 @@ class ContractSerializer(serializers.ModelSerializer):
     original_clinic_name = serializers.SerializerMethodField()
     subcontractor_clinic_name = serializers.SerializerMethodField()
     # amount, employer_bin, employer_phone - обычные поля, но с кастомной логикой чтения через to_representation
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    amount = SafeDecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     employer_bin = serializers.CharField(max_length=12, required=False, allow_blank=True)
     employer_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
     
@@ -362,7 +379,56 @@ class ContractSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         """Кастомная логика для скрытия данных от субподрядчика"""
-        data = super().to_representation(instance)
+        try:
+            data = super().to_representation(instance)
+        except (InvalidOperation, ValueError, TypeError) as e:
+            # Если ошибка при сериализации amount или других полей, обрабатываем
+            # Сначала пытаемся получить базовые данные
+            data = {}
+            for field_name in self.fields:
+                try:
+                    if hasattr(instance, field_name):
+                        value = getattr(instance, field_name)
+                        # Специальная обработка для Decimal полей
+                        if field_name == 'amount':
+                            if value is None:
+                                data[field_name] = None
+                            else:
+                                try:
+                                    # Пытаемся преобразовать в Decimal
+                                    decimal_value = Decimal(str(value))
+                                    data[field_name] = str(decimal_value)
+                                except (InvalidOperation, ValueError, TypeError):
+                                    data[field_name] = None
+                        else:
+                            # Для остальных полей используем стандартную сериализацию
+                            field = self.fields[field_name]
+                            if hasattr(field, 'to_representation'):
+                                data[field_name] = field.to_representation(value)
+                            else:
+                                data[field_name] = value
+                except Exception:
+                    data[field_name] = None
+            
+            # Добавляем вычисляемые поля
+            data['employer_name'] = self.get_employer_name(instance)
+            data['clinic_name'] = self.get_clinic_name(instance)
+            data['original_clinic_name'] = self.get_original_clinic_name(instance)
+            data['subcontractor_clinic_name'] = self.get_subcontractor_clinic_name(instance)
+            
+            # Добавляем остальные поля модели
+            for field_name in ['id', 'contract_number', 'contract_date', 'people_count', 
+                              'execution_date', 'status', 'notes', 'scan_files', 'created_at', 
+                              'updated_at', 'employer_bin', 'employer_phone', 'is_subcontracted',
+                              'subcontract_status', 'execution_type', 'execution_notes',
+                              'employer_rejection_reason', 'subcontract_rejection_reason']:
+                if field_name not in data and hasattr(instance, field_name):
+                    try:
+                        value = getattr(instance, field_name)
+                        data[field_name] = value
+                    except:
+                        pass
+        
         request = self.context.get('request')
         
         if request:
