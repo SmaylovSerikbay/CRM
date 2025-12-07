@@ -82,6 +82,9 @@ function EmployerContractsContent() {
   const [routeSheetDateFilter, setRouteSheetDateFilter] = useState('');
   const [expandedRouteSheet, setExpandedRouteSheet] = useState<string | null>(null);
   
+  // Загрузка контингента
+  const [isUploading, setIsUploading] = useState(false);
+  
   // Фильтры и поиск
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -252,6 +255,34 @@ function EmployerContractsContent() {
   const handleOpenContractDrawer = (contractId: string) => {
     setShowContractDrawer(contractId);
     setActiveTab('contingent');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, contractId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
+      const updated = await workflowStoreAPI.getContingent();
+      setContingent(updated);
+      
+      if (result.skipped > 0) {
+        const reasons = result.skipped_reasons || {};
+        const reasonsText = [
+          reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
+          reasons.no_name ? `нет ФИО: ${reasons.no_name}` : '',
+        ].filter(Boolean).join(', ');
+        showToast(`Загружено: ${result.created}, пропущено (${reasonsText || 'разные причины'}): ${result.skipped}`, 'info');
+      } else {
+        showToast('Контингент успешно загружен!', 'success');
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка загрузки файла', 'error');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const loadRouteSheetsForContract = async (contractId: string) => {
@@ -1022,11 +1053,53 @@ function EmployerContractsContent() {
                 {/* Вкладка Контингент */}
                 {activeTab === 'contingent' && (
                   <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">Контингент договора</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {contractContingent.length} сотрудников
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Контингент договора</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {contractContingent.length} сотрудников
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await workflowStoreAPI.downloadContingentTemplate();
+                            } catch (error: any) {
+                              showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                            }
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Скачать шаблон
+                        </Button>
+                        <label className="cursor-pointer">
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            disabled={isUploading}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const input = document.getElementById(`file-upload-${showContractDrawer}`) as HTMLInputElement;
+                              input?.click();
+                            }}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {isUploading ? 'Загрузка...' : 'Загрузить Excel'}
+                          </Button>
+                          <input
+                            id={`file-upload-${showContractDrawer}`}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={(e) => handleFileUpload(e, showContractDrawer!)}
+                            className="hidden"
+                            disabled={isUploading}
+                          />
+                        </label>
+                      </div>
                     </div>
 
                     {contractContingent.length === 0 ? (
@@ -1034,9 +1107,47 @@ function EmployerContractsContent() {
                         <div className="text-center py-12">
                           <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                           <h3 className="text-lg font-semibold mb-2">Контингент не загружен</h3>
-                          <p className="text-gray-600 dark:text-gray-400">
-                            Клиника еще не загрузила список сотрудников
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Загрузите Excel-файл со списком сотрудников
                           </p>
+                          <div className="flex items-center justify-center gap-3">
+                            <Button
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  await workflowStoreAPI.downloadContingentTemplate();
+                                } catch (error: any) {
+                                  showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                                }
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Скачать шаблон
+                            </Button>
+                            <label className="cursor-pointer">
+                              <Button
+                                type="button"
+                                variant="primary"
+                                disabled={isUploading}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  const input = document.getElementById(`file-upload-empty-${showContractDrawer}`) as HTMLInputElement;
+                                  input?.click();
+                                }}
+                              >
+                                <Upload className="h-4 w-4 mr-2" />
+                                {isUploading ? 'Загрузка...' : 'Загрузить Excel'}
+                              </Button>
+                              <input
+                                id={`file-upload-empty-${showContractDrawer}`}
+                                type="file"
+                                accept=".xlsx,.xls"
+                                onChange={(e) => handleFileUpload(e, showContractDrawer!)}
+                                className="hidden"
+                                disabled={isUploading}
+                              />
+                            </label>
+                          </div>
                         </div>
                       </Card>
                     ) : (

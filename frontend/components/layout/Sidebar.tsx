@@ -139,7 +139,6 @@ export function Sidebar({ role }: SidebarProps) {
   const employerMenu: MenuItem[] = [
     { title: 'Дашборд', href: '/dashboard/employer', icon: LayoutDashboard },
     { title: 'Договоры', href: '/dashboard/employer/contracts', icon: FileText },
-    { title: 'Список контингента', href: '/dashboard/employer/contingent', icon: FileText },
     { title: 'Сотрудники', href: '/dashboard/employer/employees', icon: UserPlus },
     { title: 'Календарный план', href: '/dashboard/employer/calendar-plan', icon: Calendar },
     { title: 'План оздоровления', href: '/dashboard/employer/health-improvement-plan', icon: FileText },
