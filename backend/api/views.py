@@ -4093,12 +4093,18 @@ class ContractViewSet(viewsets.ModelViewSet):
                 data['clinic'] = user.id
                 if employer:
                     data['employer'] = employer.id
+                # Устанавливаем is_subcontracted по умолчанию
+                if 'is_subcontracted' not in data:
+                    data['is_subcontracted'] = False
             elif user.role == 'employer':
                 clinic_id = request.data.get('clinic_id')
                 if not clinic_id:
                     return Response({'error': 'clinic_id is required for employer'}, status=status.HTTP_400_BAD_REQUEST)
                 data['employer'] = user.id
                 data['clinic'] = clinic_id
+                # Устанавливаем is_subcontracted по умолчанию
+                if 'is_subcontracted' not in data:
+                    data['is_subcontracted'] = False
             else:
                 return Response({'error': 'User must be either employer or clinic'}, status=status.HTTP_400_BAD_REQUEST)
             

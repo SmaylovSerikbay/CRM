@@ -221,10 +221,19 @@ export default function ContingentPage() {
     
     try {
       await workflowStoreAPI.updateContingentEmployee(userStore.user?.id || '', editingId, editData);
+      
+      // Обновляем список сотрудников
+      const updated = await workflowStoreAPI.getContingent();
+      setEmployees(updated);
+      
+      // Закрываем модальное окно и очищаем состояние
       setEditingId(null);
       setEditData({});
-      setShowHarmfulFactorsDropdown(false);
-      setHarmfulFactorsSearch('');
+      setShowEditModal(false);
+      setShowEditHarmfulFactorsDropdown(false);
+      setEditHarmfulFactorsSearch('');
+      setEditAttempted(false);
+      
       showToast('Изменения успешно сохранены', 'success');
     } catch (error: any) {
       console.error('Error saving employee:', error);
@@ -235,8 +244,10 @@ export default function ContingentPage() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditData({});
-    setShowHarmfulFactorsDropdown(false);
-    setHarmfulFactorsSearch('');
+    setShowEditModal(false);
+    setShowEditHarmfulFactorsDropdown(false);
+    setEditHarmfulFactorsSearch('');
+    setEditAttempted(false);
   };
 
   const handleCreateEmployee = async () => {
@@ -1296,6 +1307,181 @@ export default function ContingentPage() {
             <Button variant="primary" onClick={handleCreateEmployee}>
               <Save className="h-4 w-4 mr-2" />
               Сохранить
+            </Button>
+          </div>
+        </Modal>
+
+        {/* Edit Employee Modal */}
+        <Modal
+          isOpen={showEditModal}
+          onClose={handleCancelEdit}
+          title="Редактировать сотрудника"
+          size="lg"
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+            {/* ФИО */}
+            <Input
+              label="ФИО *"
+              value={editData.name || ''}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              placeholder="Иванов Иван Иванович"
+              title="👤 Введите полное ФИО сотрудника&#10;&#10;Формат: Фамилия Имя Отчество&#10;&#10;Примеры:&#10;• Иванов Иван Иванович&#10;• Петрова Мария Петровна"
+              className={editAttempted && !editData.name ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Объект/участок и Должность */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Объект/участок *"
+                value={editData.department || ''}
+                onChange={(e) => setEditData({ ...editData, department: e.target.value })}
+                placeholder="Участок №1"
+                title="🏢 Укажите место работы сотрудника&#10;&#10;Примеры:&#10;• ТОО &quot;Компания&quot; - Отдел продаж&#10;• Производственный участок №1&#10;• Административный корпус"
+                className={editAttempted && !editData.department ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Должность *"
+                value={editData.position || ''}
+                onChange={(e) => setEditData({ ...editData, position: e.target.value })}
+                placeholder="Оператор"
+                title="💼 Укажите должность сотрудника&#10;&#10;Примеры:&#10;• Оператор станков с ЧПУ&#10;• Главный бухгалтер&#10;• Инженер-технолог&#10;• Водитель погрузчика"
+                className={editAttempted && !editData.position ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата рождения и Пол */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Дата рождения *"
+                type="date"
+                value={editData.birthDate ? new Date(editData.birthDate).toISOString().split('T')[0] : ''}
+                onChange={(e) => setEditData({ ...editData, birthDate: e.target.value })}
+                title="📅 Введите дату рождения&#10;&#10;Примеры:&#10;• 29.03.1976&#10;• 15.05.1985&#10;• 01.01.1990"
+                className={editAttempted && !editData.birthDate ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Пол *</label>
+                <select
+                  value={editData.gender || ''}
+                  onChange={(e) => setEditData({ ...editData, gender: e.target.value as 'male' | 'female' })}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-sm ${
+                    editAttempted && !editData.gender 
+                      ? 'border-red-500 dark:border-red-500' 
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  title="Выберите пол сотрудника"
+                >
+                  <option value="">Не указан</option>
+                  <option value="male">Мужской</option>
+                  <option value="female">Женский</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Телефон */}
+            <Input
+              label="Телефон"
+              value={editData.phone || ''}
+              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+              placeholder="77001234567"
+              title="📱 Введите номер телефона&#10;&#10;Формат: 7XXXXXXXXXX&#10;&#10;Примеры:&#10;• 77001234567&#10;• 77051234567"
+            />
+
+            {/* Стаж */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Общий стаж (лет) *"
+                type="number"
+                value={editData.totalExperienceYears !== undefined ? editData.totalExperienceYears : ''}
+                onChange={(e) => setEditData({ ...editData, totalExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="20"
+                min="0"
+                title="📊 Введите общий трудовой стаж в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 5, 10, 20, 35"
+                className={editAttempted && (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+              <Input
+                label="Стаж по должности (лет) *"
+                type="number"
+                value={editData.positionExperienceYears !== undefined ? editData.positionExperienceYears : ''}
+                onChange={(e) => setEditData({ ...editData, positionExperienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="15"
+                min="0"
+                title="📊 Введите стаж работы по текущей должности в годах&#10;&#10;Только целые числа ≥ 0&#10;&#10;Примеры: 2, 5, 10, 15"
+                className={editAttempted && (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) ? 'border-red-500 dark:border-red-500' : ''}
+              />
+            </div>
+
+            {/* Дата последнего медосмотра */}
+            <Input
+              label="Дата последнего медосмотра *"
+              type="date"
+              value={editData.lastExaminationDate ? new Date(editData.lastExaminationDate).toISOString().split('T')[0] : ''}
+              onChange={(e) => setEditData({ ...editData, lastExaminationDate: e.target.value })}
+              title="📅 Введите дату последнего медосмотра&#10;&#10;Примеры:&#10;• 22.01.2024&#10;• 15.03.2023&#10;• 01.12.2024"
+              className={editAttempted && !editData.lastExaminationDate ? 'border-red-500 dark:border-red-500' : ''}
+            />
+
+            {/* Вредные факторы */}
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>
+              <div className="relative">
+                <Input
+                  value={editData.harmfulFactors?.[0] || ''}
+                  onChange={(e) => setEditHarmfulFactorsSearch(e.target.value)}
+                  onFocus={() => setShowEditHarmfulFactorsDropdown(true)}
+                  placeholder="Выберите вредный фактор"
+                  className={`pr-8 ${editAttempted && (!editData.harmfulFactors || editData.harmfulFactors.length === 0) ? 'border-red-500 dark:border-red-500' : ''}`}
+                  title="⚠️ Выберите вредный фактор согласно приказу № ҚР ДСМ-131/2020&#10;&#10;Начните вводить текст для поиска"
+                />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {showEditHarmfulFactorsDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {HARMFUL_FACTORS_OPTIONS
+                    .filter(factor => 
+                      factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
+                    )
+                    .map((factor, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setEditData({ ...editData, harmfulFactors: [factor] });
+                          setShowEditHarmfulFactorsDropdown(false);
+                          setEditHarmfulFactorsSearch('');
+                        }}
+                        className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
+                          editData.harmfulFactors?.[0] === factor ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        {factor}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Примечание */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Примечание</label>
+              <textarea
+                value={editData.notes || ''}
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                placeholder="Дополнительная информация"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 min-h-[60px] text-sm"
+                title="📝 Дополнительная информация о сотруднике&#10;&#10;Например:&#10;• Особые условия труда&#10;• Медицинские ограничения&#10;• Другие важные сведения"
+                maxLength={1000}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={handleCancelEdit}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleSaveEdit}>
+              <Save className="h-4 w-4 mr-2" />
+              Сохранить изменения
             </Button>
           </div>
         </Modal>

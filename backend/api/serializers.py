@@ -312,9 +312,10 @@ class ContractSerializer(serializers.ModelSerializer):
     clinic_name = serializers.SerializerMethodField()
     original_clinic_name = serializers.CharField(source='original_clinic.registration_data.name', read_only=True, allow_null=True)
     subcontractor_clinic_name = serializers.CharField(source='subcontractor_clinic.registration_data.name', read_only=True, allow_null=True)
-    amount = serializers.SerializerMethodField()
-    employer_bin = serializers.SerializerMethodField()
-    employer_phone = serializers.SerializerMethodField()
+    # amount, employer_bin, employer_phone - обычные поля, но с кастомной логикой чтения через to_representation
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    employer_bin = serializers.CharField(max_length=12, required=False, allow_blank=True)
+    employer_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
     
     def get_clinic_name(self, obj):
         # Если договор передан на субподряд, показываем оригинальную клинику
@@ -325,38 +326,14 @@ class ContractSerializer(serializers.ModelSerializer):
         return obj.clinic.registration_data.get('name', '') if obj.clinic and obj.clinic.registration_data else ''
     
     def get_employer_name(self, obj):
-        """Скрываем данные работодателя для субподрядчика"""
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            user = request.user
-            # Если пользователь - субподрядчик, скрываем данные работодателя
-            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                return None
+        """Получаем имя работодателя"""
         return obj.employer.registration_data.get('name', '') if obj.employer and obj.employer.registration_data else None
     
-    def get_amount(self, obj):
-        """Скрываем сумму для субподрядчика"""
+    def to_representation(self, instance):
+        """Кастомная логика для скрытия данных от субподрядчика"""
+        data = super().to_representation(instance)
         request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            user = request.user
-            # Если пользователь - субподрядчик, скрываем сумму
-            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                return None
-        return obj.amount
-    
-    def get_employer_bin(self, obj):
-        """Скрываем БИН работодателя для субподрядчика"""
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            user = request.user
-            # Если пользователь - субподрядчик, скрываем БИН
-            if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                return None
-        return obj.employer_bin
-    
-    def get_employer_phone(self, obj):
-        """Скрываем телефон работодателя для субподрядчика"""
-        request = self.context.get('request')
+        
         if request:
             # Получаем user_id из query params
             user_id = request.query_params.get('user_id')
@@ -364,63 +341,16 @@ class ContractSerializer(serializers.ModelSerializer):
                 try:
                     from .models import User
                     user = User.objects.get(id=user_id)
-                    # Если пользователь - субподрядчик, скрываем телефон
-                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                        return None
+                    # Если пользователь - субподрядчик, скрываем конфиденциальные данные
+                    if instance.is_subcontracted and instance.subcontractor_clinic and user.id == instance.subcontractor_clinic.id:
+                        data['amount'] = None
+                        data['employer_bin'] = None
+                        data['employer_phone'] = None
+                        data['employer_name'] = None
                 except:
                     pass
-        return obj.employer_phone
-    
-    def get_employer_bin(self, obj):
-        """Скрываем БИН работодателя для субподрядчика"""
-        request = self.context.get('request')
-        if request:
-            # Получаем user_id из query params
-            user_id = request.query_params.get('user_id')
-            if user_id:
-                try:
-                    from .models import User
-                    user = User.objects.get(id=user_id)
-                    # Если пользователь - субподрядчик, скрываем БИН
-                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                        return None
-                except:
-                    pass
-        return obj.employer_bin
-    
-    def get_employer_name(self, obj):
-        """Скрываем данные работодателя для субподрядчика"""
-        request = self.context.get('request')
-        if request:
-            # Получаем user_id из query params
-            user_id = request.query_params.get('user_id')
-            if user_id:
-                try:
-                    from .models import User
-                    user = User.objects.get(id=user_id)
-                    # Если пользователь - субподрядчик, скрываем данные работодателя
-                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                        return None
-                except:
-                    pass
-        return obj.employer.registration_data.get('name', '') if obj.employer and obj.employer.registration_data else None
-    
-    def get_amount(self, obj):
-        """Скрываем сумму для субподрядчика"""
-        request = self.context.get('request')
-        if request:
-            # Получаем user_id из query params
-            user_id = request.query_params.get('user_id')
-            if user_id:
-                try:
-                    from .models import User
-                    user = User.objects.get(id=user_id)
-                    # Если пользователь - субподрядчик, скрываем сумму
-                    if obj.is_subcontracted and obj.subcontractor_clinic and user.id == obj.subcontractor_clinic.id:
-                        return None
-                except:
-                    pass
-        return obj.amount
+        
+        return data
     employer = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='employer'), write_only=False)
     clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)
     original_clinic = serializers.PrimaryKeyRelatedField(required=False, allow_null=True, queryset=User.objects.filter(role='clinic'), write_only=False)

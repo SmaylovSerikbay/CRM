@@ -198,6 +198,7 @@ export default function ContractsPage() {
     execution_date: '',
     notes: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     loadContracts();
@@ -466,10 +467,32 @@ export default function ContractsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('handleSubmit called', formData);
+    
     if (!formData.employer_bin || !formData.employer_phone || !formData.contract_number) {
       showToast('Заполните все обязательные поля', 'warning');
       return;
     }
+
+    if (!formData.contract_date || !formData.amount || !formData.people_count || !formData.execution_date) {
+      showToast('Заполните все обязательные поля', 'warning');
+      return;
+    }
+
+    // Проверяем длину телефона (должно быть 11 цифр: 7 + 10)
+    if (formData.employer_phone.length !== 11) {
+      showToast('Введите полный номер телефона (11 цифр)', 'warning');
+      return;
+    }
+
+    // Проверяем длину БИН (должно быть 12 цифр)
+    if (formData.employer_bin.length !== 12) {
+      showToast('БИН должен содержать 12 цифр', 'warning');
+      return;
+    }
+
+    console.log('Validation passed, creating contract...');
+    setIsSubmitting(true);
 
     try {
       await workflowStoreAPI.createContract({
@@ -496,9 +519,13 @@ export default function ContractsPage() {
       });
       setShowForm(false);
       setFoundEmployer(null);
+      setBinSearched(false);
       loadContracts();
     } catch (error: any) {
+      console.error('Error creating contract:', error);
       showToast(error.message || 'Ошибка создания договора', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1553,8 +1580,15 @@ export default function ContractsPage() {
                   />
                 </div>
                 <div className="flex gap-4 pt-2">
-                  <Button type="submit" className="flex-1">
-                    {editingContract ? 'Сохранить изменения' : 'Создать и отправить'}
+                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Создание...
+                      </>
+                    ) : (
+                      editingContract ? 'Сохранить изменения' : 'Создать и отправить'
+                    )}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => { 
                     setShowForm(false); 
