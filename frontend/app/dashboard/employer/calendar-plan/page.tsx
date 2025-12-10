@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, X, FileText } from 'lucide-react';
+import { Calendar, Download, CheckCircle, Clock, Users, AlertCircle, X, FileText, XCircle } from 'lucide-react';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { CalendarPlan } from '@/lib/store/workflow-store';
 import { useToast } from '@/components/ui/Toast';
+import { Modal } from '@/components/ui/Modal';
 
 export default function EmployerCalendarPlanPage() {
   const { showToast } = useToast();
@@ -18,6 +19,10 @@ export default function EmployerCalendarPlanPage() {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedPlanEmployees, setSelectedPlanEmployees] = useState<ContingentEmployee[]>([]);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+  
+  // Модальное окно для отклонения календарного плана
+  const [showRejectPlanModal, setShowRejectPlanModal] = useState<string | null>(null);
+  const [rejectPlanReason, setRejectPlanReason] = useState('');
   
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,6 +58,25 @@ export default function EmployerCalendarPlanPage() {
       showToast('План успешно утвержден', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка утверждения плана', 'error');
+    }
+  };
+
+  // Обработка отклонения календарного плана
+  const handleRejectPlan = async (planId: string) => {
+    if (!rejectPlanReason.trim()) {
+      showToast('Пожалуйста, укажите причину отклонения', 'warning');
+      return;
+    }
+    
+    try {
+      await workflowStoreAPI.updateCalendarPlanStatus(planId, 'rejected', rejectPlanReason);
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setPlans(updatedPlans);
+      showToast('План отклонен. Клиника получит уведомление с причиной отклонения.', 'success');
+      setRejectPlanReason('');
+      setShowRejectPlanModal(null);
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка отклонения плана', 'error');
     }
   };
 
@@ -134,6 +158,11 @@ export default function EmployerCalendarPlanPage() {
         icon: CheckCircle,
         colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
       },
+      rejected: {
+        label: 'Отклонен работодателем',
+        icon: XCircle,
+        colors: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+      },
       sent_to_ses: {
         label: 'Отправлен в СЭС',
         icon: Download,
@@ -143,12 +172,13 @@ export default function EmployerCalendarPlanPage() {
     return configs[status] || configs.draft;
   };
 
-  // Фильтруем планы, которые ожидают утверждения работодателем
+  // Фильтруем планы по статусам
   const pendingPlans = plans.filter(p => p.status === 'pending_employer');
   const approvedPlans = plans.filter(p => p.status === 'approved' || p.status === 'sent_to_ses');
+  const rejectedPlans = plans.filter(p => p.status === 'rejected');
   
   // Пагинация
-  const allPlans = [...pendingPlans, ...approvedPlans];
+  const allPlans = [...pendingPlans, ...approvedPlans, ...rejectedPlans];
   const totalPages = Math.ceil(allPlans.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -286,12 +316,27 @@ export default function EmployerCalendarPlanPage() {
                           <td className="px-3 py-3 text-right">
                             <div className="flex items-center justify-end gap-2 flex-wrap">
                               {plan.status === 'pending_employer' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApprove(plan.id)}
-                                >
-                                  Согласовать
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setRejectPlanReason('');
+                                      setShowRejectPlanModal(plan.id);
+                                    }}
+                                    className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-1" />
+                                    Отклонить
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(plan.id)}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Согласовать
+                                  </Button>
+                                </>
                               )}
                               <Button
                                 size="sm"
@@ -313,6 +358,36 @@ export default function EmployerCalendarPlanPage() {
                             </div>
                           </td>
                         </motion.tr>
+                        
+                        {/* Отображение причины отклонения для отклоненных планов */}
+                        {plan.status === 'rejected' && plan.rejectionReason && (
+                          <tr className="bg-red-50/30 dark:bg-red-900/10">
+                            <td colSpan={6} className="px-4 py-4">
+                              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                                    <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">
+                                      Причина отклонения календарного плана
+                                    </h4>
+                                    <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap mb-3">
+                                      {plan.rejectionReason}
+                                    </p>
+                                    <div className="pt-3 border-t border-red-200 dark:border-red-800">
+                                      <p className="text-xs text-red-600 dark:text-red-400">
+                                        {plan.rejectedByEmployerAt && (
+                                          <>Отклонено: {new Date(plan.rejectedByEmployerAt).toLocaleString('ru-RU')}</>
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         
                         {/* Развернутая информация о нескольких участках */}
                         {expandedPlan === plan.id && plan.departmentsInfo && plan.departmentsInfo.length > 1 && (
@@ -711,6 +786,56 @@ export default function EmployerCalendarPlanPage() {
           </motion.div>
         </div>
       )}
+
+      {/* Модальное окно для отклонения календарного плана */}
+      <Modal
+        isOpen={showRejectPlanModal !== null}
+        onClose={() => {
+          setShowRejectPlanModal(null);
+          setRejectPlanReason('');
+        }}
+        title="Отклонение календарного плана"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Причина отклонения *</label>
+            <textarea
+              value={rejectPlanReason}
+              onChange={(e) => setRejectPlanReason(e.target.value)}
+              maxLength={1000}
+              placeholder="Например: Сотрудник уволился, даты не подходят, требуется изменение списка сотрудников и т.д."
+              className="w-full px-3 py-2 border rounded-lg min-h-[120px] text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {rejectPlanReason.length}/1000 символов
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRejectPlanModal(null);
+                setRejectPlanReason('');
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (showRejectPlanModal) {
+                  handleRejectPlan(showRejectPlanModal);
+                }
+              }}
+              disabled={!rejectPlanReason.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Отклонить план
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

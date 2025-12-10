@@ -120,8 +120,8 @@ class CalendarPlanSerializer(serializers.ModelSerializer):
         model = CalendarPlan
         fields = ['id', 'user', 'contract', 'contract_number', 'department', 'start_date', 'end_date', 'employee_ids', 'departments_info', 'harmful_factors', 'selected_doctors', 'status',
                   'clinic_name', 'clinic_director', 'employer_name', 'employer_representative',
-                  'ses_representative', 'created_at', 'approved_by_clinic_at', 'approved_by_employer_at', 'sent_to_ses_at', 'employer_name_field']
-        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name_field']
+                  'ses_representative', 'rejection_reason', 'rejected_by_employer_at', 'created_at', 'approved_by_clinic_at', 'approved_by_employer_at', 'sent_to_ses_at', 'employer_name_field']
+        read_only_fields = ['id', 'created_at', 'contract_number', 'employer_name_field', 'rejected_by_employer_at']
 
 
 class RouteSheetSerializer(serializers.ModelSerializer):

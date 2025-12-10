@@ -1812,6 +1812,7 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             'pending_clinic': 'Ожидает утверждения клиникой',
             'pending_employer': 'Ожидает утверждения работодателем',
             'approved': 'Утвержден',
+            'rejected': 'Отклонен работодателем',
             'sent_to_ses': 'Отправлен в СЭС'
         }
         return status_map.get(status_code, status_code)
@@ -1843,6 +1844,20 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         old_status = instance.status
         new_status = request.data.get('status', old_status)
+        rejection_reason = request.data.get('rejection_reason', '')
+        
+        # Если статус меняется на 'rejected', устанавливаем дату отклонения и причину
+        if new_status == 'rejected' and old_status != 'rejected':
+            from django.utils import timezone
+            request.data['rejected_by_employer_at'] = timezone.now()
+            if not rejection_reason:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'rejection_reason': 'Необходимо указать причину отклонения'})
+        
+        # Если статус меняется с 'rejected' на другой, очищаем причину и дату отклонения
+        if old_status == 'rejected' and new_status != 'rejected':
+            request.data['rejection_reason'] = ''
+            request.data['rejected_by_employer_at'] = None
         
         # Выполняем стандартное обновление
         response = super().update(request, *args, **kwargs)
@@ -1865,6 +1880,20 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         old_status = instance.status
         new_status = request.data.get('status', old_status)
+        rejection_reason = request.data.get('rejection_reason', '')
+        
+        # Если статус меняется на 'rejected', устанавливаем дату отклонения и причину
+        if new_status == 'rejected' and old_status != 'rejected':
+            from django.utils import timezone
+            request.data['rejected_by_employer_at'] = timezone.now()
+            if not rejection_reason:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'rejection_reason': 'Необходимо указать причину отклонения'})
+        
+        # Если статус меняется с 'rejected' на другой, очищаем причину и дату отклонения
+        if old_status == 'rejected' and new_status != 'rejected':
+            request.data['rejection_reason'] = ''
+            request.data['rejected_by_employer_at'] = None
         
         # Выполняем стандартное частичное обновление
         response = super().partial_update(request, *args, **kwargs)

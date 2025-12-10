@@ -31,12 +31,14 @@ export interface CalendarPlan {
   }>;
   harmfulFactors?: string[];
   selectedDoctors?: string[];
-  status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'sent_to_ses';
+  status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'rejected' | 'sent_to_ses';
   clinicName?: string;
   clinicDirector?: string;
   employerName?: string;
   employerRepresentative?: string;
   sesRepresentative?: string;
+  rejectionReason?: string;
+  rejectedByEmployerAt?: string;
   createdAt: string;
   approvedByClinicAt?: string;
   approvedByEmployerAt?: string;

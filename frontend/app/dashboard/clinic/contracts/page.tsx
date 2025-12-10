@@ -1192,6 +1192,7 @@ export default function ContractsPage() {
       pending_clinic: 'Ожидает утверждения клиникой',
       pending_employer: 'Ожидает утверждения работодателем',
       approved: 'Утвержден',
+      rejected: 'Отклонен работодателем',
       sent_to_ses: 'Отправлен в СЭС',
     };
     return labels[status] || status;
@@ -1203,6 +1204,7 @@ export default function ContractsPage() {
       pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
@@ -3630,6 +3632,28 @@ export default function ContractsPage() {
                                             PDF
                                           </Button>
                                         )}
+                                        {plan.status === 'rejected' && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              if (confirm('Перевести план в черновик для редактирования?')) {
+                                                workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'draft')
+                                                  .then(() => {
+                                                    workflowStoreAPI.getCalendarPlans().then(setCalendarPlans);
+                                                    showToast('План переведен в черновик. Вы можете отредактировать его и отправить на повторное утверждение.', 'success');
+                                                  })
+                                                  .catch((error: any) => {
+                                                    showToast(error.message || 'Ошибка изменения статуса плана', 'error');
+                                                  });
+                                              }
+                                            }}
+                                            className="text-orange-600 hover:text-orange-700 border-orange-300 hover:border-orange-400"
+                                          >
+                                            <Edit className="h-4 w-4 mr-1" />
+                                            Редактировать
+                                          </Button>
+                                        )}
                                         <Button
                                           size="sm"
                                           variant="outline"
@@ -3823,6 +3847,53 @@ export default function ContractsPage() {
                                           </div>
                                         ) : (
                                           <p className="text-sm text-gray-500 dark:text-gray-400">Нет информации об участках</p>
+                                        )}
+                                        
+                                        {/* Отображение причины отказа для отклоненных планов */}
+                                        {plan.status === 'rejected' && plan.rejectionReason && (
+                                          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                            <div className="flex items-start gap-3">
+                                              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1">
+                                                <h4 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
+                                                  План отклонен работодателем
+                                                </h4>
+                                                {plan.rejectedByEmployerAt && (
+                                                  <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+                                                    Дата отклонения: {new Date(plan.rejectedByEmployerAt).toLocaleString('ru-RU')}
+                                                  </p>
+                                                )}
+                                                <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap mb-3">
+                                                  {plan.rejectionReason}
+                                                </p>
+                                                <div className="pt-3 border-t border-red-200 dark:border-red-800">
+                                                  <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+                                                    Вы можете отредактировать план с учетом указанной причины и отправить его на повторное утверждение.
+                                                  </p>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                      if (confirm('Перевести план в черновик для редактирования?')) {
+                                                        workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'draft')
+                                                          .then(() => {
+                                                            workflowStoreAPI.getCalendarPlans().then(setCalendarPlans);
+                                                            showToast('План переведен в черновик. Вы можете отредактировать его и отправить на повторное утверждение.', 'success');
+                                                          })
+                                                          .catch((error: any) => {
+                                                            showToast(error.message || 'Ошибка изменения статуса плана', 'error');
+                                                          });
+                                                      }
+                                                    }}
+                                                    className="border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30"
+                                                  >
+                                                    <Edit className="h-4 w-4 mr-1" />
+                                                    Редактировать план
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
                                         )}
                                       </td>
                                     </tr>

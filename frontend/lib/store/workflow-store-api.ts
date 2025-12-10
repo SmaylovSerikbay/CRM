@@ -52,12 +52,14 @@ export interface CalendarPlan {
   }>;
   harmfulFactors?: string[];
   selectedDoctors?: string[];
-  status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'sent_to_ses';
+  status: 'draft' | 'pending_clinic' | 'pending_employer' | 'approved' | 'rejected' | 'sent_to_ses';
   clinicName?: string;
   clinicDirector?: string;
   employerName?: string;
   employerRepresentative?: string;
   sesRepresentative?: string;
+  rejectionReason?: string;
+  rejectedByEmployerAt?: string;
   createdAt: string;
   approvedByClinicAt?: string;
   approvedByEmployerAt?: string;
@@ -305,6 +307,8 @@ class WorkflowStoreAPI {
       employerName: plan.employer_name || plan.employer_name_field || undefined,
       employerRepresentative: plan.employer_representative,
       sesRepresentative: plan.ses_representative,
+      rejectionReason: plan.rejection_reason,
+      rejectedByEmployerAt: plan.rejected_by_employer_at,
       createdAt: plan.created_at,
       approvedByClinicAt: plan.approved_by_clinic_at,
       approvedByEmployerAt: plan.approved_by_employer_at,
@@ -335,8 +339,8 @@ class WorkflowStoreAPI {
     }
   }
 
-  async updateCalendarPlanStatus(id: string, status: CalendarPlan['status']): Promise<void> {
-    await apiClient.updateCalendarPlanStatus(id, status);
+  async updateCalendarPlanStatus(id: string, status: CalendarPlan['status'], rejectionReason?: string): Promise<void> {
+    await apiClient.updateCalendarPlanStatus(id, status, rejectionReason);
   }
 
   async updateCalendarPlan(id: string, plan: Partial<Omit<CalendarPlan, 'id' | 'status' | 'createdAt'>> & { contractId?: string; departmentsInfo?: Array<{department: string; startDate: string; endDate: string; employeeIds: string[]}> }): Promise<void> {

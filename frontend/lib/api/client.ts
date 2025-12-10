@@ -425,10 +425,14 @@ class ApiClient {
     ];
   }
 
-  async updateCalendarPlanStatus(id: string, status: string) {
+  async updateCalendarPlanStatus(id: string, status: string, rejectionReason?: string) {
+    const body: any = { status };
+    if (rejectionReason !== undefined) {
+      body.rejection_reason = rejectionReason;
+    }
     return this.request(`/calendar-plans/${id}/`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     });
   }
 

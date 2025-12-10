@@ -149,6 +149,10 @@ function EmployerContractsContent() {
   const [selectedContractForUpload, setSelectedContractForUpload] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   
+  // Модальное окно для отклонения календарного плана
+  const [showRejectPlanModal, setShowRejectPlanModal] = useState<string | null>(null);
+  const [rejectPlanReason, setRejectPlanReason] = useState('');
+  
   // Фильтры и поиск
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -253,6 +257,25 @@ function EmployerContractsContent() {
       loadContracts();
     } catch (error: any) {
       showToast(error.message || 'Ошибка отклонения договора', 'error');
+    }
+  };
+
+  // Обработка отклонения календарного плана
+  const handleRejectPlan = async (planId: string) => {
+    if (!rejectPlanReason.trim()) {
+      showToast('Пожалуйста, укажите причину отклонения', 'warning');
+      return;
+    }
+    
+    try {
+      await workflowStoreAPI.updateCalendarPlanStatus(planId, 'rejected', rejectPlanReason);
+      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+      setCalendarPlans(updatedPlans);
+      showToast('План отклонен. Клиника получит уведомление с причиной отклонения.', 'success');
+      setRejectPlanReason('');
+      setShowRejectPlanModal(null);
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка отклонения плана', 'error');
     }
   };
 
@@ -507,6 +530,7 @@ function EmployerContractsContent() {
       pending_clinic: 'Ожидает утверждения клиникой',
       pending_employer: 'Ожидает утверждения работодателем',
       approved: 'Утвержден',
+      rejected: 'Отклонен работодателем',
       sent_to_ses: 'Отправлен в СЭС',
     };
     return labels[status] || status;
@@ -534,6 +558,7 @@ function EmployerContractsContent() {
       pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
@@ -1495,32 +1520,48 @@ function EmployerContractsContent() {
                                       </span>
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                      {plan.status === 'pending_employer' && (
+                                      <div className="flex items-center gap-2 justify-end">
+                                        {plan.status === 'pending_employer' && (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => {
+                                                setRejectPlanReason('');
+                                                setShowRejectPlanModal(plan.id);
+                                              }}
+                                              className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                                            >
+                                              <XCircle className="h-4 w-4 mr-1" />
+                                              Отклонить
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={async () => {
+                                                try {
+                                                  await workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'approved');
+                                                  const updatedPlans = await workflowStoreAPI.getCalendarPlans();
+                                                  setCalendarPlans(updatedPlans);
+                                                  showToast('План успешно утвержден', 'success');
+                                                } catch (error: any) {
+                                                  showToast(error.message || 'Ошибка утверждения плана', 'error');
+                                                }
+                                              }}
+                                            >
+                                              <CheckCircle className="h-4 w-4 mr-1" />
+                                              Утвердить
+                                            </Button>
+                                          </>
+                                        )}
                                         <Button
                                           size="sm"
-                                          onClick={async () => {
-                                            try {
-                                              await workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'approved');
-                                              const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-                                              setCalendarPlans(updatedPlans);
-                                              showToast('План успешно утвержден', 'success');
-                                            } catch (error: any) {
-                                              showToast(error.message || 'Ошибка утверждения плана', 'error');
-                                            }
-                                          }}
+                                          variant="outline"
+                                          onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
                                         >
-                                          <CheckCircle className="h-4 w-4 mr-1" />
-                                          Утвердить
+                                          <Eye className="h-4 w-4 mr-1" />
+                                          {expandedPlan === plan.id ? 'Скрыть' : 'Детали'}
                                         </Button>
-                                      )}
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setExpandedPlan(expandedPlan === plan.id ? null : plan.id)}
-                                      >
-                                        <Eye className="h-4 w-4 mr-1" />
-                                        {expandedPlan === plan.id ? 'Скрыть' : 'Детали'}
-                                      </Button>
+                                      </div>
                                     </td>
                                   </tr>
                                   {expandedPlan === plan.id && (
@@ -2196,6 +2237,59 @@ function EmployerContractsContent() {
         <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
           <Button variant="outline" onClick={handleCancelEditEmployee}>Отмена</Button>
           <Button variant="primary" onClick={handleSaveEmployee}>Сохранить изменения</Button>
+        </div>
+      </Modal>
+
+      {/* Модальное окно для отклонения календарного плана */}
+      <Modal
+        isOpen={showRejectPlanModal !== null}
+        onClose={() => {
+          setShowRejectPlanModal(null);
+          setRejectPlanReason('');
+        }}
+        title="Отклонение календарного плана"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Укажите причину отклонения календарного плана. Клиника получит уведомление с указанной причиной.
+          </p>
+          <div>
+            <label className="block text-sm font-medium mb-1">Причина отклонения *</label>
+            <textarea
+              value={rejectPlanReason}
+              onChange={(e) => setRejectPlanReason(e.target.value)}
+              placeholder="Например: Сотрудник уволился, даты не подходят, требуется изменение списка сотрудников и т.д."
+              className="w-full px-3 py-2 border rounded-lg min-h-[120px] text-sm"
+              maxLength={1000}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {rejectPlanReason.length}/1000 символов
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRejectPlanModal(null);
+                setRejectPlanReason('');
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (showRejectPlanModal) {
+                  handleRejectPlan(showRejectPlanModal);
+                }
+              }}
+              disabled={!rejectPlanReason.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Отклонить план
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

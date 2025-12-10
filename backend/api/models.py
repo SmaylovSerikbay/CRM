@@ -69,6 +69,7 @@ class CalendarPlan(models.Model):
         ('pending_clinic', 'Ожидает утверждения клиникой'),
         ('pending_employer', 'Ожидает утверждения работодателем'),
         ('approved', 'Утвержден'),
+        ('rejected', 'Отклонен работодателем'),
         ('sent_to_ses', 'Отправлен в СЭС'),
     ]
     
@@ -87,6 +88,8 @@ class CalendarPlan(models.Model):
     employer_name = models.CharField(max_length=255, blank=True)
     employer_representative = models.CharField(max_length=255, blank=True)
     ses_representative = models.CharField(max_length=255, blank=True)
+    rejection_reason = models.TextField(blank=True, verbose_name='Причина отклонения', help_text='Причина отклонения календарного плана работодателем')
+    rejected_by_employer_at = models.DateTimeField(null=True, blank=True, verbose_name='Дата отклонения работодателем')
     created_at = models.DateTimeField(auto_now_add=True)
     approved_by_clinic_at = models.DateTimeField(null=True, blank=True)
     approved_by_employer_at = models.DateTimeField(null=True, blank=True)
