@@ -146,7 +146,8 @@ export default function ClinicContingentPage() {
     if (!editingId) return;
     
     try {
-      await workflowStoreAPI.updateContingentEmployee(editingId, editData);
+      const user = userStore.getCurrentUser();
+      await workflowStoreAPI.updateContingentEmployee(user?.id || '', editingId, editData);
       const updated = await workflowStoreAPI.getContingent();
       setEmployees(updated);
       setEditingId(null);

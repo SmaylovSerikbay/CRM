@@ -158,27 +158,16 @@ export default function EmployerCalendarPlanPage() {
         icon: CheckCircle,
         colors: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
       },
-      rejected: {
-        label: 'Отклонен работодателем',
-        icon: XCircle,
-        colors: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-      },
-      sent_to_ses: {
-        label: 'Отправлен в СЭС',
-        icon: Download,
-        colors: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-      },
     };
     return configs[status] || configs.draft;
   };
 
   // Фильтруем планы по статусам
   const pendingPlans = plans.filter(p => p.status === 'pending_employer');
-  const approvedPlans = plans.filter(p => p.status === 'approved' || p.status === 'sent_to_ses');
-  const rejectedPlans = plans.filter(p => p.status === 'rejected');
+  const approvedPlans = plans.filter(p => p.status === 'approved');
   
   // Пагинация
-  const allPlans = [...pendingPlans, ...approvedPlans, ...rejectedPlans];
+  const allPlans = [...pendingPlans, ...approvedPlans];
   const totalPages = Math.ceil(allPlans.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;

@@ -767,7 +767,7 @@ export default function ContractsPage() {
   const hasApprovedPlan = (contractId: string): boolean => {
     return calendarPlans.some(plan => 
       plan.contractId === contractId && 
-      (plan.status === 'approved' || plan.status === 'sent_to_ses')
+      plan.status === 'approved'
     );
   };
 
@@ -1076,16 +1076,6 @@ export default function ContractsPage() {
     }
   };
 
-  const handleSendPlanToSES = async (planId: string) => {
-    try {
-      await workflowStoreAPI.updateCalendarPlanStatus(planId, 'sent_to_ses');
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setCalendarPlans(updatedPlans);
-      showToast('План успешно отправлен в СЭС', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Ошибка отправки в СЭС', 'error');
-    }
-  };
 
   const handleDeletePlan = async (planId: string) => {
     if (!confirm('Вы уверены, что хотите удалить этот календарный план?')) {
@@ -1192,7 +1182,6 @@ export default function ContractsPage() {
       pending_clinic: 'Ожидает утверждения клиникой',
       pending_employer: 'Ожидает утверждения работодателем',
       approved: 'Утвержден',
-      rejected: 'Отклонен работодателем',
       sent_to_ses: 'Отправлен в СЭС',
     };
     return labels[status] || status;
@@ -1204,7 +1193,6 @@ export default function ContractsPage() {
       pending_clinic: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       pending_employer: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       sent_to_ses: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
@@ -1219,9 +1207,44 @@ export default function ContractsPage() {
   const loadRouteSheetsForContract = async (contractId: string) => {
     try {
       const allSheets = await workflowStoreAPI.getRouteSheets();
-      // Фильтруем по контингенту договора
-      const contractEmployeeIds = contingent.filter(emp => emp.contractId === contractId).map(emp => emp.id);
-      const contractSheets = allSheets.filter(rs => contractEmployeeIds.includes(rs.patientId));
+      
+      // Находим все календарные планы для этого договора
+      const contractPlans = calendarPlans.filter(plan => plan.contractId === contractId);
+      
+      // Собираем ID всех сотрудников из календарных планов договора
+      const planEmployeeIds = new Set<string>();
+      contractPlans.forEach(plan => {
+        if (plan.employeeIds && Array.isArray(plan.employeeIds)) {
+          plan.employeeIds.forEach((id: any) => {
+            // Нормализуем ID к строке для сравнения
+            planEmployeeIds.add(String(id));
+          });
+        }
+      });
+      
+      // Также добавляем сотрудников из контингента, связанных с договором
+      const contractEmployeeIds = contingent
+        .filter(emp => emp.contractId === contractId)
+        .map(emp => String(emp.id));
+      contractEmployeeIds.forEach(id => planEmployeeIds.add(id));
+      
+      // Фильтруем маршрутные листы по сотрудникам из планов и контингента
+      // Нормализуем patientId к строке для сравнения
+      const contractSheets = allSheets.filter(rs => {
+        const patientIdStr = String(rs.patientId);
+        return planEmployeeIds.has(patientIdStr) || contractEmployeeIds.includes(patientIdStr);
+      });
+      
+      console.log('Route sheets filter debug:', {
+        contractId,
+        allSheetsCount: allSheets.length,
+        contractPlansCount: contractPlans.length,
+        planEmployeeIds: Array.from(planEmployeeIds),
+        contractEmployeeIds,
+        filteredSheetsCount: contractSheets.length,
+        samplePatientIds: allSheets.slice(0, 5).map(rs => rs.patientId)
+      });
+      
       setRouteSheets(contractSheets);
     } catch (error) {
       console.error('Error loading route sheets:', error);
@@ -1233,7 +1256,7 @@ export default function ContractsPage() {
     if (showContractDrawer && activeTab === 'route') {
       loadRouteSheetsForContract(showContractDrawer);
     }
-  }, [showContractDrawer, activeTab, contingent]);
+  }, [showContractDrawer, activeTab, contingent, calendarPlans]);
 
   // Функции управления контингентом
   const handleEditEmployee = (employee: ContingentEmployee) => {
@@ -1279,7 +1302,8 @@ export default function ContractsPage() {
     }
     
     try {
-      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(editingEmployee, editData);
+      const user = userStore.getCurrentUser();
+      const updatedEmployee = await workflowStoreAPI.updateContingentEmployee(user?.id || '', editingEmployee, editData);
       
       // Обновляем только конкретную запись в списке, сохраняя порядок
       setContingent(prevContingent => 
@@ -3603,26 +3627,6 @@ export default function ContractsPage() {
                                           </>
                                         )}
                                         {plan.status === 'approved' && (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleSendPlanToSES(plan.id)}
-                                            >
-                                              <Send className="h-4 w-4 mr-1" />
-                                              В СЭС
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleGeneratePDF(plan)}
-                                            >
-                                              <Download className="h-4 w-4 mr-1" />
-                                              PDF
-                                            </Button>
-                                          </>
-                                        )}
-                                        {plan.status === 'sent_to_ses' && (
                                           <Button
                                             size="sm"
                                             variant="outline"

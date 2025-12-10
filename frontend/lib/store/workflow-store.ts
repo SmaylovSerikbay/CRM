@@ -124,7 +124,7 @@ class WorkflowStore {
   }
 
   getApprovedCalendarPlans(): CalendarPlan[] {
-    return this.calendarPlans.filter(p => p.status === 'approved' || p.status === 'sent_to_ses');
+    return this.calendarPlans.filter(p => p.status === 'approved');
   }
 
   updateCalendarPlanStatus(id: string, status: CalendarPlan['status']) {
@@ -135,8 +135,6 @@ class WorkflowStore {
         plan.approvedByClinicAt = new Date().toISOString();
       } else if (status === 'approved') {
         plan.approvedByEmployerAt = new Date().toISOString();
-      } else if (status === 'sent_to_ses') {
-        plan.sentToSESAt = new Date().toISOString();
       }
     }
   }
@@ -149,7 +147,7 @@ class WorkflowStore {
     // Проверяем, есть ли утвержденный календарный план для этого пациента
     const plan = this.calendarPlans.find(p => 
       p.employeeIds.includes(patientId) && 
-      (p.status === 'approved' || p.status === 'sent_to_ses') &&
+      p.status === 'approved' &&
       visitDate >= p.startDate && 
       visitDate <= p.endDate
     );
