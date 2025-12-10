@@ -2064,6 +2064,10 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
         return status_map.get(status_code, status_code)
 
     def get_queryset(self):
+        # Для POST запросов (создание) возвращаем полный queryset
+        if self.action == 'create':
+            return CalendarPlan.objects.all()
+            
         user_id = self.request.query_params.get('user_id')
         if user_id:
             try:

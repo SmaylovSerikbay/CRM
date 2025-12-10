@@ -104,6 +104,12 @@ function CalendarPlanPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Form submitted with data:', {
+      selectedContractId,
+      formData,
+      currentStep
+    });
+    
     if (!selectedContractId) {
       showToast('Пожалуйста, выберите договор перед созданием календарного плана', 'warning');
       return;
@@ -427,23 +433,28 @@ function CalendarPlanPageContent() {
 
               {/* Индикатор шагов */}
               <div className="mb-6">
+                <div className="text-center mb-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Шаг {currentStep} из 3
+                  </span>
+                </div>
                 <div className="flex items-center justify-between">
                   <div className={`flex items-center ${currentStep >= 1 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 1 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 1 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'} ${currentStep === 1 ? 'ring-2 ring-blue-200 dark:ring-blue-800' : ''}`}>
                       {currentStep > 1 ? '✓' : '1'}
                     </div>
                     <span className="ml-2 text-sm font-medium">Договор</span>
                   </div>
                   <div className={`flex-1 h-0.5 mx-2 ${currentStep >= 2 ? 'bg-blue-600 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                   <div className={`flex items-center ${currentStep >= 2 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 2 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 2 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'} ${currentStep === 2 ? 'ring-2 ring-blue-200 dark:ring-blue-800' : ''}`}>
                       {currentStep > 2 ? '✓' : '2'}
                     </div>
                     <span className="ml-2 text-sm font-medium">Объекты и даты</span>
                   </div>
                   <div className={`flex-1 h-0.5 mx-2 ${currentStep >= 3 ? 'bg-blue-600 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                   <div className={`flex items-center ${currentStep >= 3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 3 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${currentStep >= 3 ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600'} ${currentStep === 3 ? 'ring-2 ring-blue-200 dark:ring-blue-800' : ''}`}>
                       3
                     </div>
                     <span className="ml-2 text-sm font-medium">Дополнительно</span>
@@ -522,9 +533,14 @@ function CalendarPlanPageContent() {
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-lg font-semibold mb-2">Шаг 2: Выберите объекты/участки и укажите даты</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Выберите объекты/участки и укажите период проведения медосмотров
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Выберите объекты/участки и укажите период проведения медосмотров.
                       </p>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          💡 <strong>Подсказка:</strong> После заполнения вы можете либо нажать "Далее" для настройки дополнительных параметров, либо "Создать план сейчас" для быстрого создания.
+                        </p>
+                      </div>
                     </div>
 
                     {/* Выбор объектов/участков */}
@@ -884,39 +900,58 @@ function CalendarPlanPageContent() {
                       >
                         ← Назад
                       </Button>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          if (formData.selectedDepartments.length === 0) {
-                            showToast('Пожалуйста, выберите хотя бы один объект или участок', 'warning');
-                            return;
-                          }
-                          
-                          let isValid = true;
-                          if (formData.useCommonDates) {
-                            if (!formData.commonStartDate || !formData.commonEndDate) {
-                              isValid = false;
-                              showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
+                      <div className="flex gap-3">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (formData.selectedDepartments.length === 0) {
+                              showToast('Пожалуйста, выберите хотя бы один объект или участок', 'warning');
+                              return;
                             }
-                          } else {
-                            for (const dept of formData.selectedDepartments) {
-                              const dates = formData.departmentDates[dept];
-                              if (!dates || !dates.startDate || !dates.endDate) {
+                            
+                            let isValid = true;
+                            if (formData.useCommonDates) {
+                              if (!formData.commonStartDate || !formData.commonEndDate) {
                                 isValid = false;
-                                showToast(`Пожалуйста, укажите даты для объекта/участка: ${dept}`, 'warning');
-                                break;
+                                showToast('Пожалуйста, укажите даты начала и окончания', 'warning');
+                              }
+                            } else {
+                              for (const dept of formData.selectedDepartments) {
+                                const dates = formData.departmentDates[dept];
+                                if (!dates || !dates.startDate || !dates.endDate) {
+                                  isValid = false;
+                                  showToast(`Пожалуйста, укажите даты для объекта/участка: ${dept}`, 'warning');
+                                  break;
+                                }
                               }
                             }
-                          }
-                          
-                          if (isValid) {
-                            setCurrentStep(3);
-                          }
-                        }}
-                        disabled={formData.selectedDepartments.length === 0}
-                      >
-                        Далее →
-                      </Button>
+                            
+                            console.log('Validation check:', {
+                              selectedDepartments: formData.selectedDepartments,
+                              useCommonDates: formData.useCommonDates,
+                              commonStartDate: formData.commonStartDate,
+                              commonEndDate: formData.commonEndDate,
+                              departmentDates: formData.departmentDates,
+                              isValid
+                            });
+                            
+                            if (isValid) {
+                              setCurrentStep(3);
+                            }
+                          }}
+                          disabled={formData.selectedDepartments.length === 0}
+                        >
+                          Далее →
+                        </Button>
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          disabled={formData.selectedDepartments.length === 0 || 
+                            (formData.useCommonDates && (!formData.commonStartDate || !formData.commonEndDate))}
+                        >
+                          Создать план сейчас
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
