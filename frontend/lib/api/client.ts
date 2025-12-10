@@ -123,6 +123,10 @@ class ApiClient {
     });
   }
 
+  async getUsers(): Promise<any[]> {
+    return this.request('/users/');
+  }
+
   // Contingent
   async getContingent(userId: string) {
     return this.request(`/contingent-employees/?user_id=${userId}`);
@@ -886,6 +890,34 @@ class ApiClient {
     return this.request(`/patient-queue/${queueId}/skip_patient/`, {
       method: 'POST',
     });
+  }
+
+  async exportClinicsExcel(): Promise<Blob> {
+    const url = `${this.baseUrl}/users/export_clinics_excel/`;
+    const response = await fetch(url, {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.blob();
+  }
+
+  async exportEmployersExcel(): Promise<Blob> {
+    const url = `${this.baseUrl}/users/export_employers_excel/`;
+    const response = await fetch(url, {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.blob();
   }
 }
 

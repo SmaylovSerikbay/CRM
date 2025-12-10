@@ -413,6 +413,220 @@ class UserViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'])
+    def export_clinics_excel(self, request):
+        """Экспорт списка клиник в Excel"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from django.http import HttpResponse
+            import io
+            
+            # Получаем только клиники
+            clinics = User.objects.filter(role='clinic').order_by('created_at')
+            
+            if not clinics.exists():
+                return Response({'error': 'Нет данных для экспорта'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Создание Excel файла
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Клиники"
+            
+            # Стили
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_alignment = Alignment(horizontal='center', vertical='center')
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            
+            # Заголовки
+            headers = [
+                'БИН/ИИН',
+                'Название клиники',
+                'Телефон',
+                'Email',
+                'Дата регистрации',
+                'Статус регистрации'
+            ]
+            
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border
+            
+            # Данные
+            for row, clinic in enumerate(clinics, 2):
+                # Получаем БИН из registration_data
+                bin_iin = ''
+                clinic_name = ''
+                if clinic.registration_data:
+                    bin_iin = clinic.registration_data.get('bin', '')
+                    clinic_name = clinic.registration_data.get('clinic_name', '')
+                
+                data = [
+                    bin_iin,
+                    clinic_name or clinic.username,
+                    clinic.phone,
+                    clinic.email or '',
+                    clinic.created_at.strftime('%d.%m.%Y %H:%M') if clinic.created_at else '',
+                    'Завершена' if clinic.registration_completed else 'Не завершена'
+                ]
+                
+                for col, value in enumerate(data, 1):
+                    cell = ws.cell(row=row, column=col, value=value)
+                    cell.border = border
+                    if col == 5:  # Дата
+                        cell.alignment = Alignment(horizontal='center')
+                    elif col == 6:  # Статус
+                        cell.alignment = Alignment(horizontal='center')
+                        if value == 'Завершена':
+                            cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                        else:
+                            cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+            
+            # Автоширина колонок
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
+            
+            # Сохранение в память
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # Создание HTTP ответа
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="clinics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+            return response
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def export_employers_excel(self, request):
+        """Экспорт списка работодателей в Excel"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from django.http import HttpResponse
+            import io
+            
+            # Получаем только работодателей
+            employers = User.objects.filter(role='employer').order_by('created_at')
+            
+            if not employers.exists():
+                return Response({'error': 'Нет данных для экспорта'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Создание Excel файла
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Работодатели"
+            
+            # Стили
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_alignment = Alignment(horizontal='center', vertical='center')
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            
+            # Заголовки
+            headers = [
+                'БИН/ИИН',
+                'Название организации',
+                'Телефон',
+                'Email',
+                'Дата регистрации',
+                'Статус регистрации'
+            ]
+            
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border
+            
+            # Данные
+            for row, employer in enumerate(employers, 2):
+                # Получаем БИН из registration_data
+                bin_iin = ''
+                company_name = ''
+                if employer.registration_data:
+                    bin_iin = employer.registration_data.get('bin', '')
+                    company_name = employer.registration_data.get('company_name', '')
+                
+                data = [
+                    bin_iin,
+                    company_name or employer.username,
+                    employer.phone,
+                    employer.email or '',
+                    employer.created_at.strftime('%d.%m.%Y %H:%M') if employer.created_at else '',
+                    'Завершена' if employer.registration_completed else 'Не завершена'
+                ]
+                
+                for col, value in enumerate(data, 1):
+                    cell = ws.cell(row=row, column=col, value=value)
+                    cell.border = border
+                    if col == 5:  # Дата
+                        cell.alignment = Alignment(horizontal='center')
+                    elif col == 6:  # Статус
+                        cell.alignment = Alignment(horizontal='center')
+                        if value == 'Завершена':
+                            cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                        else:
+                            cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+            
+            # Автоширина колонок
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
+            
+            # Сохранение в память
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # Создание HTTP ответа
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="employers_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+            return response
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class ContingentEmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = ContingentEmployeeSerializer

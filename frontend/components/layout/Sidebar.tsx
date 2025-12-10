@@ -106,6 +106,7 @@ export function Sidebar({ role }: SidebarProps) {
   const allClinicMenu: MenuItem[] = [
     { title: 'Дашборд', href: '/dashboard/clinic', icon: LayoutDashboard },
     { title: 'Договоры', href: '/dashboard/clinic/contracts', icon: FileText },
+    { title: 'Контрагенты', href: '/dashboard/clinic/counterparties', icon: Building2 },
     { title: 'Врачи', href: '/dashboard/clinic/doctors', icon: Stethoscope },
     { title: 'Электронная очередь', href: '/dashboard/clinic/queue', icon: Clock },
     { title: 'История осмотров', href: '/dashboard/clinic/patient-history', icon: Calendar },
@@ -124,7 +125,7 @@ export function Sidebar({ role }: SidebarProps) {
     if (!clinicRole) return allClinicMenu;
 
     const roleAccess: Record<ClinicUserRole, string[]> = {
-      manager: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/doctors', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/final-act', '/dashboard/clinic/health-plan', '/dashboard/clinic/referrals'],
+      manager: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/counterparties', '/dashboard/clinic/doctors', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/final-act', '/dashboard/clinic/health-plan', '/dashboard/clinic/referrals'],
       profpathologist: ['/dashboard/clinic', '/dashboard/clinic/expertise', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/referrals'],
       doctor: ['/dashboard/clinic', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
       receptionist: ['/dashboard/clinic', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/medical-commission', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
@@ -139,6 +140,7 @@ export function Sidebar({ role }: SidebarProps) {
   const employerMenu: MenuItem[] = [
     { title: 'Дашборд', href: '/dashboard/employer', icon: LayoutDashboard },
     { title: 'Договоры', href: '/dashboard/employer/contracts', icon: FileText },
+    { title: 'Контрагенты', href: '/dashboard/employer/counterparties', icon: Building2 },
     { title: 'Сотрудники', href: '/dashboard/employer/employees', icon: UserPlus },
     { title: 'Календарный план', href: '/dashboard/employer/calendar-plan', icon: Calendar },
     { title: 'План оздоровления', href: '/dashboard/employer/health-improvement-plan', icon: FileText },
