@@ -475,6 +475,7 @@ class ContractHistory(models.Model):
         ('cancelled', 'Отменен'),
         ('executed', 'Исполнен'),
         ('subcontracted', 'Передан на субподряд'),
+        ('employer_registered', 'Работодатель зарегистрировался'),
     ]
     
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='history', verbose_name='Договор')

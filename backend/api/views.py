@@ -311,6 +311,38 @@ class UserViewSet(viewsets.ModelViewSet):
             
             user.save()
             
+            # ИСПРАВЛЕНИЕ: Если это работодатель, связываем существующие договоры с его БИНом
+            if role == 'employer' and registration_data:
+                bin_number = registration_data.get('bin') or registration_data.get('inn')
+                if bin_number:
+                    # Нормализуем БИН
+                    bin_normalized = ''.join(str(bin_number).strip().split())
+                    
+                    # Находим все договоры с этим БИНом, которые еще не связаны с работодателем
+                    unlinked_contracts = Contract.objects.filter(
+                        employer_bin=bin_normalized,
+                        employer__isnull=True
+                    )
+                    
+                    # Связываем договоры с зарегистрированным работодателем
+                    contracts_updated = unlinked_contracts.update(employer=user)
+                    
+                    logger.info(f"[REGISTRATION] Linked {contracts_updated} contracts to employer {user.id} with BIN {bin_normalized}")
+                    
+                    # Создаем записи в истории для каждого связанного договора
+                    for contract in unlinked_contracts:
+                        try:
+                            ContractHistory.objects.create(
+                                contract=contract,
+                                action='employer_registered',
+                                user=user,
+                                user_role=user.role,
+                                user_name=registration_data.get('name', ''),
+                                comment=f'Работодатель зарегистрировался и договор автоматически связан с аккаунтом'
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to create contract history: {str(e)}")
+            
             serializer = UserSerializer(user)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
@@ -4455,6 +4487,8 @@ class ContractViewSet(viewsets.ModelViewSet):
                     
                     if not employer:
                         print(f"[ContractCreate] WARNING: Employer not found for BIN: {employer_bin}")
+                        # Сохраняем нормализованный БИН для будущего связывания
+                        data['employer_bin'] = bin_normalized
                 
                 # Добавляем clinic в данные для сериализатора
                 data['clinic'] = user.id
@@ -4501,9 +4535,12 @@ class ContractViewSet(viewsets.ModelViewSet):
         employer_phone = self.request.data.get('employer_phone', '')
         user_id = self.request.data.get('user_id')
         
+        # Нормализуем БИН для единообразного хранения
+        normalized_bin = ''.join(str(employer_bin).strip().split()) if employer_bin else ''
+        
         # Сохраняем договор (clinic и employer уже установлены в create)
         contract = serializer.save(
-            employer_bin=employer_bin or '', 
+            employer_bin=normalized_bin, 
             employer_phone=employer_phone or ''
         )
         
