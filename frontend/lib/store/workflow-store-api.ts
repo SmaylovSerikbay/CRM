@@ -931,33 +931,6 @@ class WorkflowStoreAPI {
     const userId = this.getUserId();
     await apiClient.rejectExecutionByEmployer(contractId, userId, rejectionReason);
   }
-
-  // Export methods
-  async exportClinicsExcel(): Promise<void> {
-    const blob = await apiClient.exportClinicsExcel();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = `clinics_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  }
-
-  async exportEmployersExcel(): Promise<void> {
-    const blob = await apiClient.exportEmployersExcel();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = `employers_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  }
 }
 
 export const workflowStoreAPI = new WorkflowStoreAPI();
