@@ -50,7 +50,7 @@ export default function ContractContingentPage() {
       
       setContract(foundContract);
 
-      // Загружаем контингент для этого договора
+      // Загружаем контингент для этого договора (используем кэш для ускорения)
       const contingentData = await workflowStoreAPI.getContingentByContract(contractId);
       setContingent(contingentData);
     } catch (error) {
@@ -69,8 +69,8 @@ export default function ContractContingentPage() {
     try {
       const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
       
-      // Перезагружаем данные
-      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId);
+      // Перезагружаем данные без кэша для получения актуальных данных
+      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
       setContingent(updatedContingent);
       
       if (result.skipped > 0) {
@@ -136,8 +136,8 @@ export default function ContractContingentPage() {
     
     try {
       await workflowStoreAPI.deleteContingentEmployee(employeeId);
-      // Перезагружаем данные
-      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId);
+      // Перезагружаем данные без кэша для получения актуальных данных
+      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
       setContingent(updatedContingent);
       showToast('Сотрудник успешно удален', 'success');
     } catch (error: any) {

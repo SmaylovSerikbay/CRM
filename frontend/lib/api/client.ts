@@ -155,25 +155,34 @@ class ApiClient {
   }
 
   async getContingentByContract(userId: string, contractId: string) {
-    let allResults: any[] = [];
-    let nextUrl = `/contingent-employees/?user_id=${userId}&contract_id=${contractId}`;
-    
-    while (nextUrl) {
-      const response: any = await this.request(nextUrl);
+    // Используем оптимизированный endpoint для быстрой загрузки
+    try {
+      const response = await this.request(`/contingent-employees/by_contract_optimized/?user_id=${userId}&contract_id=${contractId}`);
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.warn('Optimized endpoint failed, falling back to regular endpoint:', error);
       
-      if (Array.isArray(response)) {
-        allResults = response;
-        break;
-      } else if (response && typeof response === 'object' && response.results) {
-        allResults = allResults.concat(response.results);
-        nextUrl = response.next ? response.next.replace(this.baseUrl, '') : null;
-      } else {
-        allResults = Array.isArray(response) ? response : [response];
-        break;
+      // Fallback к старому методу если оптимизированный не работает
+      let allResults: any[] = [];
+      let nextUrl = `/contingent-employees/?user_id=${userId}&contract_id=${contractId}`;
+      
+      while (nextUrl) {
+        const response: any = await this.request(nextUrl);
+        
+        if (Array.isArray(response)) {
+          allResults = response;
+          break;
+        } else if (response && typeof response === 'object' && response.results) {
+          allResults = allResults.concat(response.results);
+          nextUrl = response.next ? response.next.replace(this.baseUrl, '') : null;
+        } else {
+          allResults = Array.isArray(response) ? response : [response];
+          break;
+        }
       }
+      
+      return allResults;
     }
-    
-    return allResults;
   }
 
   async getContractCounts(userId: string, contractId: string) {

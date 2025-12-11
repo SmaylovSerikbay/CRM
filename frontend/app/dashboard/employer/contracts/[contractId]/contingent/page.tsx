@@ -68,8 +68,8 @@ export default function EmployerContractContingentPage() {
     try {
       const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
       
-      // Перезагружаем данные
-      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId);
+      // Перезагружаем данные без кэша для получения актуальных данных
+      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
       setContingent(updatedContingent);
       
       if (result.skipped > 0) {

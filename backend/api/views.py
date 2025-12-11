@@ -715,6 +715,43 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
         return ContingentEmployee.objects.all().select_related('user', 'contract')
 
     @action(detail=False, methods=['get'])
+    def by_contract_optimized(self, request):
+        """Оптимизированное получение контингента по договору"""
+        user_id = request.query_params.get('user_id')
+        contract_id = request.query_params.get('contract_id')
+        
+        if not user_id or not contract_id:
+            return Response({'error': 'user_id и contract_id обязательны'}, status=400)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            contract = Contract.objects.select_related('clinic', 'employer').get(id=contract_id)
+            
+            # Проверяем права доступа
+            has_access = False
+            if user.role == 'clinic' and contract.clinic == user:
+                has_access = True
+            elif user.role == 'employer' and (contract.employer == user or contract.employer_bin == user.registration_data.get('bin')):
+                has_access = True
+            
+            if not has_access:
+                return Response({'error': 'Нет доступа к этому договору'}, status=403)
+            
+            # Оптимизированный запрос с минимальными JOIN
+            queryset = ContingentEmployee.objects.filter(
+                contract=contract
+            ).select_related('user', 'contract').prefetch_related('harmfulFactors')
+            
+            # Сериализуем данные
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+            
+        except (User.DoesNotExist, Contract.DoesNotExist):
+            return Response({'error': 'Пользователь или договор не найден'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+    @action(detail=False, methods=['get'])
     def counts_by_contract(self, request):
         """Быстрое получение счетчиков для договора без загрузки полных данных"""
         user_id = request.query_params.get('user_id')

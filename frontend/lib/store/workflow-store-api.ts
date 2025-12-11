@@ -154,11 +154,27 @@ class WorkflowStoreAPI {
     }));
   }
 
-  async getContingentByContract(contractId: string): Promise<ContingentEmployee[]> {
+  // Простое кэширование для контингента по договору
+  private contingentByContractCache = new Map<string, { data: ContingentEmployee[], timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+  async getContingentByContract(contractId: string, useCache: boolean = true): Promise<ContingentEmployee[]> {
+    const cacheKey = `contract_${contractId}`;
+    
+    // Проверяем кэш
+    if (useCache) {
+      const cached = this.contingentByContractCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
+        console.log('Using cached contingent data for contract:', contractId);
+        return cached.data;
+      }
+    }
+
+    console.log('Loading fresh contingent data for contract:', contractId);
     const userId = this.getUserId();
     const data: any = await apiClient.getContingentByContract(userId, contractId);
     const results = Array.isArray(data) ? data : (data.results || []);
-    return results.map((emp: any) => ({
+    const contingentData = results.map((emp: any) => ({
       id: emp.id.toString(),
       name: emp.name,
       position: emp.position,
@@ -180,6 +196,25 @@ class WorkflowStoreAPI {
       employerName: emp.employer_name || undefined,
       routeSheetInfo: emp.route_sheet_info || undefined,
     }));
+
+    // Сохраняем в кэш
+    if (useCache) {
+      this.contingentByContractCache.set(cacheKey, {
+        data: contingentData,
+        timestamp: Date.now()
+      });
+    }
+
+    return contingentData;
+  }
+
+  // Метод для очистки кэша при изменении данных
+  clearContingentCache(contractId?: string) {
+    if (contractId) {
+      this.contingentByContractCache.delete(`contract_${contractId}`);
+    } else {
+      this.contingentByContractCache.clear();
+    }
   }
 
   async getContractCounts(contractId: string): Promise<{
@@ -188,7 +223,12 @@ class WorkflowStoreAPI {
     route_sheets_count: number;
   }> {
     const userId = this.getUserId();
-    return await apiClient.getContractCounts(userId, contractId);
+    const result = await apiClient.getContractCounts(userId, contractId);
+    return result as {
+      contingent_count: number;
+      plans_count: number;
+      route_sheets_count: number;
+    };
   }
 
   getContingentByDepartment(department: string): ContingentEmployee[] {
@@ -215,7 +255,16 @@ class WorkflowStoreAPI {
     };
   }> {
     const userId = this.getUserId();
-    return await apiClient.uploadExcelContingent(userId, file, contractId);
+    const result = await apiClient.uploadExcelContingent(userId, file, contractId);
+    
+    // Очищаем кэш после загрузки
+    if (contractId) {
+      this.clearContingentCache(contractId);
+    } else {
+      this.clearContingentCache(); // Очищаем весь кэш если договор не указан
+    }
+    
+    return result;
   }
 
   async downloadContingentTemplate(): Promise<void> {
@@ -225,6 +274,9 @@ class WorkflowStoreAPI {
   async deleteContingentEmployee(employeeId: string): Promise<void> {
     const userId = this.getUserId();
     await apiClient.deleteContingentEmployee(userId, employeeId);
+    
+    // Очищаем весь кэш так как не знаем к какому договору относился сотрудник
+    this.clearContingentCache();
   }
 
   async deleteAllContingentEmployees(): Promise<void> {
