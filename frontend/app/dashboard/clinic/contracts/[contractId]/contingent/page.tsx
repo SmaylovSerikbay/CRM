@@ -99,9 +99,18 @@ export default function ContractContingentPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    console.log('Starting file upload:', file.name, 'for contract:', contractId);
+    
+    if (!contractId) {
+      showToast('Ошибка: не указан ID договора', 'error');
+      return;
+    }
+    
     setIsUploading(true);
     try {
+      console.log('Calling uploadExcelContingent...');
       const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
+      console.log('Upload result:', result);
       
       // Перезагружаем данные без кэша для получения актуальных данных
       loadData(1); // Перезагружаем первую страницу
@@ -119,6 +128,7 @@ export default function ContractContingentPage() {
       
       setShowUploadModal(false);
     } catch (error: any) {
+      console.error('Upload error:', error);
       showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
       setIsUploading(false);
@@ -503,10 +513,10 @@ export default function ContractContingentPage() {
               className="hidden"
               id="file-upload"
             />
-            <label htmlFor="file-upload">
-              <Button as="span" disabled={isUploading}>
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <span className={`inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                 {isUploading ? 'Загрузка...' : 'Выбрать файл'}
-              </Button>
+              </span>
             </label>
           </div>
           
