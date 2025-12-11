@@ -34,7 +34,7 @@ export default function ContractContingentPage() {
   
   // Server-side пагинация
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(0);
   
@@ -960,9 +960,26 @@ export default function ContractContingentPage() {
               </Button>
               
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = i + 1;
-                  return (
+                {(() => {
+                  const maxVisiblePages = 5;
+                  const pages = [];
+                  
+                  if (totalPages <= maxVisiblePages) {
+                    // Если страниц мало, показываем все
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Показываем страницы вокруг текущей
+                    const startPage = Math.max(1, currentPage - 2);
+                    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(i);
+                    }
+                  }
+                  
+                  return pages.map((pageNum) => (
                     <Button
                       key={pageNum}
                       variant={currentPage === pageNum ? "primary" : "outline"}
@@ -972,16 +989,17 @@ export default function ContractContingentPage() {
                     >
                       {pageNum}
                     </Button>
-                  );
-                })}
-                {totalPages > 5 && (
+                  ));
+                })()}
+                
+                {totalPages > 5 && currentPage < totalPages - 2 && (
                   <>
                     <span className="text-gray-400 px-2">...</span>
                     <Button
-                      variant={currentPage === totalPages ? "primary" : "outline"}
+                      variant="outline"
                       size="sm"
                       onClick={() => setCurrentPage(totalPages)}
-                      className={currentPage === totalPages ? "" : "text-gray-600 hover:text-gray-900"}
+                      className="text-gray-600 hover:text-gray-900"
                     >
                       {totalPages}
                     </Button>
