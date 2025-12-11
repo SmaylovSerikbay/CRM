@@ -21,35 +21,51 @@ export default function ContractContingentPage() {
   
   const [contract, setContract] = useState<any>(null);
   const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
+  const [allContingent, setAllContingent] = useState<ContingentEmployee[]>([]); // Для поиска и экспорта
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
-  // Пагинация
+  // Server-side пагинация
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
     if (contractId) {
-      loadData();
+      loadData(1);
+      // Загружаем все данные для поиска в фоне
+      setTimeout(() => loadAllDataForSearch(), 1000);
     }
   }, [contractId]);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (contractId) {
+      loadData(currentPage);
+    }
+  }, [currentPage]);
+
+  const loadData = async (page: number = 1) => {
     try {
-      // Сначала загружаем контингент - это основные данные страницы
-      const contingentData = await workflowStoreAPI.getContingentByContract(contractId);
-      setContingent(contingentData);
+      setIsLoading(true);
+      
+      // Загружаем страницу данных с пагинацией
+      const result = await workflowStoreAPI.getContingentByContract(contractId, true, page, itemsPerPage);
+      setContingent(result.data);
+      setTotalCount(result.pagination.count);
+      setTotalPages(result.pagination.totalPages);
+      setCurrentPage(result.pagination.page);
       
       // Если есть контингент, получаем информацию о договоре из первого сотрудника
-      if (contingentData.length > 0 && contingentData[0].contractNumber) {
+      if (result.data.length > 0 && result.data[0].contractNumber) {
         setContract({
           id: contractId,
-          contract_number: contingentData[0].contractNumber,
-          employer_name: contingentData[0].employerName
+          contract_number: result.data[0].contractNumber,
+          employer_name: result.data[0].employerName
         });
-      } else {
+      } else if (result.pagination.count === 0) {
         // Если контингента нет, загружаем информацию о договоре отдельно
         const contracts = await workflowStoreAPI.getContracts();
         const foundContract = contracts.find((c: any) => c.id.toString() === contractId);
@@ -67,6 +83,15 @@ export default function ContractContingentPage() {
       showToast('Ошибка загрузки данных', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadAllDataForSearch = async () => {
+    try {
+      const allData = await workflowStoreAPI.getAllContingentByContract(contractId);
+      setAllContingent(allData);
+    } catch (error) {
+      console.error('Error loading all data:', error);
     }
   };
 

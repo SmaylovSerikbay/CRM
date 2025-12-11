@@ -158,22 +158,33 @@ class WorkflowStoreAPI {
   private contingentByContractCache = new Map<string, { data: ContingentEmployee[], timestamp: number }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
-  async getContingentByContract(contractId: string, useCache: boolean = true): Promise<ContingentEmployee[]> {
-    const cacheKey = `contract_${contractId}`;
+  async getContingentByContract(contractId: string, useCache: boolean = true, page: number = 1, pageSize: number = 50): Promise<{
+    data: ContingentEmployee[];
+    pagination: {
+      count: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrevious: boolean;
+    };
+  }> {
+    const cacheKey = `contract_${contractId}_page_${page}_size_${pageSize}`;
     
     // Проверяем кэш
     if (useCache) {
       const cached = this.contingentByContractCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
-        console.log('Using cached contingent data for contract:', contractId);
+        console.log('Using cached contingent data for contract:', contractId, 'page:', page);
         return cached.data;
       }
     }
 
-    console.log('Loading fresh contingent data for contract:', contractId);
+    console.log('Loading fresh contingent data for contract:', contractId, 'page:', page);
     const userId = this.getUserId();
-    const data: any = await apiClient.getContingentByContract(userId, contractId);
-    const results = Array.isArray(data) ? data : (data.results || []);
+    const response: any = await apiClient.getContingentByContract(userId, contractId, page, pageSize);
+    const results = Array.isArray(response) ? response : (response.results || []);
+    
     const contingentData = results.map((emp: any) => ({
       id: emp.id.toString(),
       name: emp.name,
@@ -197,15 +208,58 @@ class WorkflowStoreAPI {
       routeSheetInfo: emp.route_sheet_info || undefined,
     }));
 
+    const result = {
+      data: contingentData,
+      pagination: {
+        count: response.count || contingentData.length,
+        page: response.page || page,
+        pageSize: response.page_size || pageSize,
+        totalPages: response.total_pages || Math.ceil((response.count || contingentData.length) / pageSize),
+        hasNext: response.has_next || false,
+        hasPrevious: response.has_previous || false,
+      }
+    };
+
     // Сохраняем в кэш
     if (useCache) {
       this.contingentByContractCache.set(cacheKey, {
-        data: contingentData,
+        data: result,
         timestamp: Date.now()
       });
     }
 
-    return contingentData;
+    return result;
+  }
+
+  // Метод для получения всех данных (для экспорта, поиска и т.д.)
+  async getAllContingentByContract(contractId: string): Promise<ContingentEmployee[]> {
+    console.log('Loading ALL contingent data for contract:', contractId);
+    const userId = this.getUserId();
+    const data: any = await apiClient.getAllContingentByContract(userId, contractId);
+    const results = Array.isArray(data) ? data : (data.results || []);
+    
+    return results.map((emp: any) => ({
+      id: emp.id.toString(),
+      name: emp.name,
+      position: emp.position,
+      department: emp.department,
+      iin: emp.iin,
+      phone: emp.phone,
+      birthDate: emp.birth_date,
+      gender: emp.gender,
+      harmfulFactors: emp.harmful_factors || [],
+      requiresExamination: emp.requires_examination !== false,
+      lastExaminationDate: emp.last_examination_date,
+      nextExaminationDate: emp.next_examination_date,
+      totalExperienceYears: emp.total_experience_years,
+      positionExperienceYears: emp.position_experience_years,
+      notes: emp.notes,
+      quarter: emp.quarter,
+      contractId: emp.contract ? emp.contract.toString() : undefined,
+      contractNumber: emp.contract_number || undefined,
+      employerName: emp.employer_name || undefined,
+      routeSheetInfo: emp.route_sheet_info || undefined,
+    }));
   }
 
   // Метод для очистки кэша при изменении данных

@@ -7,6 +7,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
 from django.http import HttpResponse, FileResponse
+import sys
 from django.contrib.auth.hashers import make_password, check_password
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -716,9 +717,11 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def by_contract_optimized(self, request):
-        """Оптимизированное получение контингента по договору"""
+        """Оптимизированное получение контингента по договору с пагинацией"""
         user_id = request.query_params.get('user_id')
         contract_id = request.query_params.get('contract_id')
+        page_size = int(request.query_params.get('page_size', 50))  # По умолчанию 50 записей
+        page = int(request.query_params.get('page', 1))
         
         if not user_id or not contract_id:
             return Response({'error': 'user_id и contract_id обязательны'}, status=400)
@@ -737,14 +740,71 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             if not has_access:
                 return Response({'error': 'Нет доступа к этому договору'}, status=403)
             
-            # Оптимизированный запрос с минимальными JOIN
+            # Оптимизированный запрос с пагинацией
+            import time
+            start_time = time.time()
+            
+            # Упрощенный запрос без лишних JOIN - только нужные поля
             queryset = ContingentEmployee.objects.filter(
                 contract=contract
-            ).select_related('user', 'contract')
+            ).order_by('id')
             
-            # Сериализуем данные
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            # Подсчитываем общее количество
+            count_start = time.time()
+            total_count = queryset.count()
+            count_time = time.time() - count_start
+            
+            print(f"[PERFORMANCE] Contract {contract_id}: Count query took {count_time:.3f}s, found {total_count} records", file=sys.stderr)
+            
+            # Применяем пагинацию
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            pagination_start = time.time()
+            paginated_queryset = queryset[start:end]
+            pagination_time = time.time() - pagination_start
+            
+            # Сериализуем данные упрощенным способом без лишних запросов
+            serialization_start = time.time()
+            
+            # Создаем упрощенные данные без дополнительных запросов
+            simplified_data = []
+            for emp in paginated_queryset:
+                simplified_data.append({
+                    'id': emp.id,
+                    'name': emp.name,
+                    'position': emp.position,
+                    'department': emp.department,
+                    'phone': emp.phone,
+                    'birth_date': emp.birth_date,
+                    'gender': emp.gender,
+                    'harmful_factors': emp.harmful_factors,
+                    'requires_examination': emp.requires_examination,
+                    'last_examination_date': emp.last_examination_date,
+                    'next_examination_date': emp.next_examination_date,
+                    'total_experience_years': emp.total_experience_years,
+                    'position_experience_years': emp.position_experience_years,
+                    'notes': emp.notes,
+                    'quarter': emp.quarter,
+                    'contract': emp.contract_id,
+                    'contract_number': contract.contract_number if contract else None,
+                    'employer_name': contract.employer.registration_data.get('name') if contract and contract.employer and contract.employer.registration_data else None,
+                })
+            
+            serialization_time = time.time() - serialization_start
+            
+            total_time = time.time() - start_time
+            print(f"[PERFORMANCE] Contract {contract_id}: Pagination {pagination_time:.3f}s, Serialization {serialization_time:.3f}s, Total {total_time:.3f}s", file=sys.stderr)
+            
+            return Response({
+                'results': simplified_data,
+                'count': total_count,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'has_next': end < total_count,
+                'has_previous': page > 1
+            })
             
         except (User.DoesNotExist, Contract.DoesNotExist):
             return Response({'error': 'Пользователь или договор не найден'}, status=404)

@@ -154,11 +154,11 @@ class ApiClient {
     return allResults;
   }
 
-  async getContingentByContract(userId: string, contractId: string) {
-    // Используем оптимизированный endpoint для быстрой загрузки
+  async getContingentByContract(userId: string, contractId: string, page: number = 1, pageSize: number = 50) {
+    // Используем оптимизированный endpoint с пагинацией
     try {
-      const response = await this.request(`/contingent-employees/by_contract_optimized/?user_id=${userId}&contract_id=${contractId}`);
-      return Array.isArray(response) ? response : [];
+      const response = await this.request(`/contingent-employees/by_contract_optimized/?user_id=${userId}&contract_id=${contractId}&page=${page}&page_size=${pageSize}`);
+      return response;
     } catch (error) {
       console.warn('Optimized endpoint failed, falling back to regular endpoint:', error);
       
@@ -181,7 +181,18 @@ class ApiClient {
         }
       }
       
-      return allResults;
+      return { results: allResults, count: allResults.length };
+    }
+  }
+
+  async getAllContingentByContract(userId: string, contractId: string) {
+    // Метод для получения всех данных (для экспорта и т.д.)
+    try {
+      const response = await this.request(`/contingent-employees/by_contract_optimized/?user_id=${userId}&contract_id=${contractId}&page_size=10000`);
+      return Array.isArray(response) ? response : (response.results || []);
+    } catch (error) {
+      console.warn('Failed to get all contingent data:', error);
+      return [];
     }
   }
 

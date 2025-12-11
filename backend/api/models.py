@@ -62,6 +62,13 @@ class ContingentEmployee(models.Model):
     quarter = models.CharField(max_length=20, blank=True, verbose_name='Квартал')  # 1 квартал, 2 квартал и т.д.
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['contract'], name='contingent_contract_idx'),
+            models.Index(fields=['user'], name='contingent_user_idx'),
+            models.Index(fields=['contract', 'id'], name='contingent_contract_id_idx'),
+        ]
+
 
 class CalendarPlan(models.Model):
     STATUS_CHOICES = [
