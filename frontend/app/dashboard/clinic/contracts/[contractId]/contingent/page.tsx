@@ -35,6 +35,15 @@ export default function ContractContingentPage() {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(0);
+  
+  // Редактирование и создание сотрудников
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<Partial<ContingentEmployee>>({});
+  const [createData, setCreateData] = useState<Partial<ContingentEmployee>>({});
+  const [editAttempted, setEditAttempted] = useState(false);
+  const [createAttempted, setCreateAttempted] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -191,6 +200,139 @@ export default function ContractContingentPage() {
     setExistingCount(0);
   };
 
+  // Функции редактирования сотрудника
+  const handleEdit = (employee: ContingentEmployee) => {
+    setEditingId(employee.id);
+    setEditData({
+      name: employee.name,
+      position: employee.position,
+      department: employee.department,
+      birthDate: employee.birthDate,
+      gender: employee.gender,
+      phone: (employee as any).phone,
+      totalExperienceYears: (employee as any).totalExperienceYears,
+      positionExperienceYears: (employee as any).positionExperienceYears,
+      lastExaminationDate: employee.lastExaminationDate,
+      harmfulFactors: employee.harmfulFactors,
+      notes: (employee as any).notes,
+    });
+    setShowEditModal(true);
+    setEditAttempted(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    
+    setEditAttempted(true);
+    
+    // Валидация обязательных полей
+    const missingFields = [];
+    if (!editData.name) missingFields.push('ФИО');
+    if (!editData.department) missingFields.push('Объект/участок');
+    if (!editData.position) missingFields.push('Должность');
+    if (!editData.birthDate) missingFields.push('Дата рождения');
+    if (!editData.gender) missingFields.push('Пол');
+    if (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) missingFields.push('Общий стаж');
+    if (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) missingFields.push('Стаж по должности');
+    
+    if (missingFields.length > 0) {
+      showToast(`Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
+      return;
+    }
+    
+    try {
+      await workflowStoreAPI.updateContingentEmployee('clinic', editingId, editData);
+      
+      // Перезагружаем данные
+      await loadData(currentPage, true);
+      setTimeout(() => loadAllDataForSearch(), 500);
+      
+      // Закрываем модальное окно и очищаем состояние
+      setEditingId(null);
+      setEditData({});
+      setShowEditModal(false);
+      setEditAttempted(false);
+      
+      showToast('Изменения успешно сохранены', 'success');
+    } catch (error: any) {
+      console.error('Error saving employee:', error);
+      showToast(error.message || 'Ошибка сохранения', 'error');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditData({});
+    setShowEditModal(false);
+    setEditAttempted(false);
+  };
+
+  // Функции создания сотрудника
+  const handleCreateEmployee = async () => {
+    setCreateAttempted(true);
+    
+    // Валидация обязательных полей
+    const missingFields = [];
+    if (!createData.name) missingFields.push('ФИО');
+    if (!createData.department) missingFields.push('Объект/участок');
+    if (!createData.position) missingFields.push('Должность');
+    if (!createData.birthDate) missingFields.push('Дата рождения');
+    if (!createData.gender) missingFields.push('Пол');
+    if (!createData.totalExperienceYears && createData.totalExperienceYears !== 0) missingFields.push('Общий стаж');
+    if (!createData.positionExperienceYears && createData.positionExperienceYears !== 0) missingFields.push('Стаж по должности');
+    if (!createData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+    if (!createData.harmfulFactors || createData.harmfulFactors.length === 0) missingFields.push('Вредные факторы');
+    
+    if (missingFields.length > 0) {
+      showToast(`Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
+      return;
+    }
+
+    try {
+      await workflowStoreAPI.createContingentEmployee({
+        ...createData,
+        contractId: contractId,
+      });
+      
+      // Перезагружаем данные
+      await loadData(1, true); // Переходим на первую страницу чтобы увидеть нового сотрудника
+      setTimeout(() => loadAllDataForSearch(), 500);
+      
+      // Закрываем модальное окно и очищаем форму
+      setShowCreateModal(false);
+      setCreateData({});
+      setCreateAttempted(false);
+      
+      showToast('Сотрудник успешно добавлен', 'success');
+    } catch (error: any) {
+      console.error('Error creating employee:', error);
+      showToast(error.message || 'Ошибка создания сотрудника', 'error');
+    }
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateModal(false);
+    setCreateData({});
+    setCreateAttempted(false);
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) return;
+    
+    try {
+      await workflowStoreAPI.deleteContingentEmployee(employeeId);
+      
+      // Перезагружаем данные
+      await loadData(currentPage, true);
+      setTimeout(() => loadAllDataForSearch(), 500);
+      
+      showToast('Сотрудник удален', 'success');
+    } catch (error: any) {
+      console.error('Error deleting employee:', error);
+      showToast(error.message || 'Ошибка удаления', 'error');
+    }
+  };
+
   const handleExportContingent = async () => {
     try {
       if (contingent.length === 0) {
@@ -321,6 +463,10 @@ export default function ContractContingentPage() {
           <Button variant="outline" onClick={handleExportContingent}>
             <Download className="h-4 w-4 mr-2" />
             Экспорт
+          </Button>
+          <Button variant="outline" onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Добавить сотрудника
           </Button>
           <Button onClick={() => setShowUploadModal(true)}>
             <Upload className="h-4 w-4 mr-2" />
@@ -469,7 +615,12 @@ export default function ContractContingentPage() {
                     <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.phone || 'Не указан'}</td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleEdit(employee)}
+                          title="Редактировать"
+                        >
                           <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button 
@@ -654,6 +805,286 @@ export default function ContractContingentPage() {
                 {isUploading ? 'Загрузка...' : 'Заменить данные'}
               </Button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Модальное окно редактирования сотрудника */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={handleCancelEdit}
+        title="Редактировать сотрудника"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                ФИО <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={editData.name || ''}
+                onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                placeholder="Введите ФИО"
+                className={editAttempted && !editData.name ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Должность <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={editData.position || ''}
+                onChange={(e) => setEditData({ ...editData, position: e.target.value })}
+                placeholder="Введите должность"
+                className={editAttempted && !editData.position ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Объект/участок <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={editData.department || ''}
+                onChange={(e) => setEditData({ ...editData, department: e.target.value })}
+                placeholder="Введите объект/участок"
+                className={editAttempted && !editData.department ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Дата рождения <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="date"
+                value={editData.birthDate || ''}
+                onChange={(e) => setEditData({ ...editData, birthDate: e.target.value })}
+                className={editAttempted && !editData.birthDate ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Пол <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={editData.gender || ''}
+                onChange={(e) => setEditData({ ...editData, gender: e.target.value })}
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white ${editAttempted && !editData.gender ? 'border-red-500' : ''}`}
+              >
+                <option value="">Выберите пол</option>
+                <option value="М">Мужской</option>
+                <option value="Ж">Женский</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Телефон
+              </label>
+              <Input
+                value={editData.phone || ''}
+                onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                placeholder="Введите телефон"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Общий стаж (лет) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={editData.totalExperienceYears || ''}
+                onChange={(e) => setEditData({ ...editData, totalExperienceYears: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+                className={editAttempted && (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Стаж по должности (лет) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={editData.positionExperienceYears || ''}
+                onChange={(e) => setEditData({ ...editData, positionExperienceYears: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+                className={editAttempted && (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) ? 'border-red-500' : ''}
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Примечания
+            </label>
+            <textarea
+              value={editData.notes || ''}
+              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+              placeholder="Дополнительная информация"
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+          
+          <div className="flex items-center justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={handleCancelEdit}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleSaveEdit}>
+              Сохранить
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Модальное окно создания сотрудника */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={handleCancelCreate}
+        title="Добавить сотрудника"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                ФИО <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={createData.name || ''}
+                onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
+                placeholder="Введите ФИО"
+                className={createAttempted && !createData.name ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Должность <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={createData.position || ''}
+                onChange={(e) => setCreateData({ ...createData, position: e.target.value })}
+                placeholder="Введите должность"
+                className={createAttempted && !createData.position ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Объект/участок <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={createData.department || ''}
+                onChange={(e) => setCreateData({ ...createData, department: e.target.value })}
+                placeholder="Введите объект/участок"
+                className={createAttempted && !createData.department ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Дата рождения <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="date"
+                value={createData.birthDate || ''}
+                onChange={(e) => setCreateData({ ...createData, birthDate: e.target.value })}
+                className={createAttempted && !createData.birthDate ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Пол <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={createData.gender || ''}
+                onChange={(e) => setCreateData({ ...createData, gender: e.target.value })}
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white ${createAttempted && !createData.gender ? 'border-red-500' : ''}`}
+              >
+                <option value="">Выберите пол</option>
+                <option value="М">Мужской</option>
+                <option value="Ж">Женский</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Телефон
+              </label>
+              <Input
+                value={createData.phone || ''}
+                onChange={(e) => setCreateData({ ...createData, phone: e.target.value })}
+                placeholder="Введите телефон"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Общий стаж (лет) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={createData.totalExperienceYears || ''}
+                onChange={(e) => setCreateData({ ...createData, totalExperienceYears: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+                className={createAttempted && !createData.totalExperienceYears && createData.totalExperienceYears !== 0 ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Стаж по должности (лет) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={createData.positionExperienceYears || ''}
+                onChange={(e) => setCreateData({ ...createData, positionExperienceYears: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+                className={createAttempted && !createData.positionExperienceYears && createData.positionExperienceYears !== 0 ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Дата последнего медосмотра <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="date"
+                value={createData.lastExaminationDate || ''}
+                onChange={(e) => setCreateData({ ...createData, lastExaminationDate: e.target.value })}
+                className={createAttempted && !createData.lastExaminationDate ? 'border-red-500' : ''}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Вредные факторы <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={createData.harmfulFactors?.join(', ') || ''}
+                onChange={(e) => setCreateData({ ...createData, harmfulFactors: e.target.value.split(',').map(f => f.trim()).filter(f => f) })}
+                placeholder="Введите вредные факторы через запятую"
+                className={createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500' : ''}
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Примечания
+            </label>
+            <textarea
+              value={createData.notes || ''}
+              onChange={(e) => setCreateData({ ...createData, notes: e.target.value })}
+              placeholder="Дополнительная информация"
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+          
+          <div className="flex items-center justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={handleCancelCreate}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={handleCreateEmployee}>
+              Создать
+            </Button>
           </div>
         </div>
       </Modal>
