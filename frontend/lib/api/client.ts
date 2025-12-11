@@ -262,6 +262,12 @@ class ApiClient {
     document.body.removeChild(a);
   }
 
+  async getHarmfulFactors() {
+    return this.request('/contingent-employees/harmful_factors/', {
+      method: 'GET',
+    });
+  }
+
   async deleteContingentEmployee(userId: string, employeeId: string) {
     return this.request(`/contingent-employees/${employeeId}/`, {
       method: 'DELETE',

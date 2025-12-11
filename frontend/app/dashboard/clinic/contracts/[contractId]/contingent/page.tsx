@@ -13,42 +13,7 @@ import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
-// Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
-const HARMFUL_FACTORS_OPTIONS = [
-  'п.1 «Работы, связанные с воздействием химических факторов»',
-  'п.2 «Работы с канцерогенными веществами»',
-  'п.3 «Работы с пестицидами и агрохимикатами»',
-  'п.4 «Работы, связанные с воздействием биологических факторов»',
-  'п.5 «Работы, выполняемые в условиях повышенного шума»',
-  'п.6 «Работы, выполняемые в условиях вибрации»',
-  'п.7 «Работы, выполняемые в условиях ионизирующего излучения»',
-  'п.8 «Работы, выполняемые в условиях неионизирующих излучений»',
-  'п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»',
-  'п.10 «Работы в замкнутых пространствах»',
-  'п.11 «Работы на высоте»',
-  'п.12 «Работы, связанные с подъемом и перемещением тяжестей»',
-  'п.13 «Работы в ночное время»',
-  'п.14 «Работа на ПК»',
-  'п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»',
-  'п.16 «Работы, связанные с повышенной ответственностью»',
-  'п.17 «Работы вахтовым методом»',
-  'п.18 «Подземные работы»',
-  'п.19 «Работы на транспорте»',
-  'п.20 «Работы, связанные с воздействием пыли»',
-  'п.21 «Работы с горюче-смазочными материалами»',
-  'п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»',
-  'п.23 «Работы в условиях повышенной загазованности»',
-  'п.24 «Работы в условиях недостатка кислорода»',
-  'п.25 «Работы в условиях повышенной влажности»',
-  'п.26 «Работы, связанные с виброинструментом»',
-  'п.27 «Работы на конвейерах»',
-  'п.28 «Работы на строительных площадках»',
-  'п.29 «Работы в металлургическом производстве»',
-  'п.30 «Работы в горнодобывающей промышленности»',
-  'п.31 «Работы в деревообрабатывающем производстве»',
-  'п.32 «Работы в текстильной и швейной промышленности»',
-  'п.33 «Профессии и работы»',
-];
+// Список стандартных вредных факторов будет загружаться из API
 
 export default function ContractContingentPage() {
   const params = useParams();
@@ -94,12 +59,17 @@ export default function ContractContingentPage() {
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [harmfulFactorFilter, setHarmfulFactorFilter] = useState('');
   const [showHarmfulFactorDropdown, setShowHarmfulFactorDropdown] = useState(false);
+  
+  // Список вредных факторов из API
+  const [harmfulFactorsOptions, setHarmfulFactorsOptions] = useState<string[]>([]);
 
   useEffect(() => {
     if (contractId) {
       loadData(1);
       // Загружаем все данные для поиска в фоне
       setTimeout(() => loadAllDataForSearch(), 1000);
+      // Загружаем список вредных факторов
+      loadHarmfulFactors();
     }
   }, [contractId]);
 
@@ -140,6 +110,12 @@ export default function ContractContingentPage() {
       setServerTotalPages(result.pagination.totalPages);
       setCurrentPage(result.pagination.page);
       
+      // Отладка: выводим все вредные факторы
+      console.log('=== HARMFUL FACTORS DEBUG ===');
+      result.data.forEach((employee, index) => {
+        console.log(`Employee ${index + 1} (${employee.name}):`, employee.harmfulFactors);
+      });
+      
       // Если есть контингент, получаем информацию о договоре из первого сотрудника
       if (result.data.length > 0 && result.data[0].contractNumber) {
         setContract({
@@ -172,8 +148,30 @@ export default function ContractContingentPage() {
     try {
       const allData = await workflowStoreAPI.getAllContingentByContract(contractId);
       setAllContingent(allData);
+      
+      // Отладка: выводим все уникальные вредные факторы
+      console.log('=== ALL HARMFUL FACTORS DEBUG ===');
+      const allFactors = new Set();
+      allData.forEach((employee, index) => {
+        if (employee.harmfulFactors) {
+          employee.harmfulFactors.forEach(factor => allFactors.add(factor));
+        }
+      });
+      console.log('Unique harmful factors in data:', Array.from(allFactors));
+      console.log('Standard factors from API:', harmfulFactorsOptions);
     } catch (error) {
       console.error('Error loading all data:', error);
+    }
+  };
+
+  const loadHarmfulFactors = async () => {
+    try {
+      const factors = await workflowStoreAPI.getHarmfulFactors();
+      setHarmfulFactorsOptions(factors);
+      console.log('Loaded harmful factors from API:', factors);
+    } catch (error) {
+      console.error('Error loading harmful factors:', error);
+      showToast('Ошибка загрузки списка вредных факторов', 'error');
     }
   };
 
@@ -452,7 +450,53 @@ export default function ContractContingentPage() {
       const nameMatch = !nameFilter || employee.name.toLowerCase().includes(nameFilter.toLowerCase());
       const positionMatch = !positionFilter || employee.position.toLowerCase().includes(positionFilter.toLowerCase());
       const departmentMatch = !departmentFilter || employee.department.toLowerCase().includes(departmentFilter.toLowerCase());
-      const harmfulFactorMatch = !harmfulFactorFilter || employee.harmfulFactors?.some(factor => factor === harmfulFactorFilter);
+      const harmfulFactorMatch = !harmfulFactorFilter || employee.harmfulFactors?.some(factor => {
+        // Простое точное совпадение - теперь у нас единый источник данных
+        if (factor === harmfulFactorFilter) {
+          return true;
+        }
+        
+        // Функция для нормализации строк
+        const normalize = (str) => {
+          if (!str) return '';
+          return str
+            .trim()
+            .toLowerCase()
+            // Заменяем все виды кавычек на обычные
+            .replace(/[«»""''„"‚']/g, '"')
+            // Убираем лишние пробелы
+            .replace(/\s+/g, ' ')
+            // Нормализуем символы
+            .replace(/[^\w\s"№.п]/gi, '');
+        };
+        
+        const normalizedFactor = normalize(factor);
+        const normalizedFilter = normalize(harmfulFactorFilter);
+        
+        // 1. Точное совпадение после нормализации
+        const exactMatch = normalizedFactor === normalizedFilter;
+        
+        // 2. Совпадение по номеру пункта (п.X)
+        const factorNumber = factor?.match(/п\.?(\d+)/i)?.[1];
+        const filterNumber = harmfulFactorFilter?.match(/п\.?(\d+)/i)?.[1];
+        const numberMatch = factorNumber && filterNumber && factorNumber === filterNumber;
+        
+        // 3. Частичное совпадение для случаев когда данные могут отличаться
+        const partialMatch = normalizedFactor.includes(normalizedFilter) || normalizedFilter.includes(normalizedFactor);
+        
+        const isMatch = exactMatch || numberMatch || partialMatch;
+        
+        // Отладка только для неточных совпадений
+        if (isMatch && !exactMatch) {
+          console.log('=== FILTER MATCH DEBUG ===');
+          console.log('Factor:', factor);
+          console.log('Filter:', harmfulFactorFilter);
+          console.log('Match type:', numberMatch ? 'number' : 'partial');
+          console.log('==========================');
+        }
+        
+        return isMatch;
+      });
       
       return nameMatch && positionMatch && departmentMatch && harmfulFactorMatch;
     }) : 
@@ -665,11 +709,28 @@ export default function ContractContingentPage() {
                     >
                       Все факторы
                     </div>
-                    {HARMFUL_FACTORS_OPTIONS
-                      .filter(factor => 
-                        factor.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                      .map((factor) => (
+                    
+                    {/* Объединенный список всех факторов по порядку */}
+                    {(() => {
+                      // Собираем все уникальные факторы из данных
+                      const dataFactors = new Set();
+                      (allContingent.length > 0 ? allContingent : contingent).forEach(emp => {
+                        if (emp.harmfulFactors) {
+                          emp.harmfulFactors.forEach(factor => dataFactors.add(factor));
+                        }
+                      });
+                      
+                      // Объединяем стандартные факторы и факторы из данных
+                      const allFactors = new Set([...harmfulFactorsOptions, ...Array.from(dataFactors)]);
+                      
+                      // Фильтруем по поисковому запросу
+                      const filteredFactors = Array.from(allFactors)
+                        .filter(factor => 
+                          factor.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .sort(); // Сортируем по алфавиту
+                      
+                      return filteredFactors.map((factor) => (
                         <div
                           key={factor}
                           onClick={() => {
@@ -682,7 +743,8 @@ export default function ContractContingentPage() {
                         >
                           {factor}
                         </div>
-                      ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -1239,7 +1301,7 @@ export default function ContractContingentPage() {
               {/* Выпадающий список */}
               {showEditHarmfulFactorsDropdown && (
                 <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {HARMFUL_FACTORS_OPTIONS
+                  {harmfulFactorsOptions
                     .filter(factor => 
                       factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
                     )
@@ -1270,7 +1332,7 @@ export default function ContractContingentPage() {
                         </div>
                       );
                     })}
-                  {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                  {harmfulFactorsOptions.filter(factor =>
                     factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
                   ).length === 0 && (
                     <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
@@ -1467,7 +1529,7 @@ export default function ContractContingentPage() {
                 {/* Выпадающий список */}
                 {showCreateHarmfulFactorsDropdown && (
                   <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {HARMFUL_FACTORS_OPTIONS
+                    {harmfulFactorsOptions
                       .filter(factor => 
                         factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
                       )
@@ -1498,7 +1560,7 @@ export default function ContractContingentPage() {
                           </div>
                         );
                       })}
-                    {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                    {harmfulFactorsOptions.filter(factor =>
                       factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
                     ).length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">

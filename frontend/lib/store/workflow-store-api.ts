@@ -1115,6 +1115,11 @@ class WorkflowStoreAPI {
     const userId = this.getUserId();
     await apiClient.rejectExecutionByEmployer(contractId, userId, rejectionReason);
   }
+
+  async getHarmfulFactors(): Promise<string[]> {
+    const response: any = await apiClient.getHarmfulFactors();
+    return response.harmful_factors || [];
+  }
 }
 
 export const workflowStoreAPI = new WorkflowStoreAPI();
