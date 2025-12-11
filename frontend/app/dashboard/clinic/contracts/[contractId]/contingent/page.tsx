@@ -340,10 +340,10 @@ export default function ContractContingentPage() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">
-            Список сотрудников ({filteredContingent.length})
+            Список сотрудников ({searchQuery ? displayContingent.length : totalCount})
           </h3>
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            Показано: {paginatedContingent.length} из {filteredContingent.length}
+            Показано: {paginatedContingent.length} из {searchQuery ? displayContingent.length : totalCount}
           </div>
         </div>
         
