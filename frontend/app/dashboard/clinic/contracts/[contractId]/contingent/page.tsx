@@ -13,6 +13,43 @@ import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
+// Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
+const HARMFUL_FACTORS_OPTIONS = [
+  'п.1 «Работы, связанные с воздействием химических факторов»',
+  'п.2 «Работы с канцерогенными веществами»',
+  'п.3 «Работы с пестицидами и агрохимикатами»',
+  'п.4 «Работы, связанные с воздействием биологических факторов»',
+  'п.5 «Работы, выполняемые в условиях повышенного шума»',
+  'п.6 «Работы, выполняемые в условиях вибрации»',
+  'п.7 «Работы, выполняемые в условиях ионизирующего излучения»',
+  'п.8 «Работы, выполняемые в условиях неионизирующих излучений»',
+  'п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»',
+  'п.10 «Работы в замкнутых пространствах»',
+  'п.11 «Работы на высоте»',
+  'п.12 «Работы, связанные с подъемом и перемещением тяжестей»',
+  'п.13 «Работы в ночное время»',
+  'п.14 «Работа на ПК»',
+  'п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»',
+  'п.16 «Работы, связанные с повышенной ответственностью»',
+  'п.17 «Работы вахтовым методом»',
+  'п.18 «Подземные работы»',
+  'п.19 «Работы на транспорте»',
+  'п.20 «Работы, связанные с воздействием пыли»',
+  'п.21 «Работы с горюче-смазочными материалами»',
+  'п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»',
+  'п.23 «Работы в условиях повышенной загазованности»',
+  'п.24 «Работы в условиях недостатка кислорода»',
+  'п.25 «Работы в условиях повышенной влажности»',
+  'п.26 «Работы, связанные с виброинструментом»',
+  'п.27 «Работы на конвейерах»',
+  'п.28 «Работы на строительных площадках»',
+  'п.29 «Работы в металлургическом производстве»',
+  'п.30 «Работы в горнодобывающей промышленности»',
+  'п.31 «Работы в деревообрабатывающем производстве»',
+  'п.32 «Работы в текстильной и швейной промышленности»',
+  'п.33 «Профессии и работы»',
+];
+
 export default function ContractContingentPage() {
   const params = useParams();
   const router = useRouter();
@@ -44,6 +81,12 @@ export default function ContractContingentPage() {
   const [createData, setCreateData] = useState<Partial<ContingentEmployee>>({});
   const [editAttempted, setEditAttempted] = useState(false);
   const [createAttempted, setCreateAttempted] = useState(false);
+  
+  // Состояния для выпадающих списков вредных факторов
+  const [showEditHarmfulFactorsDropdown, setShowEditHarmfulFactorsDropdown] = useState(false);
+  const [showCreateHarmfulFactorsDropdown, setShowCreateHarmfulFactorsDropdown] = useState(false);
+  const [editHarmfulFactorsSearch, setEditHarmfulFactorsSearch] = useState('');
+  const [createHarmfulFactorsSearch, setCreateHarmfulFactorsSearch] = useState('');
 
   useEffect(() => {
     if (contractId) {
@@ -58,6 +101,22 @@ export default function ContractContingentPage() {
       loadData(currentPage);
     }
   }, [currentPage]);
+
+  // Закрытие выпадающих списков при клике вне их
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.harmful-factors-dropdown')) {
+        setShowEditHarmfulFactorsDropdown(false);
+        setShowCreateHarmfulFactorsDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const loadData = async (page: number = 1, forceRefresh: boolean = false) => {
     try {
@@ -265,6 +324,8 @@ export default function ContractContingentPage() {
     setEditData({});
     setShowEditModal(false);
     setEditAttempted(false);
+    setShowEditHarmfulFactorsDropdown(false);
+    setEditHarmfulFactorsSearch('');
   };
 
   // Функции создания сотрудника
@@ -314,6 +375,8 @@ export default function ContractContingentPage() {
     setShowCreateModal(false);
     setCreateData({});
     setCreateAttempted(false);
+    setShowCreateHarmfulFactorsDropdown(false);
+    setCreateHarmfulFactorsSearch('');
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
@@ -904,6 +967,108 @@ export default function ContractContingentPage() {
             </div>
           </div>
           
+          {/* Вредные факторы для редактирования */}
+          <div className="relative harmful-factors-dropdown">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Вредные факторы
+            </label>
+            <div className="space-y-2">
+              {/* Поиск по вредным факторам */}
+              <div className="relative">
+                <Input
+                  value={editHarmfulFactorsSearch}
+                  onChange={(e) => setEditHarmfulFactorsSearch(e.target.value)}
+                  onFocus={() => setShowEditHarmfulFactorsDropdown(true)}
+                  placeholder="Поиск вредных факторов..."
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditHarmfulFactorsDropdown(!showEditHarmfulFactorsDropdown)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Выбранные вредные факторы */}
+              {editData.harmfulFactors && editData.harmfulFactors.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {editData.harmfulFactors.map((factor, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md"
+                    >
+                      {factor.length > 30 ? `${factor.substring(0, 30)}...` : factor}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newFactors = editData.harmfulFactors?.filter((_, i) => i !== index) || [];
+                          setEditData({ ...editData, harmfulFactors: newFactors });
+                        }}
+                        className="ml-1 text-blue-500 hover:text-blue-700"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              {/* Выпадающий список */}
+              {showEditHarmfulFactorsDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {HARMFUL_FACTORS_OPTIONS
+                    .filter(factor => 
+                      factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
+                    )
+                    .map((factor) => {
+                      const isSelected = editData.harmfulFactors?.includes(factor) || false;
+                      return (
+                        <div
+                          key={factor}
+                          onClick={() => {
+                            const currentFactors = editData.harmfulFactors || [];
+                            if (isSelected) {
+                              // Убираем фактор
+                              const newFactors = currentFactors.filter(f => f !== factor);
+                              setEditData({ ...editData, harmfulFactors: newFactors });
+                            } else {
+                              // Добавляем фактор
+                              const newFactors = [...currentFactors, factor];
+                              setEditData({ ...editData, harmfulFactors: newFactors });
+                            }
+                          }}
+                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                            isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''
+                          }`}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Обработка в onClick родителя
+                              className="mr-2"
+                            />
+                            <span className="text-sm">{factor}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                    factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
+                  ).length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      Вредные факторы не найдены
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Примечания
@@ -1042,16 +1207,105 @@ export default function ContractContingentPage() {
                 className={createAttempted && !createData.lastExaminationDate ? 'border-red-500' : ''}
               />
             </div>
-            <div>
+            <div className="relative harmful-factors-dropdown">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Вредные факторы <span className="text-red-500">*</span>
               </label>
-              <Input
-                value={createData.harmfulFactors?.join(', ') || ''}
-                onChange={(e) => setCreateData({ ...createData, harmfulFactors: e.target.value.split(',').map(f => f.trim()).filter(f => f) })}
-                placeholder="Введите вредные факторы через запятую"
-                className={createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500' : ''}
-              />
+              <div className="space-y-2">
+                {/* Поиск по вредным факторам */}
+                <div className="relative">
+                  <Input
+                    value={createHarmfulFactorsSearch}
+                    onChange={(e) => setCreateHarmfulFactorsSearch(e.target.value)}
+                    onFocus={() => setShowCreateHarmfulFactorsDropdown(true)}
+                    placeholder="Поиск вредных факторов..."
+                    className={`pr-10 ${createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateHarmfulFactorsDropdown(!showCreateHarmfulFactorsDropdown)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Выбранные вредные факторы */}
+                {createData.harmfulFactors && createData.harmfulFactors.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {createData.harmfulFactors.map((factor, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md"
+                      >
+                        {factor.length > 30 ? `${factor.substring(0, 30)}...` : factor}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newFactors = createData.harmfulFactors?.filter((_, i) => i !== index) || [];
+                            setCreateData({ ...createData, harmfulFactors: newFactors });
+                          }}
+                          className="ml-1 text-blue-500 hover:text-blue-700"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Выпадающий список */}
+                {showCreateHarmfulFactorsDropdown && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {HARMFUL_FACTORS_OPTIONS
+                      .filter(factor => 
+                        factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
+                      )
+                      .map((factor) => {
+                        const isSelected = createData.harmfulFactors?.includes(factor) || false;
+                        return (
+                          <div
+                            key={factor}
+                            onClick={() => {
+                              const currentFactors = createData.harmfulFactors || [];
+                              if (isSelected) {
+                                // Убираем фактор
+                                const newFactors = currentFactors.filter(f => f !== factor);
+                                setCreateData({ ...createData, harmfulFactors: newFactors });
+                              } else {
+                                // Добавляем фактор
+                                const newFactors = [...currentFactors, factor];
+                                setCreateData({ ...createData, harmfulFactors: newFactors });
+                              }
+                            }}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                              isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''
+                            }`}
+                          >
+                            <div className="flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}} // Обработка в onClick родителя
+                                className="mr-2"
+                              />
+                              <span className="text-sm">{factor}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {HARMFUL_FACTORS_OPTIONS.filter(factor =>
+                      factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
+                    ).length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                        Вредные факторы не найдены
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
