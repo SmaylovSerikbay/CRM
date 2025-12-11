@@ -740,7 +740,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             # Оптимизированный запрос с минимальными JOIN
             queryset = ContingentEmployee.objects.filter(
                 contract=contract
-            ).select_related('user', 'contract').prefetch_related('harmfulFactors')
+            ).select_related('user', 'contract')
             
             # Сериализуем данные
             serializer = self.get_serializer(queryset, many=True)
