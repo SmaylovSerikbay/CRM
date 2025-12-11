@@ -673,77 +673,89 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 
                 # Если указан contract_id, фильтруем только по этому договору
                 if contract_id:
-                    import sys
-                    print(f"DEBUG: Запрос контингента по договору {contract_id} для пользователя {user.username}", file=sys.stderr)
-                    
                     try:
-                        contract = Contract.objects.get(id=contract_id)
+                        contract = Contract.objects.select_related('clinic', 'employer').get(id=contract_id)
                         # Проверяем права доступа к договору
                         if user.role == 'clinic' and contract.clinic == user:
-                            queryset = ContingentEmployee.objects.filter(contract=contract)
+                            return ContingentEmployee.objects.filter(contract=contract).select_related('user', 'contract')
                         elif user.role == 'employer' and (contract.employer == user or contract.employer_bin == user.registration_data.get('bin')):
-                            queryset = ContingentEmployee.objects.filter(contract=contract)
+                            return ContingentEmployee.objects.filter(contract=contract).select_related('user', 'contract')
                         else:
-                            queryset = ContingentEmployee.objects.none()
-                        
-                        print(f"DEBUG: Найдено {queryset.count()} сотрудников по договору {contract_id}", file=sys.stderr)
-                        return queryset
+                            return ContingentEmployee.objects.none()
                     except Contract.DoesNotExist:
-                        print(f"DEBUG: Договор {contract_id} не найден", file=sys.stderr)
                         return ContingentEmployee.objects.none()
                 
                 # Если пользователь - клиника, возвращаем контингент всех работодателей И контингент, загруженный самой клиникой
                 if user.role == 'clinic':
-                    import sys
-                    # Логирование для отладки
-                    print(f"DEBUG: Клиника {user.username} (ID: {user.id}) запрашивает контингент", file=sys.stderr)
-                    
-                    # Получаем контингент работодателей
-                    employer_contingent = ContingentEmployee.objects.filter(user__role='employer')
-                    print(f"DEBUG: Контингент работодателей: {employer_contingent.count()} записей", file=sys.stderr)
-                    
-                    # Получаем контингент, загруженный самой клиникой
-                    clinic_contingent = ContingentEmployee.objects.filter(user=user)
-                    print(f"DEBUG: Контингент клиники: {clinic_contingent.count()} записей", file=sys.stderr)
-                    
-                    # Получаем контингент по договорам клиники
-                    clinic_contracts = Contract.objects.filter(clinic=user)
-                    contract_contingent = ContingentEmployee.objects.filter(contract__in=clinic_contracts)
-                    print(f"DEBUG: Контингент по договорам клиники: {contract_contingent.count()} записей", file=sys.stderr)
-                    for contract in clinic_contracts:
-                        contract_employees = ContingentEmployee.objects.filter(contract=contract)
-                        print(f"DEBUG: Договор {contract.contract_number} (ID: {contract.id}): {contract_employees.count()} сотрудников", file=sys.stderr)
-                    
-                    # Объединяем все варианты
-                    queryset = ContingentEmployee.objects.filter(
+                    # Объединяем все варианты в один оптимизированный запрос
+                    return ContingentEmployee.objects.filter(
                         Q(user__role='employer') | Q(user=user) | Q(contract__clinic=user)
-                    ).distinct()
+                    ).select_related('user', 'contract').distinct()
                     print(f"DEBUG: Итоговый queryset: {queryset.count()} записей", file=sys.stderr)
                     
                     return queryset
                 # Если пользователь - работодатель, возвращаем его контингент И контингент, загруженный клиникой по договору
                 elif user.role == 'employer':
-                    # Контингент, загруженный самим работодателем
-                    employer_contingent = ContingentEmployee.objects.filter(user=user)
-                    # Контингент, загруженный клиникой по договору, где работодатель является стороной
-                    # Находим все утвержденные договоры с этим работодателем
+                    # Находим все договоры с этим работодателем (не только approved, но и активные)
                     user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
+                    allowed_statuses = ['approved', 'active', 'in_progress', 'sent', 'pending_approval']
                     contracts = Contract.objects.filter(
                         Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
-                        status='approved'
-                    )
-                    # Контингент, загруженный клиникой по этим договорам
-                    clinic_contingent = ContingentEmployee.objects.filter(
-                        contract__in=contracts,
-                        user__role='clinic'
-                    )
-                    # Объединяем оба запроса
-                    return (employer_contingent | clinic_contingent).distinct()
+                        status__in=allowed_statuses
+                    ).select_related('clinic', 'employer')
+                    
+                    # Объединяем все варианты в один оптимизированный запрос
+                    return ContingentEmployee.objects.filter(
+                        Q(user=user) | Q(contract__in=contracts)
+                    ).select_related('user', 'contract').distinct()
                 else:
-                    return ContingentEmployee.objects.filter(user=user)
+                    return ContingentEmployee.objects.filter(user=user).select_related('user', 'contract')
             except User.DoesNotExist:
                 return ContingentEmployee.objects.none()
-        return ContingentEmployee.objects.all()
+        return ContingentEmployee.objects.all().select_related('user', 'contract')
+
+    @action(detail=False, methods=['get'])
+    def counts_by_contract(self, request):
+        """Быстрое получение счетчиков для договора без загрузки полных данных"""
+        user_id = request.query_params.get('user_id')
+        contract_id = request.query_params.get('contract_id')
+        
+        if not user_id or not contract_id:
+            return Response({'error': 'user_id and contract_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            contract = Contract.objects.get(id=contract_id)
+            
+            # Проверяем права доступа к договору
+            has_access = False
+            if user.role == 'clinic' and contract.clinic == user:
+                has_access = True
+            elif user.role == 'employer' and (contract.employer == user or contract.employer_bin == user.registration_data.get('bin')):
+                has_access = True
+            
+            if not has_access:
+                return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Быстрый подсчет без загрузки данных
+            contingent_count = ContingentEmployee.objects.filter(contract=contract).count()
+            plans_count = CalendarPlan.objects.filter(contract=contract).count()
+            
+            # Для маршрутных листов нужно найти ID сотрудников
+            employee_ids = list(ContingentEmployee.objects.filter(contract=contract).values_list('id', flat=True))
+            route_sheets_count = RouteSheet.objects.filter(patient_id__in=[str(eid) for eid in employee_ids]).count() if employee_ids else 0
+            
+            return Response({
+                'contingent_count': contingent_count,
+                'plans_count': plans_count,
+                'route_sheets_count': route_sheets_count
+            })
+            
+        except (User.DoesNotExist, Contract.DoesNotExist):
+            return Response({'error': 'User or contract not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error getting counts for contract {contract_id}: {str(e)}")
+            return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def generate_qr_code(self, request, pk=None):
@@ -2562,60 +2574,45 @@ class RouteSheetViewSet(viewsets.ModelViewSet):
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                
                 # Если пользователь - клиника, возвращаем маршрутные листы, созданные этой клиникой
                 if user.role == 'clinic':
-                    return RouteSheet.objects.filter(user=user)
+                    return RouteSheet.objects.filter(user=user).order_by('-created_at')
                 # Если пользователь - работодатель, возвращаем маршрутные листы для его сотрудников
                 elif user.role == 'employer':
-                    # Находим все утвержденные договоры с этим работодателем
-                    user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
-                    contracts = Contract.objects.filter(
-                        Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
-                        status='approved'
-                    )
-                    # Находим ID сотрудников из контингента по этим договорам
-                    # Контингент, загруженный самим работодателем
-                    employer_employees = ContingentEmployee.objects.filter(user=user)
-                    # Контингент, загруженный клиникой по договорам
-                    clinic_employees = ContingentEmployee.objects.filter(
-                        contract__in=contracts,
-                        user__role='clinic'
-                    )
-                    # Также находим сотрудников из календарных планов по договорам
-                    calendar_plans = CalendarPlan.objects.filter(contract__in=contracts)
-                    plan_employee_ids = set()
-                    for plan in calendar_plans:
-                        if plan.employee_ids:
-                            for emp_id in plan.employee_ids:
-                                plan_employee_ids.add(str(emp_id))
-                    
-                    # Объединяем ID всех сотрудников (строковые и числовые для поиска)
-                    all_employee_ids_str = set()
-                    all_employee_ids_int = set()
-                    for emp in employer_employees:
-                        all_employee_ids_str.add(str(emp.id))
-                        all_employee_ids_int.add(emp.id)
-                    for emp in clinic_employees:
-                        all_employee_ids_str.add(str(emp.id))
-                        all_employee_ids_int.add(emp.id)
-                    for emp_id in plan_employee_ids:
-                        all_employee_ids_str.add(str(emp_id))
-                        try:
-                            all_employee_ids_int.add(int(emp_id))
-                        except (ValueError, TypeError):
-                            pass
-                    
-                    # Возвращаем маршрутные листы для этих сотрудников
-                    # patient_id хранится как строка, поэтому ищем по строковым ID
-                    return RouteSheet.objects.filter(
-                        Q(patient_id__in=all_employee_ids_str) | 
-                        Q(patient_id__in=[str(eid) for eid in all_employee_ids_int])
-                    )
+                    try:
+                        # Находим договоры с этим работодателем (используем те же статусы, что и для контингента)
+                        user_bin = user.registration_data.get('bin') or user.registration_data.get('inn') if user.registration_data else None
+                        allowed_statuses = ['approved', 'active', 'in_progress', 'sent', 'pending_approval']
+                        contracts = Contract.objects.filter(
+                            Q(employer=user) | (Q(employer_bin=user_bin) if user_bin else Q()),
+                            status__in=allowed_statuses
+                        )
+                        
+                        # Находим всех сотрудников работодателя (используем ту же логику, что и для контингента)
+                        all_employees = ContingentEmployee.objects.filter(
+                            Q(user=user) | Q(contract__in=contracts)
+                        ).distinct()
+                        
+                        # Получаем ID сотрудников
+                        employee_ids = [str(emp.id) for emp in all_employees]
+                        
+                        # Возвращаем маршрутные листы для этих сотрудников
+                        if employee_ids:
+                            return RouteSheet.objects.filter(patient_id__in=employee_ids).order_by('-created_at')
+                        else:
+                            return RouteSheet.objects.none()
+                    except Exception as e:
+                        logger.error(f"Error getting route sheets for employer {user.id}: {str(e)}")
+                        return RouteSheet.objects.none()
                 else:
-                    return RouteSheet.objects.filter(user=user)
+                    return RouteSheet.objects.filter(user=user).order_by('-created_at')
             except User.DoesNotExist:
                 return RouteSheet.objects.none()
-        return RouteSheet.objects.all()
+            except Exception as e:
+                logger.error(f"Error in RouteSheetViewSet.get_queryset: {str(e)}")
+                return RouteSheet.objects.none()
+        return RouteSheet.objects.all().order_by('-created_at')
 
     @action(detail=True, methods=['patch'])
     def update_service_status(self, request, pk=None):

@@ -182,6 +182,15 @@ class WorkflowStoreAPI {
     }));
   }
 
+  async getContractCounts(contractId: string): Promise<{
+    contingent_count: number;
+    plans_count: number;
+    route_sheets_count: number;
+  }> {
+    const userId = this.getUserId();
+    return await apiClient.getContractCounts(userId, contractId);
+  }
+
   getContingentByDepartment(department: string): ContingentEmployee[] {
     // Этот метод должен вызываться после getContingent, так как он работает с уже загруженными данными
     // В реальности нужно будет кэшировать или передавать данные

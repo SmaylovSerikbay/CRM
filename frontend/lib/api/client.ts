@@ -176,6 +176,10 @@ class ApiClient {
     return allResults;
   }
 
+  async getContractCounts(userId: string, contractId: string) {
+    return this.request(`/contingent-employees/counts_by_contract/?user_id=${userId}&contract_id=${contractId}`);
+  }
+
   async uploadExcelContingent(userId: string, file: File, contractId?: string): Promise<{
     created: number;
     skipped: number;

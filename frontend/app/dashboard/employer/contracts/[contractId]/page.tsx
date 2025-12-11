@@ -99,17 +99,51 @@ export default function EmployerContractDetailPage() {
 
   const loadCounts = async () => {
     try {
-      // Загружаем только счетчики для быстрого отображения
-      const [contingentData, plansData, routeData] = await Promise.all([
-        workflowStoreAPI.getContingentByContract(contractId),
-        workflowStoreAPI.getCalendarPlansByContract(contractId),
-        workflowStoreAPI.getRouteSheets() // TODO: добавить фильтрацию по договору
-      ]);
+      // Используем быстрый API для получения только счетчиков
+      try {
+        const counts = await workflowStoreAPI.getContractCounts(contractId);
+        
+        setContingentCount(counts.contingent_count);
+        setPlansCount(counts.plans_count);
+        setRouteSheetsCount(counts.route_sheets_count);
+      } catch (error) {
+        console.error('Error loading counts via fast API, falling back to individual requests:', error);
+        
+        // Fallback: выполняем все запросы параллельно для ускорения загрузки
+        const [contingentResult, plansResult, routeResult] = await Promise.allSettled([
+          workflowStoreAPI.getContingentByContract(contractId),
+          workflowStoreAPI.getCalendarPlansByContract(contractId),
+          workflowStoreAPI.getRouteSheets()
+        ]);
 
-      setContingentCount(contingentData.length);
-      setPlansCount(plansData.length);
-      // Для маршрутных листов пока считаем все (нужно добавить фильтрацию в API)
-      setRouteSheetsCount(routeData.length);
+        // Обрабатываем результат контингента
+        let contingentData = [];
+        if (contingentResult.status === 'fulfilled') {
+          contingentData = contingentResult.value;
+        } else {
+          console.error('Error loading contingent:', contingentResult.reason);
+        }
+
+        // Обрабатываем результат планов
+        let plansData = [];
+        if (plansResult.status === 'fulfilled') {
+          plansData = plansResult.value;
+        } else {
+          console.error('Error loading plans:', plansResult.reason);
+        }
+
+        // Обрабатываем результат маршрутных листов
+        let routeData = [];
+        if (routeResult.status === 'fulfilled') {
+          routeData = routeResult.value;
+        } else {
+          console.error('Error loading route sheets:', routeResult.reason);
+        }
+
+        setContingentCount(contingentData.length);
+        setPlansCount(plansData.length);
+        setRouteSheetsCount(routeData.length);
+      }
     } catch (error) {
       console.error('Error loading counts:', error);
     }
