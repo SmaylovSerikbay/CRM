@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Drawer } from '@/components/ui/Drawer';
 import { Modal } from '@/components/ui/Modal';
 import { Edit2, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
 const HARMFUL_FACTORS_OPTIONS = [
@@ -374,6 +375,55 @@ function EmployerContractsContent() {
     setShowUploadModal(contractId);
   };
 
+  // Обработчик экспорта контингента
+  const handleExportContingent = async (contractId: string) => {
+    try {
+      const contract = contracts.find(c => c.id === contractId);
+      if (!contract) {
+        showToast('Договор не найден', 'error');
+        return;
+      }
+
+      // Получаем контингент для конкретного договора
+      const contractContingent = contingent.filter(emp => emp.contractId === contractId);
+      const contingentData = contractContingent.map(employee => ({
+        'ФИО': employee.name,
+        'Должность': employee.position,
+        'Объект/участок': employee.department,
+        'ИИН': employee.iin,
+        'Телефон': employee.phone || '',
+        'Дата рождения': employee.birthDate || '',
+        'Пол': employee.gender === 'male' ? 'Мужской' : employee.gender === 'female' ? 'Женский' : '',
+        'Вредные факторы': employee.harmfulFactors.join(', '),
+        'Требует осмотра': employee.requiresExamination ? 'Да' : 'Нет',
+        'Последний осмотр': employee.lastExaminationDate || '',
+        'Следующий осмотр': employee.nextExaminationDate || '',
+        'Общий стаж': employee.totalExperienceYears || '',
+        'Стаж по должности': employee.positionExperienceYears || '',
+        'Примечания': employee.notes || ''
+      }));
+
+      if (contingentData.length === 0) {
+        showToast('Нет данных для экспорта', 'warning');
+        return;
+      }
+
+      // Создаем Excel файл
+      const ws = XLSX.utils.json_to_sheet(contingentData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Контингент');
+
+      // Скачиваем файл
+      const fileName = `Контингент_${contract.contract_number}_${new Date().toLocaleDateString('ru-RU')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      showToast('Файл успешно загружен', 'success');
+    } catch (error: any) {
+      console.error('Export error:', error);
+      showToast(error.message || 'Ошибка экспорта', 'error');
+    }
+  };
+
   const handleEditEmployee = (employee: ContingentEmployee) => {
     setEditingEmployee(employee.id);
     setEditData({
@@ -405,7 +455,7 @@ function EmployerContractsContent() {
     if (!editData.gender) missingFields.push('Пол');
     if (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) missingFields.push('Общий стаж');
     if (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) missingFields.push('Стаж по должности');
-    if (!editData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+
     if (!editData.harmfulFactors || editData.harmfulFactors.length === 0) {
       missingFields.push('Вредные факторы');
     }
@@ -469,7 +519,7 @@ function EmployerContractsContent() {
     if (!createData.gender) missingFields.push('Пол');
     if (createData.totalExperienceYears === undefined || createData.totalExperienceYears === null) missingFields.push('Общий стаж');
     if (createData.positionExperienceYears === undefined || createData.positionExperienceYears === null) missingFields.push('Стаж по должности');
-    if (!createData.lastExaminationDate) missingFields.push('Дата последнего медосмотра');
+
     if (!createData.harmfulFactors || createData.harmfulFactors.length === 0) {
       missingFields.push('Вредные факторы');
     }
@@ -1425,6 +1475,15 @@ function EmployerContractsContent() {
                           <Upload className="h-4 w-4 mr-2" />
                           Загрузить контингент
                         </Button>
+                        {contingent.filter(emp => emp.contractId === showContractDrawer).length > 0 && (
+                          <Button 
+                            onClick={() => handleExportContingent(showContractDrawer)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Экспорт контингента
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -2081,11 +2140,10 @@ function EmployerContractsContent() {
             />
           </div>
           <Input
-            label="Дата последнего медосмотра *"
+            label="Дата последнего медосмотра"
             type="date"
             value={createData.lastExaminationDate || ''}
             onChange={(e) => setCreateData({ ...createData, lastExaminationDate: e.target.value })}
-            className={createAttempted && !createData.lastExaminationDate ? 'border-red-500' : ''}
           />
           <div className="relative">
             <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>
@@ -2216,11 +2274,10 @@ function EmployerContractsContent() {
             />
           </div>
           <Input
-            label="Дата последнего медосмотра *"
+            label="Дата последнего медосмотра"
             type="date"
             value={editData.lastExaminationDate ? new Date(editData.lastExaminationDate).toISOString().split('T')[0] : ''}
             onChange={(e) => setEditData({ ...editData, lastExaminationDate: e.target.value })}
-            className={editAttempted && !editData.lastExaminationDate ? 'border-red-500' : ''}
           />
           <div className="relative">
             <label className="block text-sm font-medium mb-1">Профессиональная вредность *</label>

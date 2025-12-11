@@ -129,7 +129,29 @@ class ApiClient {
 
   // Contingent
   async getContingent(userId: string) {
-    return this.request(`/contingent-employees/?user_id=${userId}`);
+    let allResults: any[] = [];
+    let nextUrl = `/contingent-employees/?user_id=${userId}`;
+    
+    while (nextUrl) {
+      const response = await this.request(nextUrl);
+      
+      if (Array.isArray(response)) {
+        // Если ответ - прямой массив (без пагинации)
+        allResults = response;
+        break;
+      } else if (response.results) {
+        // Если ответ пагинированный
+        allResults = allResults.concat(response.results);
+        // Получаем следующую страницу, убираем базовый URL если он есть
+        nextUrl = response.next ? response.next.replace(this.baseUrl, '') : null;
+      } else {
+        // Неожиданный формат ответа
+        allResults = response;
+        break;
+      }
+    }
+    
+    return allResults;
   }
 
   async uploadExcelContingent(userId: string, file: File, contractId?: string): Promise<{

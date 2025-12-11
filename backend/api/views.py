@@ -670,9 +670,33 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(id=user_id)
                 # Если пользователь - клиника, возвращаем контингент всех работодателей И контингент, загруженный самой клиникой
                 if user.role == 'clinic':
-                    return ContingentEmployee.objects.filter(
-                        Q(user__role='employer') | Q(user=user)
-                    )
+                    import sys
+                    # Логирование для отладки
+                    print(f"DEBUG: Клиника {user.username} (ID: {user.id}) запрашивает контингент", file=sys.stderr)
+                    
+                    # Получаем контингент работодателей
+                    employer_contingent = ContingentEmployee.objects.filter(user__role='employer')
+                    print(f"DEBUG: Контингент работодателей: {employer_contingent.count()} записей", file=sys.stderr)
+                    
+                    # Получаем контингент, загруженный самой клиникой
+                    clinic_contingent = ContingentEmployee.objects.filter(user=user)
+                    print(f"DEBUG: Контингент клиники: {clinic_contingent.count()} записей", file=sys.stderr)
+                    
+                    # Получаем контингент по договорам клиники
+                    clinic_contracts = Contract.objects.filter(clinic=user)
+                    contract_contingent = ContingentEmployee.objects.filter(contract__in=clinic_contracts)
+                    print(f"DEBUG: Контингент по договорам клиники: {contract_contingent.count()} записей", file=sys.stderr)
+                    for contract in clinic_contracts:
+                        contract_employees = ContingentEmployee.objects.filter(contract=contract)
+                        print(f"DEBUG: Договор {contract.contract_number} (ID: {contract.id}): {contract_employees.count()} сотрудников", file=sys.stderr)
+                    
+                    # Объединяем все варианты
+                    queryset = ContingentEmployee.objects.filter(
+                        Q(user__role='employer') | Q(user=user) | Q(contract__clinic=user)
+                    ).distinct()
+                    print(f"DEBUG: Итоговый queryset: {queryset.count()} записей", file=sys.stderr)
+                    
+                    return queryset
                 # Если пользователь - работодатель, возвращаем его контингент И контингент, загруженный клиникой по договору
                 elif user.role == 'employer':
                     # Контингент, загруженный самим работодателем
@@ -797,9 +821,12 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
     def upload_excel(self, request):
         """Загрузка Excel файла со списком контингента"""
         try:
+            import sys
             user_id = request.data.get('user_id')
             contract_id = request.data.get('contract_id')  # ID договора
             excel_file = request.FILES.get('file')
+            
+            print(f"DEBUG UPLOAD: user_id={user_id}, contract_id={contract_id}, file={excel_file.name if excel_file else None}", file=sys.stderr)
             
             if not excel_file:
                 return Response({'error': 'Excel file is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -817,9 +844,17 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             if contract_id:
                 try:
                     contract = Contract.objects.get(id=contract_id)
-                    # Проверяем, что договор подтвержден
-                    if contract.status != 'approved':
-                        return Response({'error': 'Договор должен быть подтвержден перед загрузкой контингента'}, status=status.HTTP_400_BAD_REQUEST)
+                    # Проверяем статус договора в зависимости от роли пользователя
+                    if user.role == 'employer':
+                        # Для работодателей требуется подтвержденный договор
+                        if contract.status != 'approved':
+                            return Response({'error': 'Договор должен быть подтвержден перед загрузкой контингента'}, status=status.HTTP_400_BAD_REQUEST)
+                    elif user.role == 'clinic':
+                        # Для клиник разрешаем загрузку для активных договоров
+                        allowed_statuses = ['approved', 'active', 'in_progress', 'sent', 'pending_approval']
+                        if contract.status not in allowed_statuses:
+                            return Response({'error': f'Загрузка контингента недоступна для договора со статусом "{contract.status}". Разрешенные статусы: {", ".join(allowed_statuses)}'}, status=status.HTTP_400_BAD_REQUEST)
+                    
                     # Проверяем, что пользователь связан с договором
                     if user.role == 'employer':
                         if contract.employer != user:
@@ -834,7 +869,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 except Contract.DoesNotExist:
                     return Response({'error': 'Договор не найден'}, status=status.HTTP_404_NOT_FOUND)
             else:
-                # Если договор не указан, ищем подтвержденный договор между пользователем и его партнером
+                # Если договор не указан, ищем активный договор между пользователем и его партнером
                 if user.role == 'employer':
                     contracts = Contract.objects.filter(
                         Q(employer=user) | Q(employer_bin=user.registration_data.get('bin', '') if user.registration_data else ''),
@@ -845,11 +880,13 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     else:
                         return Response({'error': 'Необходимо выбрать подтвержденный договор для загрузки контингента'}, status=status.HTTP_400_BAD_REQUEST)
                 elif user.role == 'clinic':
-                    contracts = Contract.objects.filter(clinic=user, status='approved').first()
+                    # Для клиник ищем договоры с разрешенными статусами
+                    allowed_statuses = ['approved', 'active', 'in_progress', 'sent', 'pending_approval']
+                    contracts = Contract.objects.filter(clinic=user, status__in=allowed_statuses).first()
                     if contracts:
                         contract = contracts
                     else:
-                        return Response({'error': 'Необходимо выбрать подтвержденный договор для загрузки контингента'}, status=status.HTTP_400_BAD_REQUEST)
+                        return Response({'error': f'Необходимо выбрать активный договор для загрузки контингента. Разрешенные статусы: {", ".join(allowed_statuses)}'}, status=status.HTTP_400_BAD_REQUEST)
             workbook = load_workbook(excel_file)
             worksheet = workbook.active
             
@@ -945,13 +982,19 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             
             # Парсим данные начиная со строки после заголовков
             for row_idx, row in enumerate(worksheet.iter_rows(min_row=header_row + 1), start=header_row + 1):
+                print(f"DEBUG ROW {row_idx}: Обрабатываем строку", file=sys.stderr)
+                
                 # Пропускаем пустые строки
                 if not any(cell.value for cell in row):
+                    print(f"DEBUG ROW {row_idx}: Пустая строка, пропускаем", file=sys.stderr)
                     continue
                 
                 # Извлекаем данные
                 name = str(row[column_map.get('name', 2) - 1].value or '').strip()
+                print(f"DEBUG ROW {row_idx}: ФИО = '{name}'", file=sys.stderr)
+                
                 if not name or name == 'None':
+                    print(f"DEBUG ROW {row_idx}: Нет ФИО, пропускаем", file=sys.stderr)
                     skipped_reasons['no_name'] += 1
                     skipped += 1
                     continue
@@ -1041,22 +1084,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     unique_string = f"{name}_{birth_date or 'unknown'}_{row_idx}"
                     iin = hashlib.md5(unique_string.encode()).hexdigest()[:12]  # Используем первые 12 символов MD5
                 
-                # Проверяем, существует ли уже сотрудник (по ИИН или по ФИО + дате рождения)
+                # Проверяем, существует ли уже сотрудник в рамках этого договора (по ИИН или по ФИО + дате рождения)
                 existing = None
                 if iin and len(iin) >= 10:
-                    existing = ContingentEmployee.objects.filter(user=user, iin=iin).first()
+                    existing = ContingentEmployee.objects.filter(contract=contract, iin=iin).first()
                 if not existing:
-                    # Проверяем по ФИО и дате рождения
+                    # Проверяем по ФИО и дате рождения в рамках этого договора
                     existing = ContingentEmployee.objects.filter(
-                        user=user, 
+                        contract=contract, 
                         name=name,
                         birth_date=birth_date
                     ).first()
                 
                 if existing:
+                    print(f"DEBUG ROW {row_idx}: Дубликат найден - {name} (ID: {existing.id}), пропускаем", file=sys.stderr)
                     skipped_reasons['duplicate'] += 1
                     skipped += 1
                     continue
+                
+                print(f"DEBUG ROW {row_idx}: Дубликат не найден, создаем сотрудника", file=sys.stderr)
                 
                 # Нормализуем телефон для GreenAPI (формат 7XXXXXXXXXX)
                 phone_raw = str(row[column_map.get('phone', 6) - 1].value or '').strip() if column_map.get('phone') else ''
@@ -1077,6 +1123,8 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     else:
                         phone_normalized = phone_digits
                 
+                print(f"DEBUG CREATE: Создаем сотрудника {name} для пользователя {user.username} (ID: {user.id}) и договора {contract.contract_number if contract else 'None'} (ID: {contract.id if contract else 'None'})", file=sys.stderr)
+                
                 employee = ContingentEmployee.objects.create(
                     user=user,
                     contract=contract,
@@ -1095,6 +1143,7 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     quarter=str(row[column_map.get('quarter', 1) - 1].value or '').strip() if column_map.get('quarter') else '',
                     requires_examination=True,
                 )
+                print(f"DEBUG CREATE: Сотрудник создан с ID: {employee.id}", file=sys.stderr)
                 created_employees.append(employee)
             
             serializer = ContingentEmployeeSerializer(created_employees, many=True)
