@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { 
-  FileText, CheckCircle, Clock, Send, X, Download, Upload, History, 
+  FileText, CheckCircle, Clock, Send, X, Download, Upload, 
   Search, Filter, Building2, Calendar, Users, DollarSign, ChevronRight, ChevronDown, ChevronLeft,
   AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, Eye, MoreVertical, Route, FileCheck
 } from 'lucide-react';
@@ -94,17 +94,7 @@ interface Contract {
   employer_rejection_reason?: string;
 }
 
-interface ContractHistoryItem {
-  id: string;
-  action: string;
-  user_role: string;
-  user_name: string;
-  comment: string;
-  old_status: string;
-  new_status: string;
-  changes: any;
-  created_at: string;
-}
+
 
 function EmployerContractsContent() {
   const searchParams = useSearchParams();
@@ -115,8 +105,6 @@ function EmployerContractsContent() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [showHistory, setShowHistory] = useState<string | null>(null);
-  const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
   
   // Данные для Drawer
   const [contingent, setContingent] = useState<ContingentEmployee[]>([]);
@@ -304,15 +292,7 @@ function EmployerContractsContent() {
     }
   };
 
-  const handleShowHistory = async (contractId: string) => {
-    try {
-      const history = await workflowStoreAPI.getContractHistory(contractId);
-      setContractHistory(history);
-      setShowHistory(contractId);
-    } catch (error: any) {
-      showToast(error.message || 'Ошибка загрузки истории', 'error');
-    }
-  };
+
 
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
@@ -420,6 +400,12 @@ function EmployerContractsContent() {
   const handleOpenContractDrawer = (contractId: string) => {
     setShowContractDrawer(contractId);
     setActiveTab('contingent');
+  };
+
+  // Обработчик перехода к странице договора
+  const handleOpenContractPage = (contractId: string) => {
+    // Переходим на отдельную страницу договора
+    window.location.href = `/dashboard/employer/contracts/${contractId}`;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, contractId: string) => {
@@ -1011,7 +997,7 @@ function EmployerContractsContent() {
                   {paginatedContracts.map((contract: Contract, index: number) => {
                     const statusConfig = getStatusConfig(contract.status);
                     const StatusIcon = statusConfig.icon;
-                    const isExpanded = selectedContract?.id === contract.id || showHistory === contract.id || showRejectForm === contract.id;
+                    const isExpanded = selectedContract?.id === contract.id || showRejectForm === contract.id;
                     
                     return (
                       <>
@@ -1150,7 +1136,7 @@ function EmployerContractsContent() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleOpenContractDrawer(contract.id)}
+                                  onClick={() => handleOpenContractPage(contract.id)}
                                   title="Управление договором"
                                   className="relative"
                                 >
@@ -1179,14 +1165,7 @@ function EmployerContractsContent() {
                                 <Eye className="h-4 w-4 mr-1" />
                                 {selectedContract?.id === contract.id ? 'Скрыть' : 'Подробнее'}
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleShowHistory(contract.id)}
-                              >
-                                <History className="h-4 w-4 mr-1" />
-                                История
-                              </Button>
+
                             </div>
                           </td>
                         </motion.tr>
@@ -1231,65 +1210,7 @@ function EmployerContractsContent() {
                                     </Card>
                                   )}
 
-                                  {/* История */}
-                                  {showHistory === contract.id && (
-                                    <Card className="p-4">
-                                      <div className="flex items-center justify-between mb-4">
-                                        <h4 className="font-semibold text-gray-900 dark:text-white">История изменений</h4>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => setShowHistory(null)}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                      <div className="space-y-3 max-h-96 overflow-y-auto">
-                                        {contractHistory.length === 0 ? (
-                                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                                            Нет записей в истории
-                                          </p>
-                                        ) : (
-                                          contractHistory.map((item: ContractHistoryItem) => {
-                                            const itemStatusConfig = getStatusConfig(item.new_status || item.old_status);
-                                            const ItemStatusIcon = itemStatusConfig.icon;
-                                            return (
-                                              <div key={item.id} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                                <div className="flex-shrink-0 mt-0.5">
-                                                  <div className={`p-2 rounded-lg ${itemStatusConfig.colors.split(' ')[0]}`}>
-                                                    <ItemStatusIcon className="h-4 w-4" />
-                                                  </div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                                      {getActionLabel(item.action)}
-                                                    </span>
-                                                    {item.new_status && (
-                                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${itemStatusConfig.colors}`}>
-                                                        {itemStatusConfig.label}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                                    {item.user_name || 'Система'} ({item.user_role === 'clinic' ? 'Клиника' : 'Работодатель'})
-                                                  </p>
-                                                  {item.comment && (
-                                                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                                                      {item.comment}
-                                                    </p>
-                                                  )}
-                                                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    {new Date(item.created_at).toLocaleString('ru-RU')}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            );
-                                          })
-                                        )}
-                                      </div>
-                                    </Card>
-                                  )}
+
 
                                   {/* Детальная информация */}
                                   {selectedContract?.id === contract.id && (
