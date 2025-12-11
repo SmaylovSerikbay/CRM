@@ -38,21 +38,30 @@ export default function ContractContingentPage() {
 
   const loadData = async () => {
     try {
-      // Загружаем информацию о договоре
-      const contracts = await workflowStoreAPI.getContracts();
-      const foundContract = contracts.find((c: any) => c.id.toString() === contractId);
-      
-      if (!foundContract) {
-        showToast('Договор не найден', 'error');
-        router.push('/dashboard/clinic/contracts');
-        return;
-      }
-      
-      setContract(foundContract);
-
-      // Загружаем контингент для этого договора (используем кэш для ускорения)
+      // Сначала загружаем контингент - это основные данные страницы
       const contingentData = await workflowStoreAPI.getContingentByContract(contractId);
       setContingent(contingentData);
+      
+      // Если есть контингент, получаем информацию о договоре из первого сотрудника
+      if (contingentData.length > 0 && contingentData[0].contractNumber) {
+        setContract({
+          id: contractId,
+          contract_number: contingentData[0].contractNumber,
+          employer_name: contingentData[0].employerName
+        });
+      } else {
+        // Если контингента нет, загружаем информацию о договоре отдельно
+        const contracts = await workflowStoreAPI.getContracts();
+        const foundContract = contracts.find((c: any) => c.id.toString() === contractId);
+        
+        if (!foundContract) {
+          showToast('Договор не найден', 'error');
+          router.push('/dashboard/clinic/contracts');
+          return;
+        }
+        
+        setContract(foundContract);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       showToast('Ошибка загрузки данных', 'error');
@@ -103,12 +112,11 @@ export default function ContractContingentPage() {
       const contingentData = contingent.map(employee => ({
         'ФИО': employee.name,
         'Должность': employee.position,
-        'Объект/участок': employee.department,
-        'ИИН': employee.iin,
+        'Объект или участок': employee.department,
         'Телефон': employee.phone || '',
         'Дата рождения': employee.birthDate || '',
         'Пол': employee.gender === 'male' ? 'Мужской' : employee.gender === 'female' ? 'Женский' : '',
-        'Вредные факторы': employee.harmfulFactors.join(', '),
+        'Профессиональная вредность': employee.harmfulFactors?.join(', ') || '',
         'Требует осмотра': employee.requiresExamination ? 'Да' : 'Нет',
         'Последний осмотр': employee.lastExaminationDate || '',
         'Следующий осмотр': employee.nextExaminationDate || '',
@@ -152,7 +160,7 @@ export default function ContractContingentPage() {
       employee.name.toLowerCase().includes(searchLower) ||
       employee.position.toLowerCase().includes(searchLower) ||
       employee.department.toLowerCase().includes(searchLower) ||
-      employee.iin?.toLowerCase().includes(searchLower);
+      employee.harmfulFactors?.some(factor => factor.toLowerCase().includes(searchLower));
   });
 
   // Пагинация
@@ -234,7 +242,7 @@ export default function ContractContingentPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            placeholder="Поиск по ФИО, должности, подразделению, ИИН..."
+            placeholder="Поиск по ФИО, должности, объекту/участку..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -323,8 +331,8 @@ export default function ContractContingentPage() {
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">ФИО</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Должность</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Подразделение</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">ИИН</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Объект или участок</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Профессиональная вредность</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Телефон</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Действия</th>
                 </tr>
@@ -349,7 +357,23 @@ export default function ContractContingentPage() {
                     </td>
                     <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.position}</td>
                     <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.department}</td>
-                    <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.iin || 'Не указан'}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-wrap gap-1">
+                        {employee.harmfulFactors?.slice(0, 2).map((factor, idx) => (
+                          <span key={idx} className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                            {factor.length > 20 ? `${factor.substring(0, 20)}...` : factor}
+                          </span>
+                        ))}
+                        {employee.harmfulFactors && employee.harmfulFactors.length > 2 && (
+                          <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">
+                            +{employee.harmfulFactors.length - 2}
+                          </span>
+                        )}
+                        {(!employee.harmfulFactors || employee.harmfulFactors.length === 0) && (
+                          <span className="text-gray-400 text-sm">Не указано</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.phone || 'Не указан'}</td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
