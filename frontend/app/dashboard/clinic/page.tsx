@@ -218,7 +218,7 @@ export default function ClinicDashboard() {
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
               Быстрый доступ
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <Link href="/dashboard/clinic/contracts" className="group">
                 <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                   <FileText className="h-8 w-8 text-blue-600 dark:text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
@@ -227,42 +227,6 @@ export default function ClinicDashboard() {
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
                     Управление договорами
-                  </span>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/clinic/contingent" className="group">
-                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20">
-                  <Users className="h-8 w-8 text-green-600 dark:text-green-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white text-center">
-                    Контингент
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                    Список сотрудников
-                  </span>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/clinic/calendar-plan" className="group">
-                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20">
-                  <Calendar className="h-8 w-8 text-purple-600 dark:text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white text-center">
-                    Календарные планы
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                    Планирование осмотров
-                  </span>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/clinic/route-sheets" className="group">
-                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20">
-                  <Route className="h-8 w-8 text-orange-600 dark:text-orange-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white text-center">
-                    Маршрутные листы
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                    Ход осмотров
                   </span>
                 </div>
               </Link>
@@ -279,14 +243,26 @@ export default function ClinicDashboard() {
                 </div>
               </Link>
 
-              <Link href="/dashboard/clinic/harmful-factors" className="group">
-                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20">
-                  <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 mb-2 group-hover:scale-110 transition-transform" />
+              <Link href="/dashboard/clinic/queue" className="group">
+                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20">
+                  <Clock className="h-8 w-8 text-green-600 dark:text-green-400 mb-2 group-hover:scale-110 transition-transform" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white text-center">
-                    Вредные факторы
+                    Электронная очередь
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                    Справочник факторов
+                    Управление очередью
+                  </span>
+                </div>
+              </Link>
+
+              <Link href="/dashboard/clinic/patient-history" className="group">
+                <div className="flex flex-col items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20">
+                  <UserCheck className="h-8 w-8 text-purple-600 dark:text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white text-center">
+                    История осмотров
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                    Архив осмотров
                   </span>
                 </div>
               </Link>

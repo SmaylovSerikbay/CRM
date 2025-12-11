@@ -909,13 +909,10 @@ export default function ContractsPage() {
     };
   };
 
-  // Обработчик открытия Drawer
-  const handleOpenContractDrawer = async (contractId: string) => {
-    setShowContractDrawer(contractId);
-    setActiveTab('contingent');
-    
-    // Загружаем данные для конкретного договора
-    await loadContractData(contractId);
+  // Обработчик перехода к странице договора
+  const handleOpenContractPage = (contractId: string) => {
+    // Переходим на отдельную страницу договора
+    router.push(`/dashboard/clinic/contracts/${contractId}`);
   };
 
   // Обработчик загрузки контингента
@@ -3129,7 +3126,7 @@ export default function ContractsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleOpenContractDrawer(contract.id)}
+                          onClick={() => handleOpenContractPage(contract.id)}
                           title="Управление договором"
                           className="relative"
                         >

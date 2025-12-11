@@ -19,7 +19,8 @@ import {
   FlaskConical,
   Activity,
   Send,
-  Clock
+  Clock,
+  Route
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { userStore, ClinicUserRole } from '@/lib/store/user-store';
@@ -125,7 +126,7 @@ export function Sidebar({ role }: SidebarProps) {
 
     const roleAccess: Record<ClinicUserRole, string[]> = {
       manager: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/doctors', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/final-act', '/dashboard/clinic/health-plan', '/dashboard/clinic/referrals'],
-      profpathologist: ['/dashboard/clinic', '/dashboard/clinic/expertise', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/referrals'],
+      profpathologist: ['/dashboard/clinic', '/dashboard/clinic/contracts', '/dashboard/clinic/expertise', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests', '/dashboard/clinic/summary-report', '/dashboard/clinic/referrals'],
       doctor: ['/dashboard/clinic', '/dashboard/clinic/medical-commission', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
       receptionist: ['/dashboard/clinic', '/dashboard/clinic/queue', '/dashboard/clinic/patient-history', '/dashboard/clinic/medical-commission', '/dashboard/clinic/laboratory-tests', '/dashboard/clinic/functional-tests'],
     };

@@ -665,9 +665,33 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user_id = self.request.query_params.get('user_id')
+        contract_id = self.request.query_params.get('contract_id')
+        
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                
+                # Если указан contract_id, фильтруем только по этому договору
+                if contract_id:
+                    import sys
+                    print(f"DEBUG: Запрос контингента по договору {contract_id} для пользователя {user.username}", file=sys.stderr)
+                    
+                    try:
+                        contract = Contract.objects.get(id=contract_id)
+                        # Проверяем права доступа к договору
+                        if user.role == 'clinic' and contract.clinic == user:
+                            queryset = ContingentEmployee.objects.filter(contract=contract)
+                        elif user.role == 'employer' and (contract.employer == user or contract.employer_bin == user.registration_data.get('bin')):
+                            queryset = ContingentEmployee.objects.filter(contract=contract)
+                        else:
+                            queryset = ContingentEmployee.objects.none()
+                        
+                        print(f"DEBUG: Найдено {queryset.count()} сотрудников по договору {contract_id}", file=sys.stderr)
+                        return queryset
+                    except Contract.DoesNotExist:
+                        print(f"DEBUG: Договор {contract_id} не найден", file=sys.stderr)
+                        return ContingentEmployee.objects.none()
+                
                 # Если пользователь - клиника, возвращаем контингент всех работодателей И контингент, загруженный самой клиникой
                 if user.role == 'clinic':
                     import sys
@@ -2118,9 +2142,33 @@ class CalendarPlanViewSet(viewsets.ModelViewSet):
             return CalendarPlan.objects.all()
             
         user_id = self.request.query_params.get('user_id')
+        contract_id = self.request.query_params.get('contract_id')
+        
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                
+                # Если указан contract_id, фильтруем только по этому договору
+                if contract_id:
+                    import sys
+                    print(f"DEBUG: Запрос календарных планов по договору {contract_id} для пользователя {user.username}", file=sys.stderr)
+                    
+                    try:
+                        contract = Contract.objects.get(id=contract_id)
+                        # Проверяем права доступа к договору
+                        if user.role == 'clinic' and contract.clinic == user:
+                            queryset = CalendarPlan.objects.filter(contract=contract).order_by('-created_at')
+                        elif user.role == 'employer' and (contract.employer == user or contract.employer_bin == user.registration_data.get('bin')):
+                            queryset = CalendarPlan.objects.filter(contract=contract).order_by('-created_at')
+                        else:
+                            queryset = CalendarPlan.objects.none()
+                        
+                        print(f"DEBUG: Найдено {queryset.count()} планов по договору {contract_id}", file=sys.stderr)
+                        return queryset
+                    except Contract.DoesNotExist:
+                        print(f"DEBUG: Договор {contract_id} не найден", file=sys.stderr)
+                        return CalendarPlan.objects.none()
+                
                 # Если пользователь - клиника, показываем планы, созданные этой клиникой
                 if user.role == 'clinic':
                     return CalendarPlan.objects.filter(user=user).order_by('-created_at')
