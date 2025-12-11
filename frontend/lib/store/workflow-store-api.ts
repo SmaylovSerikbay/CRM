@@ -154,6 +154,34 @@ class WorkflowStoreAPI {
     }));
   }
 
+  async getContingentByContract(contractId: string): Promise<ContingentEmployee[]> {
+    const userId = this.getUserId();
+    const data: any = await apiClient.getContingentByContract(userId, contractId);
+    const results = Array.isArray(data) ? data : (data.results || []);
+    return results.map((emp: any) => ({
+      id: emp.id.toString(),
+      name: emp.name,
+      position: emp.position,
+      department: emp.department,
+      iin: emp.iin,
+      phone: emp.phone,
+      birthDate: emp.birth_date,
+      gender: emp.gender,
+      harmfulFactors: emp.harmful_factors || [],
+      requiresExamination: emp.requires_examination !== false,
+      lastExaminationDate: emp.last_examination_date,
+      nextExaminationDate: emp.next_examination_date,
+      totalExperienceYears: emp.total_experience_years,
+      positionExperienceYears: emp.position_experience_years,
+      notes: emp.notes,
+      quarter: emp.quarter,
+      contractId: emp.contract ? emp.contract.toString() : undefined,
+      contractNumber: emp.contract_number || undefined,
+      employerName: emp.employer_name || undefined,
+      routeSheetInfo: emp.route_sheet_info || undefined,
+    }));
+  }
+
   getContingentByDepartment(department: string): ContingentEmployee[] {
     // Этот метод должен вызываться после getContingent, так как он работает с уже загруженными данными
     // В реальности нужно будет кэшировать или передавать данные
@@ -284,6 +312,41 @@ class WorkflowStoreAPI {
   async getCalendarPlans(): Promise<CalendarPlan[]> {
     const userId = this.getUserId();
     const data: any = await apiClient.getCalendarPlans(userId);
+    const results = Array.isArray(data) ? data : (data.results || []);
+    return results.map((plan: any) => ({
+      id: plan.id.toString(),
+      contractId: plan.contract ? plan.contract.toString() : undefined,
+      contractNumber: plan.contract_number || undefined,
+      department: plan.department,
+      startDate: plan.start_date,
+      endDate: plan.end_date,
+      employeeIds: plan.employee_ids || [],
+      departmentsInfo: plan.departments_info ? plan.departments_info.map((dept: any) => ({
+        department: dept.department,
+        startDate: dept.start_date || dept.startDate,
+        endDate: dept.end_date || dept.endDate,
+        employeeIds: dept.employee_ids || dept.employeeIds || [],
+      })) : undefined,
+      harmfulFactors: plan.harmful_factors || [],
+      selectedDoctors: plan.selected_doctors || [],
+      status: plan.status,
+      clinicName: plan.clinic_name,
+      clinicDirector: plan.clinic_director,
+      employerName: plan.employer_name || plan.employer_name_field || undefined,
+      employerRepresentative: plan.employer_representative,
+      sesRepresentative: plan.ses_representative,
+      rejectionReason: plan.rejection_reason,
+      rejectedByEmployerAt: plan.rejected_by_employer_at,
+      createdAt: plan.created_at,
+      approvedByClinicAt: plan.approved_by_clinic_at,
+      approvedByEmployerAt: plan.approved_by_employer_at,
+      sentToSESAt: plan.sent_to_ses_at,
+    }));
+  }
+
+  async getCalendarPlansByContract(contractId: string): Promise<CalendarPlan[]> {
+    const userId = this.getUserId();
+    const data: any = await apiClient.getCalendarPlansByContract(userId, contractId);
     const results = Array.isArray(data) ? data : (data.results || []);
     return results.map((plan: any) => ({
       id: plan.id.toString(),

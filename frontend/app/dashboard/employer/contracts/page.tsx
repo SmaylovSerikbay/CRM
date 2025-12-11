@@ -20,40 +20,41 @@ import { Edit2, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
+// ТОЧНО СООТВЕТСТВУЕТ Excel шаблону из backend/test_template.py
 const HARMFUL_FACTORS_OPTIONS = [
-  'п.1 «Работы, связанные с воздействием химических факторов»',
-  'п.2 «Работы с канцерогенными веществами»',
-  'п.3 «Работы с пестицидами и агрохимикатами»',
-  'п.4 «Работы, связанные с воздействием биологических факторов»',
-  'п.5 «Работы, выполняемые в условиях повышенного шума»',
-  'п.6 «Работы, выполняемые в условиях вибрации»',
-  'п.7 «Работы, выполняемые в условиях ионизирующего излучения»',
-  'п.8 «Работы, выполняемые в условиях неионизирующих излучений»',
-  'п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»',
-  'п.10 «Работы в замкнутых пространствах»',
-  'п.11 «Работы на высоте»',
-  'п.12 «Работы, связанные с подъемом и перемещением тяжестей»',
-  'п.13 «Работы в ночное время»',
-  'п.14 «Работа на ПК»',
-  'п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»',
-  'п.16 «Работы, связанные с повышенной ответственностью»',
-  'п.17 «Работы вахтовым методом»',
-  'п.18 «Подземные работы»',
-  'п.19 «Работы на транспорте»',
-  'п.20 «Работы, связанные с воздействием пыли»',
-  'п.21 «Работы с горюче-смазочными материалами»',
-  'п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»',
-  'п.23 «Работы в условиях повышенной загазованности»',
-  'п.24 «Работы в условиях недостатка кислорода»',
-  'п.25 «Работы в условиях повышенной влажности»',
-  'п.26 «Работы, связанные с виброинструментом»',
-  'п.27 «Работы на конвейерах»',
-  'п.28 «Работы на строительных площадках»',
-  'п.29 «Работы в металлургическом производстве»',
-  'п.30 «Работы в горнодобывающей промышленности»',
-  'п.31 «Работы в деревообрабатывающем производстве»',
-  'п.32 «Работы в текстильной и швейной промышленности»',
-  'п.33 «Профессии и работы»',
+  "п.1 «Работы, связанные с воздействием химических факторов»",
+  "п.2 «Работы с канцерогенными веществами»",
+  "п.3 «Работы с пестицидами и агрохимикатами»",
+  "п.4 «Работы, связанные с воздействием биологических факторов»",
+  "п.5 «Работы, выполняемые в условиях повышенного шума»",
+  "п.6 «Работы, выполняемые в условиях вибрации»",
+  "п.7 «Работы, выполняемые в условиях ионизирующего излучения»",
+  "п.8 «Работы, выполняемые в условиях неионизирующих излучений»",
+  "п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»",
+  "п.10 «Работы в замкнутых пространствах»",
+  "п.11 «Работы на высоте»",
+  "п.12 «Работы, связанные с подъемом и перемещением тяжестей»",
+  "п.13 «Работы в ночное время»",
+  "п.14 «Работа на ПК»",
+  "п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»",
+  "п.16 «Работы, связанные с повышенной ответственностью»",
+  "п.17 «Работы вахтовым методом»",
+  "п.18 «Подземные работы»",
+  "п.19 «Работы на транспорте»",
+  "п.20 «Работы, связанные с воздействием пыли»",
+  "п.21 «Работы с горюче-смазочными материалами»",
+  "п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»",
+  "п.23 «Работы в условиях повышенной загазованности»",
+  "п.24 «Работы в условиях недостатка кислорода»",
+  "п.25 «Работы в условиях повышенной влажности»",
+  "п.26 «Работы, связанные с виброинструментом»",
+  "п.27 «Работы на конвейерах»",
+  "п.28 «Работы на строительных площадках»",
+  "п.29 «Работы в металлургическом производстве»",
+  "п.30 «Работы в горнодобывающей промышленности»",
+  "п.31 «Работы в деревообрабатывающем производстве»",
+  "п.32 «Работы в текстильной и швейной промышленности»",
+  "п.33 «Профессии и работы»"
 ];
 
 interface Contract {
@@ -159,6 +160,14 @@ function EmployerContractsContent() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   
+  // Фильтры для контингента
+  const [contingentNameFilter, setContingentNameFilter] = useState('');
+  const [contingentPositionFilter, setContingentPositionFilter] = useState('');
+  const [contingentDepartmentFilter, setContingentDepartmentFilter] = useState('');
+  const [contingentHarmfulFactorsFilter, setContingentHarmfulFactorsFilter] = useState<string[]>([]);
+  const [showContingentFilters, setShowContingentFilters] = useState(false);
+  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
+  
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -172,6 +181,21 @@ function EmployerContractsContent() {
       }, 500);
     }
   }, [binFromUrl]);
+
+  // Закрытие выпадающего списка при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.harmful-factors-dropdown')) {
+        setShowHarmfulFactorsDropdown(false);
+      }
+    };
+
+    if (showHarmfulFactorsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showHarmfulFactorsDropdown]);
 
   const loadContracts = async () => {
     try {
@@ -307,6 +331,62 @@ function EmployerContractsContent() {
   // Функции для работы с Drawer
   const getContingentCount = (contractId: string): number => {
     return contingent.filter(emp => emp.contractId === contractId).length;
+  };
+
+  // Фильтрация контингента
+  const getFilteredContingent = (contractId: string): ContingentEmployee[] => {
+    const contractContingent = contingent.filter(emp => emp.contractId === contractId);
+    
+    return contractContingent.filter(emp => {
+      const matchesName = !contingentNameFilter || 
+        emp.name.toLowerCase().includes(contingentNameFilter.toLowerCase());
+      
+      const matchesPosition = !contingentPositionFilter || 
+        emp.position.toLowerCase().includes(contingentPositionFilter.toLowerCase());
+      
+      const matchesDepartment = !contingentDepartmentFilter || 
+        emp.department.toLowerCase().includes(contingentDepartmentFilter.toLowerCase());
+      
+      const matchesHarmfulFactors = contingentHarmfulFactorsFilter.length === 0 || 
+        contingentHarmfulFactorsFilter.some(selectedFactor => {
+          if (!emp.harmfulFactors || !Array.isArray(emp.harmfulFactors)) {
+            return false;
+          }
+          
+          return emp.harmfulFactors.some(empFactor => {
+            // Нормализуем строки для сравнения (убираем точки, приводим к нижнему регистру)
+            const normalizeString = (str) => str.toLowerCase().replace(/\./g, '').trim();
+            const normalizedSelected = normalizeString(selectedFactor);
+            const normalizedEmp = normalizeString(empFactor);
+            
+            // Проверяем различные варианты совпадения
+            const exactMatch = empFactor === selectedFactor;
+            const normalizedMatch = normalizedEmp === normalizedSelected;
+            const partialMatch = normalizedEmp.includes(normalizedSelected) || normalizedSelected.includes(normalizedEmp);
+            
+            const result = exactMatch || normalizedMatch || partialMatch;
+            
+            // Отладка для п.1
+            if (selectedFactor.includes('п.1')) {
+              console.log('Фильтр отладка (работодатель):', {
+                empName: emp.name,
+                selectedFactor,
+                empFactor,
+                normalizedSelected,
+                normalizedEmp,
+                exactMatch,
+                normalizedMatch,
+                partialMatch,
+                result
+              });
+            }
+            
+            return result;
+          });
+        });
+      
+      return matchesName && matchesPosition && matchesDepartment && matchesHarmfulFactors;
+    });
   };
 
   const getCalendarPlansCount = (contractId: string): number => {
@@ -1502,20 +1582,121 @@ function EmployerContractsContent() {
                         </div>
                       </Card>
                     ) : (
-                      <Card>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-800">
-                              <tr>
-                                <th className="px-3 py-2 text-left">ФИО</th>
-                                <th className="px-3 py-2 text-left">Должность</th>
-                                <th className="px-3 py-2 text-left">Объект/участок</th>
-                                <th className="px-3 py-2 text-left">Вредные факторы</th>
-                                <th className="px-3 py-2 text-right">Действия</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                              {contractContingent.map((emp) => (
+                      <>
+                        {/* Фильтры для контингента */}
+                        <Card className="mb-4">
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-medium">Фильтры контингента</h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowContingentFilters(!showContingentFilters)}
+                              >
+                                <Filter className="h-4 w-4 mr-2" />
+                                {showContingentFilters ? 'Скрыть' : 'Показать'} фильтры
+                              </Button>
+                            </div>
+                            
+                            {showContingentFilters && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <Input
+                                  placeholder="Поиск по ФИО"
+                                  value={contingentNameFilter}
+                                  onChange={(e) => setContingentNameFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по должности"
+                                  value={contingentPositionFilter}
+                                  onChange={(e) => setContingentPositionFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по участку"
+                                  value={contingentDepartmentFilter}
+                                  onChange={(e) => setContingentDepartmentFilter(e.target.value)}
+                                />
+                                <div className="relative harmful-factors-dropdown">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => setShowHarmfulFactorsDropdown(!showHarmfulFactorsDropdown)}
+                                    className="w-full justify-between text-left"
+                                  >
+                                    <span className="truncate">
+                                      {contingentHarmfulFactorsFilter.length === 0 
+                                        ? 'Выберите вредные факторы' 
+                                        : `Выбрано: ${contingentHarmfulFactorsFilter.length}`
+                                      }
+                                    </span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                  
+                                  {showHarmfulFactorsDropdown && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                      {HARMFUL_FACTORS_OPTIONS.map((factor) => (
+                                        <div
+                                          key={factor}
+                                          className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                          onClick={() => {
+                                            const isSelected = contingentHarmfulFactorsFilter.includes(factor);
+                                            if (isSelected) {
+                                              setContingentHarmfulFactorsFilter(prev => prev.filter(f => f !== factor));
+                                            } else {
+                                              setContingentHarmfulFactorsFilter(prev => [...prev, factor]);
+                                            }
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={contingentHarmfulFactorsFilter.includes(factor)}
+                                            onChange={() => {}}
+                                            className="mr-2"
+                                          />
+                                          <span className="text-sm">{factor}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {(contingentNameFilter || contingentPositionFilter || contingentDepartmentFilter || contingentHarmfulFactorsFilter.length > 0) && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Найдено: {getFilteredContingent(showContractDrawer).length} из {contractContingent.length}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setContingentNameFilter('');
+                                    setContingentPositionFilter('');
+                                    setContingentDepartmentFilter('');
+                                    setContingentHarmfulFactorsFilter([]);
+                                    setShowHarmfulFactorsDropdown(false);
+                                  }}
+                                >
+                                  Очистить фильтры
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+
+                        <Card>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">ФИО</th>
+                                  <th className="px-3 py-2 text-left">Должность</th>
+                                  <th className="px-3 py-2 text-left">Объект/участок</th>
+                                  <th className="px-3 py-2 text-left">Вредные факторы</th>
+                                  <th className="px-3 py-2 text-right">Действия</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {getFilteredContingent(showContractDrawer).map((emp) => (
                                 <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                                   <td className="px-3 py-2 font-medium">{emp.name}</td>
                                   <td className="px-3 py-2">{emp.position}</td>
@@ -1557,6 +1738,7 @@ function EmployerContractsContent() {
                           </table>
                         </div>
                       </Card>
+                      </>
                     )}
                   </div>
                 )}

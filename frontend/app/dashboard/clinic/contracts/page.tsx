@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
-import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, ChevronDown, FileCheck, Eye, Save, Handshake } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, Send, X, Search, Building2, Edit, History, XCircle, RefreshCw, Calendar, DollarSign, Users, Upload, Route, Download, ChevronRight, ChevronLeft, ChevronDown, FileCheck, Eye, Save, Handshake, Filter } from 'lucide-react';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { workflowStoreAPI, ContingentEmployee, CalendarPlan } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
@@ -17,40 +17,42 @@ import { userStore } from '@/lib/store/user-store';
 import * as XLSX from 'xlsx';
 
 // Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
+// Список стандартных вредных факторов согласно приказу № ҚР ДСМ-131/2020
+// ТОЧНО СООТВЕТСТВУЕТ Excel шаблону из backend/test_template.py
 const HARMFUL_FACTORS_OPTIONS = [
-  'п.1 «Работы, связанные с воздействием химических факторов»',
-  'п.2 «Работы с канцерогенными веществами»',
-  'п.3 «Работы с пестицидами и агрохимикатами»',
-  'п.4 «Работы, связанные с воздействием биологических факторов»',
-  'п.5 «Работы, выполняемые в условиях повышенного шума»',
-  'п.6 «Работы, выполняемые в условиях вибрации»',
-  'п.7 «Работы, выполняемые в условиях ионизирующего излучения»',
-  'п.8 «Работы, выполняемые в условиях неионизирующих излучений»',
-  'п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»',
-  'п.10 «Работы в замкнутых пространствах»',
-  'п.11 «Работы на высоте»',
-  'п.12 «Работы, связанные с подъемом и перемещением тяжестей»',
-  'п.13 «Работы в ночное время»',
-  'п.14 «Работа на ПК»',
-  'п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»',
-  'п.16 «Работы, связанные с повышенной ответственностью»',
-  'п.17 «Работы вахтовым методом»',
-  'п.18 «Подземные работы»',
-  'п.19 «Работы на транспорте»',
-  'п.20 «Работы, связанные с воздействием пыли»',
-  'п.21 «Работы с горюче-смазочными материалами»',
-  'п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»',
-  'п.23 «Работы в условиях повышенной загазованности»',
-  'п.24 «Работы в условиях недостатка кислорода»',
-  'п.25 «Работы в условиях повышенной влажности»',
-  'п.26 «Работы, связанные с виброинструментом»',
-  'п.27 «Работы на конвейерах»',
-  'п.28 «Работы на строительных площадках»',
-  'п.29 «Работы в металлургическом производстве»',
-  'п.30 «Работы в горнодобывающей промышленности»',
-  'п.31 «Работы в деревообрабатывающем производстве»',
-  'п.32 «Работы в текстильной и швейной промышленности»',
-  'п.33 «Профессии и работы»',
+  "п.1 «Работы, связанные с воздействием химических факторов»",
+  "п.2 «Работы с канцерогенными веществами»",
+  "п.3 «Работы с пестицидами и агрохимикатами»",
+  "п.4 «Работы, связанные с воздействием биологических факторов»",
+  "п.5 «Работы, выполняемые в условиях повышенного шума»",
+  "п.6 «Работы, выполняемые в условиях вибрации»",
+  "п.7 «Работы, выполняемые в условиях ионизирующего излучения»",
+  "п.8 «Работы, выполняемые в условиях неионизирующих излучений»",
+  "п.9 «Работы, выполняемые при повышенной или пониженной температуре воздуха»",
+  "п.10 «Работы в замкнутых пространствах»",
+  "п.11 «Работы на высоте»",
+  "п.12 «Работы, связанные с подъемом и перемещением тяжестей»",
+  "п.13 «Работы в ночное время»",
+  "п.14 «Работа на ПК»",
+  "п.15 «Работы, связанные с эмоциональным и умственным перенапряжением»",
+  "п.16 «Работы, связанные с повышенной ответственностью»",
+  "п.17 «Работы вахтовым методом»",
+  "п.18 «Подземные работы»",
+  "п.19 «Работы на транспорте»",
+  "п.20 «Работы, связанные с воздействием пыли»",
+  "п.21 «Работы с горюче-смазочными материалами»",
+  "п.22 «Работы, связанные с воздействием нефти и нефтепродуктов»",
+  "п.23 «Работы в условиях повышенной загазованности»",
+  "п.24 «Работы в условиях недостатка кислорода»",
+  "п.25 «Работы в условиях повышенной влажности»",
+  "п.26 «Работы, связанные с виброинструментом»",
+  "п.27 «Работы на конвейерах»",
+  "п.28 «Работы на строительных площадках»",
+  "п.29 «Работы в металлургическом производстве»",
+  "п.30 «Работы в горнодобывающей промышленности»",
+  "п.31 «Работы в деревообрабатывающем производстве»",
+  "п.32 «Работы в текстильной и швейной промышленности»",
+  "п.33 «Профессии и работы»"
 ];
 
 interface Contract {
@@ -125,6 +127,7 @@ export default function ContractsPage() {
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null);
   const [selectedContractForUpload, setSelectedContractForUpload] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingContingent, setIsLoadingContingent] = useState(false);
   // Модальное окно для создания календарного плана
   const [showCalendarPlanModal, setShowCalendarPlanModal] = useState<string | null>(null);
   const [planFormData, setPlanFormData] = useState({
@@ -149,7 +152,6 @@ export default function ContractsPage() {
   const [departmentEmployeePage, setDepartmentEmployeePage] = useState<Record<string, number>>({});
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [editEmployeeData, setEditEmployeeData] = useState<any>({});
-  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
   const [harmfulFactorsSearch, setHarmfulFactorsSearch] = useState('');
   // Модальное окно для создания нового сотрудника
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -171,6 +173,14 @@ export default function ContractsPage() {
   const [tempStatusFilter, setTempStatusFilter] = useState<string>('all');
   const [tempDateFromFilter, setTempDateFromFilter] = useState('');
   const [tempDateToFilter, setTempDateToFilter] = useState('');
+  
+  // Фильтры для контингента
+  const [contingentNameFilter, setContingentNameFilter] = useState('');
+  const [contingentPositionFilter, setContingentPositionFilter] = useState('');
+  const [contingentDepartmentFilter, setContingentDepartmentFilter] = useState('');
+  const [contingentHarmfulFactorsFilter, setContingentHarmfulFactorsFilter] = useState<string[]>([]);
+  const [showContingentFilters, setShowContingentFilters] = useState(false);
+  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
   
   // Примененные фильтры (используются для фильтрации)
   const [searchQuery, setSearchQuery] = useState('');
@@ -217,6 +227,21 @@ export default function ContractsPage() {
     loadContracts();
     loadClinics();
   }, []);
+
+  // Закрытие выпадающего списка при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.harmful-factors-dropdown')) {
+        setShowHarmfulFactorsDropdown(false);
+      }
+    };
+
+    if (showHarmfulFactorsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showHarmfulFactorsDropdown]);
 
   const loadClinics = async () => {
     try {
@@ -401,6 +426,13 @@ export default function ContractsPage() {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, dateFromFilter, dateToFilter]);
 
+  // Кэш для загруженных данных
+  const [loadedContractData, setLoadedContractData] = useState<Record<string, {
+    contingent: ContingentEmployee[];
+    plans: CalendarPlan[];
+    loadedAt: number;
+  }>>({});
+
   const loadContracts = async () => {
     try {
       const data: any[] = await workflowStoreAPI.getContracts();
@@ -431,28 +463,63 @@ export default function ContractsPage() {
       }));
       setContracts(mappedContracts);
       
-        // Загружаем контингент и календарные планы для проверки
-        try {
-          const contingentData = await workflowStoreAPI.getContingent();
-          setContingent(contingentData);
-          
-          const plansData = await workflowStoreAPI.getCalendarPlans();
-          setCalendarPlans(plansData);
-          
-          // Загружаем список вредных факторов и врачей для создания планов
-          const factors = await apiClient.getHarmfulFactorsList();
-          setHarmfulFactorsList(factors);
-          
-          const doctorsList = await workflowStoreAPI.getDoctors();
-          setDoctors(doctorsList);
-        } catch (error) {
-          console.error('Error loading contingent/plans:', error);
-        }
+      // Загружаем только базовые справочники, без данных по договорам
+      try {
+        const factors = await apiClient.getHarmfulFactorsList();
+        setHarmfulFactorsList(factors);
+        
+        const doctorsList = await workflowStoreAPI.getDoctors();
+        setDoctors(doctorsList);
+      } catch (error) {
+        console.error('Error loading reference data:', error);
+      }
     } catch (error) {
       console.error('Error loading contracts:', error);
       showToast('Ошибка загрузки договоров', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Ленивая загрузка данных для конкретного договора
+  const loadContractData = async (contractId: string, force = false) => {
+    const cacheKey = contractId;
+    const cached = loadedContractData[cacheKey];
+    const cacheExpiry = 5 * 60 * 1000; // 5 минут
+    
+    // Проверяем кэш
+    if (!force && cached && (Date.now() - cached.loadedAt) < cacheExpiry) {
+      setContingent(cached.contingent);
+      setCalendarPlans(cached.plans);
+      return;
+    }
+
+    try {
+      setIsLoadingContingent(true);
+      
+      // Загружаем данные параллельно
+      const [contingentData, plansData] = await Promise.all([
+        workflowStoreAPI.getContingentByContract(contractId),
+        workflowStoreAPI.getCalendarPlansByContract(contractId)
+      ]);
+      
+      // Сохраняем в кэш
+      setLoadedContractData(prev => ({
+        ...prev,
+        [cacheKey]: {
+          contingent: contingentData,
+          plans: plansData,
+          loadedAt: Date.now()
+        }
+      }));
+      
+      setContingent(contingentData);
+      setCalendarPlans(plansData);
+    } catch (error) {
+      console.error('Error loading contract data:', error);
+      showToast('Ошибка загрузки данных договора', 'error');
+    } finally {
+      setIsLoadingContingent(false);
     }
   };
 
@@ -759,6 +826,62 @@ export default function ContractsPage() {
     return contingent.filter(emp => emp.contractId === contractId).length;
   };
 
+  // Фильтрация контингента
+  const getFilteredContingent = (contractId: string): ContingentEmployee[] => {
+    const contractContingent = contingent.filter(emp => emp.contractId === contractId);
+    
+    return contractContingent.filter(emp => {
+      const matchesName = !contingentNameFilter || 
+        emp.name.toLowerCase().includes(contingentNameFilter.toLowerCase());
+      
+      const matchesPosition = !contingentPositionFilter || 
+        emp.position.toLowerCase().includes(contingentPositionFilter.toLowerCase());
+      
+      const matchesDepartment = !contingentDepartmentFilter || 
+        emp.department.toLowerCase().includes(contingentDepartmentFilter.toLowerCase());
+      
+      const matchesHarmfulFactors = contingentHarmfulFactorsFilter.length === 0 || 
+        contingentHarmfulFactorsFilter.some(selectedFactor => {
+          if (!emp.harmfulFactors || !Array.isArray(emp.harmfulFactors)) {
+            return false;
+          }
+          
+          return emp.harmfulFactors.some(empFactor => {
+            // Нормализуем строки для сравнения (убираем точки, приводим к нижнему регистру)
+            const normalizeString = (str) => str.toLowerCase().replace(/\./g, '').trim();
+            const normalizedSelected = normalizeString(selectedFactor);
+            const normalizedEmp = normalizeString(empFactor);
+            
+            // Проверяем различные варианты совпадения
+            const exactMatch = empFactor === selectedFactor;
+            const normalizedMatch = normalizedEmp === normalizedSelected;
+            const partialMatch = normalizedEmp.includes(normalizedSelected) || normalizedSelected.includes(normalizedEmp);
+            
+            const result = exactMatch || normalizedMatch || partialMatch;
+            
+            // Отладка для п.1
+            if (selectedFactor.includes('п.1')) {
+              console.log('Фильтр отладка:', {
+                empName: emp.name,
+                selectedFactor,
+                empFactor,
+                normalizedSelected,
+                normalizedEmp,
+                exactMatch,
+                normalizedMatch,
+                partialMatch,
+                result
+              });
+            }
+            
+            return result;
+          });
+        });
+      
+      return matchesName && matchesPosition && matchesDepartment && matchesHarmfulFactors;
+    });
+  };
+
   // Проверка наличия календарных планов для договора
   const getCalendarPlansCount = (contractId: string): number => {
     return calendarPlans.filter(plan => plan.contractId === contractId).length;
@@ -787,9 +910,12 @@ export default function ContractsPage() {
   };
 
   // Обработчик открытия Drawer
-  const handleOpenContractDrawer = (contractId: string) => {
+  const handleOpenContractDrawer = async (contractId: string) => {
     setShowContractDrawer(contractId);
     setActiveTab('contingent');
+    
+    // Загружаем данные для конкретного договора
+    await loadContractData(contractId);
   };
 
   // Обработчик загрузки контингента
@@ -854,8 +980,9 @@ export default function ContractsPage() {
     setIsUploading(true);
     try {
       const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
-      const updated = await workflowStoreAPI.getContingent();
-      setContingent(updated);
+      setIsLoadingContingent(true);
+      // Обновляем данные для конкретного договора
+      await loadContractData(contractId, true);
       
       // Обновляем список участков для календарного плана
       const contractContingent = updated.filter(emp => emp.contractId === contractId);
@@ -891,6 +1018,7 @@ export default function ContractsPage() {
       }
     } finally {
       setIsUploading(false);
+      setIsLoadingContingent(false);
       // Сбрасываем input, чтобы можно было загрузить тот же файл снова
       e.target.value = '';
     }
@@ -1084,9 +1212,10 @@ export default function ContractsPage() {
       
       await workflowStoreAPI.addCalendarPlan(planData, planData.employeeIds);
       
-      // Обновляем данные
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setCalendarPlans(updatedPlans);
+      // Обновляем данные для текущего договора
+      if (showContractDrawer) {
+        await loadContractData(showContractDrawer, true);
+      }
       
       // Если Drawer открыт, переключаемся на вкладку плана
       if (showContractDrawer === contractId) {
@@ -1118,8 +1247,10 @@ export default function ContractsPage() {
   const handleApprovePlan = async (planId: string) => {
     try {
       await workflowStoreAPI.updateCalendarPlanStatus(planId, 'pending_employer');
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setCalendarPlans(updatedPlans);
+      // Обновляем данные для текущего договора
+      if (showContractDrawer) {
+        await loadContractData(showContractDrawer, true);
+      }
       showToast('План отправлен на утверждение работодателю', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка утверждения плана', 'error');
@@ -1133,8 +1264,10 @@ export default function ContractsPage() {
     }
     try {
       await workflowStoreAPI.deleteCalendarPlan(planId);
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setCalendarPlans(updatedPlans);
+      // Обновляем данные для текущего договора
+      if (showContractDrawer) {
+        await loadContractData(showContractDrawer, true);
+      }
       showToast('Календарный план успешно удален', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка удаления плана', 'error');
@@ -1167,9 +1300,10 @@ export default function ContractsPage() {
         departmentsInfo: updatedDepartmentsInfo,
       });
       
-      // Перезагружаем планы
-      const updatedPlans = await workflowStoreAPI.getCalendarPlans();
-      setCalendarPlans(updatedPlans);
+      // Перезагружаем данные для текущего договора
+      if (showContractDrawer) {
+        await loadContractData(showContractDrawer, true);
+      }
       
       showToast('Сотрудник удален из участка', 'success');
     } catch (error: any) {
@@ -1388,8 +1522,10 @@ export default function ContractsPage() {
     
     try {
       await workflowStoreAPI.deleteContingentEmployee(employeeId);
-      const updated = await workflowStoreAPI.getContingent();
-      setContingent(updated);
+      // Обновляем данные для текущего договора
+      if (showContractDrawer) {
+        await loadContractData(showContractDrawer, true);
+      }
       showToast('Сотрудник успешно удален', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка удаления', 'error');
@@ -3531,20 +3667,139 @@ export default function ContractsPage() {
                         </div>
                       </Card>
                     ) : (
-                      <Card>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-800">
-                              <tr>
-                                <th className="px-3 py-2 text-left">ФИО</th>
-                                <th className="px-3 py-2 text-left">Должность</th>
-                                <th className="px-3 py-2 text-left">Объект/участок</th>
-                                <th className="px-3 py-2 text-left">Вредные факторы</th>
-                                <th className="px-3 py-2 text-right">Действия</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                              {contractContingent.map((emp) => (
+                      <>
+                        {/* Фильтры для контингента */}
+                        <Card className="mb-4">
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-medium">Фильтры контингента</h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowContingentFilters(!showContingentFilters)}
+                              >
+                                <Filter className="h-4 w-4 mr-2" />
+                                {showContingentFilters ? 'Скрыть' : 'Показать'} фильтры
+                              </Button>
+                            </div>
+                            
+                            {showContingentFilters && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <Input
+                                  placeholder="Поиск по ФИО"
+                                  value={contingentNameFilter}
+                                  onChange={(e) => setContingentNameFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по должности"
+                                  value={contingentPositionFilter}
+                                  onChange={(e) => setContingentPositionFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по участку"
+                                  value={contingentDepartmentFilter}
+                                  onChange={(e) => setContingentDepartmentFilter(e.target.value)}
+                                />
+                                <div className="relative harmful-factors-dropdown">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => setShowHarmfulFactorsDropdown(!showHarmfulFactorsDropdown)}
+                                    className="w-full justify-between text-left"
+                                  >
+                                    <span className="truncate">
+                                      {contingentHarmfulFactorsFilter.length === 0 
+                                        ? 'Выберите вредные факторы' 
+                                        : `Выбрано: ${contingentHarmfulFactorsFilter.length}`
+                                      }
+                                    </span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                  
+                                  {showHarmfulFactorsDropdown && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                      {HARMFUL_FACTORS_OPTIONS.map((factor) => (
+                                        <div
+                                          key={factor}
+                                          className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                          onClick={() => {
+                                            const isSelected = contingentHarmfulFactorsFilter.includes(factor);
+                                            if (isSelected) {
+                                              setContingentHarmfulFactorsFilter(prev => prev.filter(f => f !== factor));
+                                            } else {
+                                              setContingentHarmfulFactorsFilter(prev => [...prev, factor]);
+                                            }
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={contingentHarmfulFactorsFilter.includes(factor)}
+                                            onChange={() => {}}
+                                            className="mr-2"
+                                          />
+                                          <span className="text-sm">{factor}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {(contingentNameFilter || contingentPositionFilter || contingentDepartmentFilter || contingentHarmfulFactorsFilter.length > 0) && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Найдено: {getFilteredContingent(showContractDrawer).length} из {contractContingent.length}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setContingentNameFilter('');
+                                    setContingentPositionFilter('');
+                                    setContingentDepartmentFilter('');
+                                    setContingentHarmfulFactorsFilter([]);
+                                    setShowHarmfulFactorsDropdown(false);
+                                  }}
+                                >
+                                  Очистить фильтры
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+
+                        <Card>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">ФИО</th>
+                                  <th className="px-3 py-2 text-left">Должность</th>
+                                  <th className="px-3 py-2 text-left">Объект/участок</th>
+                                  <th className="px-3 py-2 text-left">Вредные факторы</th>
+                                  <th className="px-3 py-2 text-right">Действия</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {isLoadingContingent ? (
+                                  <tr>
+                                    <td colSpan={5} className="px-3 py-8 text-center">
+                                      <div className="flex items-center justify-center space-x-2">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                        <span className="text-gray-600 dark:text-gray-400">Загрузка контингента...</span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : getFilteredContingent(showContractDrawer).length === 0 ? (
+                                  <tr>
+                                    <td colSpan={5} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                                      {contingentNameFilter || contingentPositionFilter || contingentDepartmentFilter || contingentHarmfulFactorsFilter.length > 0 
+                                        ? 'Нет сотрудников, соответствующих фильтрам'
+                                        : 'Контингент не загружен'
+                                      }
+                                    </td>
+                                  </tr>
+                                ) : getFilteredContingent(showContractDrawer).map((emp) => (
                                 <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                                   <td className="px-3 py-2 font-medium">{emp.name}</td>
                                   <td className="px-3 py-2">{emp.position}</td>
@@ -3586,6 +3841,7 @@ export default function ContractsPage() {
                           </table>
                         </div>
                       </Card>
+                      </>
                     )}
                   </div>
                 )}
@@ -3700,8 +3956,10 @@ export default function ContractsPage() {
                                             onClick={() => {
                                               if (confirm('Перевести план в черновик для редактирования?')) {
                                                 workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'draft')
-                                                  .then(() => {
-                                                    workflowStoreAPI.getCalendarPlans().then(setCalendarPlans);
+                                                  .then(async () => {
+                                                    if (showContractDrawer) {
+                                                      await loadContractData(showContractDrawer, true);
+                                                    }
                                                     showToast('План переведен в черновик. Вы можете отредактировать его и отправить на повторное утверждение.', 'success');
                                                   })
                                                   .catch((error: any) => {
@@ -3937,8 +4195,10 @@ export default function ContractsPage() {
                                                     onClick={() => {
                                                       if (confirm('Перевести план в черновик для редактирования?')) {
                                                         workflowStoreAPI.updateCalendarPlanStatus(plan.id, 'draft')
-                                                          .then(() => {
-                                                            workflowStoreAPI.getCalendarPlans().then(setCalendarPlans);
+                                                          .then(async () => {
+                                                            if (showContractDrawer) {
+                                                              await loadContractData(showContractDrawer, true);
+                                                            }
                                                             showToast('План переведен в черновик. Вы можете отредактировать его и отправить на повторное утверждение.', 'success');
                                                           })
                                                           .catch((error: any) => {

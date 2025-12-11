@@ -31,23 +31,40 @@ export default function ClinicContingentPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [contractsLoaded, setContractsLoaded] = useState(false);
   
   // Пагинация
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
+  // Ленивая загрузка договоров
+  const loadContractsIfNeeded = async () => {
+    if (!contractsLoaded) {
+      try {
+        const contractsData = await workflowStoreAPI.getContracts();
+        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
+        setContracts(approvedContracts);
+        setContractsLoaded(true);
+      } catch (error) {
+        console.error('Error loading contracts:', error);
+        showToast('Ошибка загрузки договоров', 'error');
+      }
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Загружаем договоры
-        const contractsData = await workflowStoreAPI.getContracts();
-        // Включаем как утвержденные, так и исполненные договоры
-        const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
-        setContracts(approvedContracts);
-        
-        // Загружаем контингент
+        // Загружаем только контингент
         const data = await workflowStoreAPI.getContingent();
         setEmployees(data);
+        
+        // Загружаем договоры только если нужно для фильтрации
+        if (filterContractId || selectedContractId) {
+          const contractsData = await workflowStoreAPI.getContracts();
+          const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
+          setContracts(approvedContracts);
+        }
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -253,7 +270,10 @@ export default function ClinicContingentPage() {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Всего: {employees.length} | Показано: {filteredEmployees.length}
               </div>
-              <Button onClick={() => setShowUploadModal(true)}>
+              <Button onClick={() => {
+                loadContractsIfNeeded();
+                setShowUploadModal(true);
+              }}>
                 <Upload className="h-4 w-4 mr-2" />
                 Загрузить файл
               </Button>
@@ -367,6 +387,7 @@ export default function ClinicContingentPage() {
                   <select
                     value={filterContractId}
                     onChange={(e) => setFilterContractId(e.target.value)}
+                    onFocus={loadContractsIfNeeded}
                     className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                   >
                     <option value="">Все договоры</option>
@@ -1003,6 +1024,7 @@ export default function ClinicContingentPage() {
                   <select
                     value={selectedContractId}
                     onChange={(e) => setSelectedContractId(e.target.value)}
+                    onFocus={loadContractsIfNeeded}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   >
                     <option value="">-- Выберите договор --</option>

@@ -154,6 +154,28 @@ class ApiClient {
     return allResults;
   }
 
+  async getContingentByContract(userId: string, contractId: string) {
+    let allResults: any[] = [];
+    let nextUrl = `/contingent-employees/?user_id=${userId}&contract_id=${contractId}`;
+    
+    while (nextUrl) {
+      const response: any = await this.request(nextUrl);
+      
+      if (Array.isArray(response)) {
+        allResults = response;
+        break;
+      } else if (response && typeof response === 'object' && response.results) {
+        allResults = allResults.concat(response.results);
+        nextUrl = response.next ? response.next.replace(this.baseUrl, '') : null;
+      } else {
+        allResults = Array.isArray(response) ? response : [response];
+        break;
+      }
+    }
+    
+    return allResults;
+  }
+
   async uploadExcelContingent(userId: string, file: File, contractId?: string): Promise<{
     created: number;
     skipped: number;
@@ -251,6 +273,10 @@ class ApiClient {
   // Calendar Plans
   async getCalendarPlans(userId: string) {
     return this.request(`/calendar-plans/?user_id=${userId}`);
+  }
+
+  async getCalendarPlansByContract(userId: string, contractId: string) {
+    return this.request(`/calendar-plans/?user_id=${userId}&contract_id=${contractId}`);
   }
 
   async createCalendarPlan(data: any) {

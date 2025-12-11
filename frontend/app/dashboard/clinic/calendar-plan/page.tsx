@@ -45,49 +45,90 @@ function CalendarPlanPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Состояния для ленивой загрузки
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [contingentLoaded, setContingentLoaded] = useState(false);
+  const [referencesLoaded, setReferencesLoaded] = useState(false);
+
   useEffect(() => {
-    const loadData = async () => {
+    const loadInitialData = async () => {
       try {
-        // Загружаем договоры
+        // Загружаем только календарные планы при инициализации
+        const calendarPlans = await workflowStoreAPI.getCalendarPlans();
+        setPlans(calendarPlans);
+        
+        // Проверяем параметр contractId из URL - если есть, загружаем нужные данные
+        const contractIdFromUrl = searchParams.get('contractId');
+        if (contractIdFromUrl) {
+          await loadContractsIfNeeded();
+          await loadContingentIfNeeded();
+          await loadReferencesIfNeeded();
+          
+          if (contracts.some((c: any) => c.id === contractIdFromUrl)) {
+            setSelectedContractId(contractIdFromUrl);
+            setShowForm(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadInitialData();
+  }, [searchParams]);
+
+  // Ленивая загрузка договоров
+  const loadContractsIfNeeded = async () => {
+    if (!contractsLoaded) {
+      try {
         const contractsData = await workflowStoreAPI.getContracts();
-        // Включаем как утвержденные, так и исполненные договоры
         const approvedContracts = contractsData.filter((c: any) => c.status === 'approved' || c.status === 'executed');
         setContracts(approvedContracts);
-        
-        // Проверяем параметр contractId из URL
-        const contractIdFromUrl = searchParams.get('contractId');
-        if (contractIdFromUrl && approvedContracts.some((c: any) => c.id === contractIdFromUrl)) {
-          setSelectedContractId(contractIdFromUrl);
-          setShowForm(true);
-        }
-        
-        // Загружаем контингент (доступен для всех клиник после загрузки работодателем)
+        setContractsLoaded(true);
+      } catch (error) {
+        console.error('Error loading contracts:', error);
+        showToast('Ошибка загрузки договоров', 'error');
+      }
+    }
+  };
+
+  // Ленивая загрузка контингента
+  const loadContingentIfNeeded = async () => {
+    if (!contingentLoaded) {
+      try {
         const contingentData = await workflowStoreAPI.getContingent();
         setContingent(contingentData);
         
         // Получаем уникальные объекты/участки
         const departments = [...new Set(contingentData.map(emp => emp.department))];
         setAvailableDepartments(departments);
-        
-        // Загружаем календарные планы клиники
-        const calendarPlans = await workflowStoreAPI.getCalendarPlans();
-        setPlans(calendarPlans);
-        
-        // Загружаем список вредных факторов
-        const factors = await apiClient.getHarmfulFactorsList();
-        setHarmfulFactorsList(factors);
-        
-        // Загружаем список врачей клиники
-        const doctorsList = await workflowStoreAPI.getDoctors();
-        setDoctors(doctorsList);
+        setContingentLoaded(true);
       } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('Error loading contingent:', error);
+        showToast('Ошибка загрузки контингента', 'error');
       }
-    };
-    loadData();
-  }, [searchParams]);
+    }
+  };
+
+  // Ленивая загрузка справочников
+  const loadReferencesIfNeeded = async () => {
+    if (!referencesLoaded) {
+      try {
+        const [factors, doctorsList] = await Promise.all([
+          apiClient.getHarmfulFactorsList(),
+          workflowStoreAPI.getDoctors()
+        ]);
+        
+        setHarmfulFactorsList(factors);
+        setDoctors(doctorsList);
+        setReferencesLoaded(true);
+      } catch (error) {
+        console.error('Error loading references:', error);
+        showToast('Ошибка загрузки справочников', 'error');
+      }
+    }
+  };
 
   // Фильтруем контингент по выбранному договору
   const getFilteredContingent = (): ContingentEmployee[] => {
@@ -1421,7 +1462,14 @@ function CalendarPlanPageContent() {
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   Создайте календарный план для планирования осмотров по потокам
                 </p>
-                <Button onClick={() => setShowForm(true)} disabled={availableDepartments.length === 0}>
+                <Button onClick={async () => {
+                  await Promise.all([
+                    loadContractsIfNeeded(),
+                    loadContingentIfNeeded(),
+                    loadReferencesIfNeeded()
+                  ]);
+                  setShowForm(true);
+                }} disabled={availableDepartments.length === 0}>
                   Создать план
                 </Button>
               </div>
