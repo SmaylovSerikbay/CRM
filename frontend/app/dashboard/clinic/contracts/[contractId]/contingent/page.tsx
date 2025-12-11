@@ -31,7 +31,7 @@ export default function ContractContingentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   useEffect(() => {
     if (contractId) {
@@ -55,7 +55,7 @@ export default function ContractContingentPage() {
       const result = await workflowStoreAPI.getContingentByContract(contractId, true, page, itemsPerPage);
       setContingent(result.data);
       setTotalCount(result.pagination.count);
-      setTotalPages(result.pagination.totalPages);
+      setServerTotalPages(result.pagination.totalPages);
       setCurrentPage(result.pagination.page);
       
       // Если есть контингент, получаем информацию о договоре из первого сотрудника
@@ -104,8 +104,7 @@ export default function ContractContingentPage() {
       const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
       
       // Перезагружаем данные без кэша для получения актуальных данных
-      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
-      setContingent(updatedContingent);
+      loadData(1); // Перезагружаем первую страницу
       
       if (result.skipped > 0) {
         const reasons = result.skipped_reasons || {};
@@ -170,29 +169,32 @@ export default function ContractContingentPage() {
     try {
       await workflowStoreAPI.deleteContingentEmployee(employeeId);
       // Перезагружаем данные без кэша для получения актуальных данных
-      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
-      setContingent(updatedContingent);
+      loadData(currentPage); // Перезагружаем текущую страницу
       showToast('Сотрудник успешно удален', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка удаления', 'error');
     }
   };
 
-  // Фильтрация
-  const filteredContingent = contingent.filter(employee => {
-    const searchLower = searchQuery.toLowerCase();
-    return !searchQuery || 
-      employee.name.toLowerCase().includes(searchLower) ||
-      employee.position.toLowerCase().includes(searchLower) ||
-      employee.department.toLowerCase().includes(searchLower) ||
-      employee.harmfulFactors?.some(factor => factor.toLowerCase().includes(searchLower));
-  });
+  // Для поиска используем все данные, для отображения - текущую страницу
+  const displayContingent = searchQuery ? 
+    allContingent.filter(employee => {
+      const searchLower = searchQuery.toLowerCase();
+      return employee.name.toLowerCase().includes(searchLower) ||
+        employee.position.toLowerCase().includes(searchLower) ||
+        employee.department.toLowerCase().includes(searchLower) ||
+        employee.harmfulFactors?.some(factor => factor.toLowerCase().includes(searchLower));
+    }) : 
+    contingent;
 
-  // Пагинация
-  const totalPages = Math.ceil(filteredContingent.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedContingent = filteredContingent.slice(startIndex, endIndex);
+  // Пагинация для поиска (client-side) или server-side
+  const totalPages = searchQuery ? 
+    Math.ceil(displayContingent.length / itemsPerPage) : 
+    serverTotalPages;
+  
+  const paginatedContingent = searchQuery ? 
+    displayContingent.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) :
+    displayContingent;
 
   if (isLoading) {
     return (
@@ -233,7 +235,7 @@ export default function ContractContingentPage() {
               Контингент
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Договор №{contract?.contract_number} - {contingent.length} сотрудников
+              Договор №{contract?.contract_number} - {totalCount} сотрудников
             </p>
           </div>
         </div>
@@ -285,7 +287,7 @@ export default function ContractContingentPage() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Всего сотрудников</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {contingent.length}
+                {totalCount}
               </p>
             </div>
           </div>
@@ -297,9 +299,9 @@ export default function ContractContingentPage() {
               <Search className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Найдено</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Показано</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {filteredContingent.length}
+                {paginatedContingent.length}
               </p>
             </div>
           </div>
@@ -313,7 +315,7 @@ export default function ContractContingentPage() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Подразделений</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {new Set(contingent.map(emp => emp.department)).size}
+                {new Set((allContingent.length > 0 ? allContingent : contingent).map(emp => emp.department)).size}
               </p>
             </div>
           </div>
