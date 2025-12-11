@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { ArrowLeft, Users, Search, Filter, Download, Upload, Plus, Edit, X, AlertCircle } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
@@ -25,6 +26,8 @@ export default function EmployerContractContingentPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [positionFilter, setPositionFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -54,6 +57,38 @@ export default function EmployerContractContingentPage() {
       showToast('Ошибка загрузки данных', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
+      
+      // Перезагружаем данные
+      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId);
+      setContingent(updatedContingent);
+      
+      if (result.skipped > 0) {
+        const reasons = result.skipped_reasons || {};
+        const reasonsText = [
+          reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
+          reasons.no_name ? `нет ФИО: ${reasons.no_name}` : '',
+        ].filter(Boolean).join(', ');
+        showToast(`Загружено: ${result.created}, пропущено (${reasonsText || 'разные причины'}): ${result.skipped}`, 'info');
+      } else {
+        showToast('Контингент успешно загружен!', 'success');
+      }
+      
+      setShowUploadModal(false);
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка загрузки файла', 'error');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -186,6 +221,10 @@ export default function EmployerContractContingentPage() {
               >
                 <Download className="h-4 w-4 mr-2" />
                 Скачать шаблон
+              </Button>
+              <Button onClick={() => setShowUploadModal(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Загрузить файл
               </Button>
               {filteredContingent.length > 0 && (
                 <Button onClick={handleExportContingent} className="bg-green-600 hover:bg-green-700">
@@ -419,6 +458,74 @@ export default function EmployerContractContingentPage() {
           )}
         </div>
       </main>
+
+      {/* Модальное окно загрузки */}
+      <Modal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        title="Загрузка контингента"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-400">
+            Выберите Excel файл с данными контингента для загрузки в договор №{contract?.contract_number}
+          </p>
+          
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Нужен шаблон Excel?
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Скачайте стандартный шаблон для заполнения данных контингента
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await workflowStoreAPI.downloadContingentTemplate();
+                  } catch (error: any) {
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать шаблон
+              </Button>
+            </div>
+          </div>
+          
+          <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
+            <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Перетащите файл сюда или выберите файл
+            </p>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileUpload}
+              disabled={isUploading}
+              className="hidden"
+              id="file-upload-employer"
+            />
+            <label htmlFor="file-upload-employer">
+              <Button as="span" disabled={isUploading}>
+                {isUploading ? 'Загрузка...' : 'Выбрать файл'}
+              </Button>
+            </label>
+          </div>
+          
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            <p>Поддерживаемые форматы: .xlsx, .xls</p>
+            <p>Максимальный размер файла: 10 МБ</p>
+            <p className="mt-2 text-blue-600 dark:text-blue-400">
+              💡 Совет: Используйте стандартный шаблон для корректной загрузки данных
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
