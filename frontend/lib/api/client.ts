@@ -133,20 +133,20 @@ class ApiClient {
     let nextUrl = `/contingent-employees/?user_id=${userId}`;
     
     while (nextUrl) {
-      const response = await this.request(nextUrl);
+      const response: any = await this.request(nextUrl);
       
       if (Array.isArray(response)) {
         // Если ответ - прямой массив (без пагинации)
         allResults = response;
         break;
-      } else if (response.results) {
+      } else if (response && typeof response === 'object' && response.results) {
         // Если ответ пагинированный
         allResults = allResults.concat(response.results);
         // Получаем следующую страницу, убираем базовый URL если он есть
         nextUrl = response.next ? response.next.replace(this.baseUrl, '') : null;
       } else {
         // Неожиданный формат ответа
-        allResults = response;
+        allResults = Array.isArray(response) ? response : [response];
         break;
       }
     }
