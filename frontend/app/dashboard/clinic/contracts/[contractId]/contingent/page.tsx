@@ -445,8 +445,20 @@ export default function ContractContingentPage() {
   // Для поиска используем все данные, для отображения - текущую страницу
   const hasFilters = nameFilter || positionFilter || departmentFilter || harmfulFactorFilter;
   
+  // Отладка для понимания проблемы
+  if (hasFilters) {
+    console.log('=== FILTER DEBUG ===');
+    console.log('Filters:', { nameFilter, positionFilter, departmentFilter, harmfulFactorFilter });
+    console.log('allContingent length:', allContingent.length);
+    console.log('contingent length:', contingent.length);
+    console.log('===================');
+  }
+  
+  // Используем allContingent если он загружен, иначе contingent
+  const dataToFilter = allContingent.length > 0 ? allContingent : contingent;
+  
   const displayContingent = hasFilters ? 
-    allContingent.filter(employee => {
+    dataToFilter.filter(employee => {
       const nameMatch = !nameFilter || employee.name.toLowerCase().includes(nameFilter.toLowerCase());
       const positionMatch = !positionFilter || employee.position.toLowerCase().includes(positionFilter.toLowerCase());
       const departmentMatch = !departmentFilter || employee.department.toLowerCase().includes(departmentFilter.toLowerCase());
@@ -500,7 +512,7 @@ export default function ContractContingentPage() {
       
       return nameMatch && positionMatch && departmentMatch && harmfulFactorMatch;
     }) : 
-    contingent;
+    dataToFilter;
 
   // Пагинация для поиска (client-side) или server-side
   const totalPages = hasFilters ? 
@@ -710,27 +722,12 @@ export default function ContractContingentPage() {
                       Все факторы
                     </div>
                     
-                    {/* Объединенный список всех факторов по порядку */}
-                    {(() => {
-                      // Собираем все уникальные факторы из данных
-                      const dataFactors = new Set();
-                      (allContingent.length > 0 ? allContingent : contingent).forEach(emp => {
-                        if (emp.harmfulFactors) {
-                          emp.harmfulFactors.forEach(factor => dataFactors.add(factor));
-                        }
-                      });
-                      
-                      // Объединяем стандартные факторы и факторы из данных
-                      const allFactors = new Set([...harmfulFactorsOptions, ...Array.from(dataFactors)]);
-                      
-                      // Фильтруем по поисковому запросу
-                      const filteredFactors = Array.from(allFactors)
-                        .filter(factor => 
-                          factor.toLowerCase().includes(searchQuery.toLowerCase())
-                        )
-                        .sort(); // Сортируем по алфавиту
-                      
-                      return filteredFactors.map((factor) => (
+                    {/* Показываем только стандартные 33 пункта в правильном порядке */}
+                    {harmfulFactorsOptions
+                      .filter(factor => 
+                        factor.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((factor) => (
                         <div
                           key={factor}
                           onClick={() => {
@@ -743,8 +740,7 @@ export default function ContractContingentPage() {
                         >
                           {factor}
                         </div>
-                      ));
-                    })()}
+                      ))}
                   </div>
                 </div>
               )}
@@ -814,7 +810,7 @@ export default function ContractContingentPage() {
             <div>
               <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">Подразделений</p>
               <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {new Set((hasFilters ? displayContingent : (allContingent.length > 0 ? allContingent : contingent)).map(emp => emp.department)).size}
+                {new Set((hasFilters ? displayContingent : dataToFilter).map(emp => emp.department)).size}
               </p>
             </div>
           </div>
@@ -828,7 +824,7 @@ export default function ContractContingentPage() {
             <div>
               <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">Должностей</p>
               <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                {new Set((hasFilters ? displayContingent : contingent).map(emp => emp.position)).size}
+                {new Set((hasFilters ? displayContingent : dataToFilter).map(emp => emp.position)).size}
               </p>
             </div>
           </div>
