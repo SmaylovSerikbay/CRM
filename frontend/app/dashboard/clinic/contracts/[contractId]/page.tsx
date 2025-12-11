@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ArrowLeft, Users, Calendar, Route, FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, Route, FileText, CheckCircle, Clock, AlertCircle, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
@@ -26,6 +26,18 @@ interface Contract {
   createdAt: string;
 }
 
+interface ContractHistoryItem {
+  id: string;
+  action: string;
+  user_role: string;
+  user_name: string;
+  comment: string;
+  old_status: string;
+  new_status: string;
+  changes: any;
+  created_at: string;
+}
+
 export default function ContractDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -37,6 +49,9 @@ export default function ContractDetailPage() {
   const [contingentCount, setContingentCount] = useState(0);
   const [plansCount, setPlansCount] = useState(0);
   const [routeSheetsCount, setRouteSheetsCount] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
+  const [contractHistory, setContractHistory] = useState<ContractHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -98,6 +113,38 @@ export default function ContractDetailPage() {
     } catch (error) {
       console.error('Error loading counts:', error);
     }
+  };
+
+  const handleShowHistory = async () => {
+    if (showHistory) {
+      setShowHistory(false);
+      return;
+    }
+    
+    setIsLoadingHistory(true);
+    try {
+      const history = await workflowStoreAPI.getContractHistory(contractId);
+      setContractHistory(history);
+      setShowHistory(true);
+    } catch (error: any) {
+      showToast(error.message || 'Ошибка загрузки истории', 'error');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      created: 'Создан',
+      updated: 'Обновлен',
+      sent_for_approval: 'Отправлен на согласование',
+      approved: 'Согласован',
+      rejected: 'Отклонен',
+      resent_for_approval: 'Повторно отправлен на согласование',
+      cancelled: 'Отменен',
+      executed: 'Исполнен',
+    };
+    return labels[action] || action;
   };
 
   const getStatusLabel = (status: string) => {
@@ -253,7 +300,21 @@ export default function ContractDetailPage() {
 
       {/* Информация о работодателе */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Информация о работодателе</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Информация о работодателе</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShowHistory}
+            disabled={isLoadingHistory}
+          >
+            <History className="h-4 w-4 mr-2" />
+            {isLoadingHistory ? 'Загрузка...' : showHistory ? 'Скрыть историю' : 'История договора'}
+            {!isLoadingHistory && (
+              showHistory ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />
+            )}
+          </Button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Название/ФИО</p>
@@ -275,6 +336,51 @@ export default function ContractDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* История договора */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">История изменений</h3>
+              {contractHistory.length === 0 ? (
+                <p className="text-gray-600 dark:text-gray-400 text-center py-4">
+                  История изменений пуста
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {contractHistory.map((item) => (
+                    <div key={item.id} className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {getActionLabel(item.action)}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(item.created_at).toLocaleString('ru-RU')}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <p>Пользователь: {item.user_name} ({item.user_role})</p>
+                        {item.old_status && item.new_status && (
+                          <p>Статус: {item.old_status} → {item.new_status}</p>
+                        )}
+                        {item.comment && (
+                          <p className="mt-1 italic">"{item.comment}"</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Разделы управления */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
