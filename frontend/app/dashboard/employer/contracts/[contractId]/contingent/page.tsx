@@ -173,12 +173,27 @@ export default function EmployerContractContingentPage() {
                 </p>
               </div>
             </div>
-            {filteredContingent.length > 0 && (
-              <Button onClick={handleExportContingent} className="bg-green-600 hover:bg-green-700">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await workflowStoreAPI.downloadContingentTemplate();
+                  } catch (error: any) {
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                  }
+                }}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Экспорт в Excel
+                Скачать шаблон
               </Button>
-            )}
+              {filteredContingent.length > 0 && (
+                <Button onClick={handleExportContingent} className="bg-green-600 hover:bg-green-700">
+                  <Download className="h-4 w-4 mr-2" />
+                  Экспорт в Excel
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Поиск и фильтры */}
@@ -251,6 +266,34 @@ export default function EmployerContractContingentPage() {
                   : 'Попробуйте изменить параметры поиска или фильтры'
                 }
               </p>
+              {contingent.length === 0 && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Хотите предоставить шаблон клинике?
+                      </p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Скачайте стандартный шаблон Excel для передачи клинике
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await workflowStoreAPI.downloadContingentTemplate();
+                        } catch (error: any) {
+                          showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Скачать шаблон
+                    </Button>
+                  </div>
+                </div>
+              )}
               {contingent.length > 0 && (
                 <Button
                   variant="outline"

@@ -205,6 +205,19 @@ export default function ContractContingentPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={async () => {
+              try {
+                await workflowStoreAPI.downloadContingentTemplate();
+              } catch (error: any) {
+                showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+              }
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Скачать шаблон
+          </Button>
           <Button variant="outline" onClick={handleExportContingent}>
             <Download className="h-4 w-4 mr-2" />
             Экспорт
@@ -398,6 +411,33 @@ export default function ContractContingentPage() {
           <p className="text-gray-600 dark:text-gray-400">
             Выберите Excel файл с данными контингента для загрузки в договор №{contract?.contract_number}
           </p>
+          
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Нужен шаблон Excel?
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Скачайте стандартный шаблон для заполнения данных контингента
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await workflowStoreAPI.downloadContingentTemplate();
+                  } catch (error: any) {
+                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать шаблон
+              </Button>
+            </div>
+          </div>
           
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
             <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
