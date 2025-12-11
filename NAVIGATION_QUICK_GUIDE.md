@@ -25,13 +25,19 @@
 - ✅ **Route Sheets page**: `/dashboard/clinic/contracts/[contractId]/route-sheets/page.tsx`
 
 ### 4. **EMPLOYER - Cleaned up main contracts page** (`frontend/app/dashboard/employer/contracts/page.tsx`)
-- ❌ Removed `History` icon from imports
-- ❌ Removed `ContractHistoryItem` interface (moved to detail page)
-- ❌ Removed `showHistory`, `contractHistory` state variables
-- ❌ Removed `handleShowHistory` function
-- ❌ Removed history button and history section from UI
-- ❌ Cleaned up table row expansion logic (removed history condition)
+- ✅ Removed `History` icon from imports
+- ✅ Removed `ContractHistoryItem` interface (moved to detail page)
+- ✅ Removed `showHistory`, `contractHistory` state variables
+- ✅ Removed `handleShowHistory` function
+- ✅ Removed history button and history section from UI
+- ✅ Cleaned up table row expansion logic (removed history condition)
 - ✅ Added `handleOpenContractPage` navigation function
+- ✅ **CRITICAL**: Removed entire Drawer component (lines 1250-1988)
+- ✅ Removed unused imports: `Drawer`, `Modal`, `Edit2`, `Trash2`
+- ✅ Removed unused functions: `getContingentCount`, `getFilteredContingent`, `getCalendarPlansCount`, `hasApprovedPlan`, `getContractProgress`, `getEmployeesByIds`, `handleFileUpload`, `handleUploadContingent`, `handleExportContingent`, `handleEditEmployee`, `handleSaveEmployee`, `handleCancelEditEmployee`, `handleDeleteEmployee`, `handleCreateEmployee`, `handleCancelCreate`, `loadRouteSheetsForContract`
+- ✅ Removed unused state variables and useEffect hooks related to Drawer functionality
+- ✅ Removed all Modal components for contingent upload/edit
+- ✅ Removed "Подробнее" button - replaced with "Документы" button that navigates to contract detail page
 
 ### 5. **EMPLOYER - Created contract detail page** (`frontend/app/dashboard/employer/contracts/[contractId]/page.tsx`)
 - ✅ Complete contract detail page with history functionality
@@ -134,13 +140,14 @@ http://localhost:3001/dashboard/employer/contracts/[contractId]/route-sheets
 
 ## 🚀 Benefits Achieved
 
-1. **Better Performance**: No more loading all data at once
+1. **Better Performance**: No more loading all data at once - removed heavy Drawer component from employer contracts page
 2. **URL-based Navigation**: Each function has unique URL for debugging
 3. **Better UX**: History inside contract detail, not cluttering main list
 4. **Role-based Access**: Clinic and employer see appropriate functionality
 5. **Maintainable Code**: Clean separation of concerns
 6. **Responsive Design**: All pages work well on mobile and desktop
 7. **Consistent Experience**: Same navigation pattern for both roles
+8. **Fast Loading**: Employer contracts page now loads quickly without the massive Drawer component (1250+ lines removed)
 
 ## 🔍 Testing Checklist
 
