@@ -200,7 +200,7 @@ class ApiClient {
     return this.request(`/contingent-employees/counts_by_contract/?user_id=${userId}&contract_id=${contractId}`);
   }
 
-  async uploadExcelContingent(userId: string, file: File, contractId?: string): Promise<{
+  async uploadExcelContingent(userId: string, file: File, contractId?: string, replaceExisting: boolean = false): Promise<{
     created: number;
     skipped: number;
     skipped_reasons?: {
@@ -213,6 +213,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', userId);
+    formData.append('replace_existing', replaceExisting.toString());
     if (contractId) {
       formData.append('contract_id', contractId);
     }
@@ -225,6 +226,12 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      
+      // Если это предупреждение о существующих данных (статус 409)
+      if (response.status === 409 && error.warning === 'existing_data') {
+        throw new Error(`В договоре уже есть ${error.existing_count} сотрудников. Загрузка нового файла заменит все существующие записи.`);
+      }
+      
       // Формируем полное сообщение об ошибке, включая detail если есть
       const errorMessage = error.detail 
         ? `${error.error}\n${error.detail}` 

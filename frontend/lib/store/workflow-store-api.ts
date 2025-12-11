@@ -265,9 +265,15 @@ class WorkflowStoreAPI {
   // Метод для очистки кэша при изменении данных
   clearContingentCache(contractId?: string) {
     if (contractId) {
-      this.contingentByContractCache.delete(`contract_${contractId}`);
+      // Очищаем все записи кэша для этого договора (все страницы)
+      const keysToDelete = Array.from(this.contingentByContractCache.keys()).filter(key => 
+        key.startsWith(`contract_${contractId}_`)
+      );
+      keysToDelete.forEach(key => this.contingentByContractCache.delete(key));
+      console.log(`Cleared cache for contract ${contractId}, removed ${keysToDelete.length} cache entries`);
     } else {
       this.contingentByContractCache.clear();
+      console.log('Cleared all contingent cache');
     }
   }
 
@@ -299,7 +305,7 @@ class WorkflowStoreAPI {
     return await apiClient.findEmployeeByQR(qrData);
   }
 
-  async uploadExcelContingent(file: File, contractId?: string): Promise<{ 
+  async uploadExcelContingent(file: File, contractId?: string, replaceExisting: boolean = false): Promise<{ 
     created: number; 
     skipped: number; 
     skipped_reasons?: {
@@ -309,7 +315,7 @@ class WorkflowStoreAPI {
     };
   }> {
     const userId = this.getUserId();
-    const result = await apiClient.uploadExcelContingent(userId, file, contractId);
+    const result = await apiClient.uploadExcelContingent(userId, file, contractId, replaceExisting);
     
     // Очищаем кэш после загрузки
     if (contractId) {

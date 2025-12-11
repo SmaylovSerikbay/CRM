@@ -26,6 +26,9 @@ export default function ContractContingentPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [existingCount, setExistingCount] = useState(0);
   
   // Server-side пагинация
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,9 +53,12 @@ export default function ContractContingentPage() {
   const loadData = async (page: number = 1, forceRefresh: boolean = false) => {
     try {
       setIsLoading(true);
+      console.log(`Loading data for contract ${contractId}, page ${page}, forceRefresh: ${forceRefresh}`);
       
       // Загружаем страницу данных с пагинацией
       const result = await workflowStoreAPI.getContingentByContract(contractId, !forceRefresh, page, itemsPerPage);
+      console.log(`Loaded ${result.data.length} records, total count: ${result.pagination.count}, total pages: ${result.pagination.totalPages}`);
+      
       setContingent(result.data);
       setTotalCount(result.pagination.count);
       setServerTotalPages(result.pagination.totalPages);
@@ -95,11 +101,15 @@ export default function ContractContingentPage() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, replaceExisting: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    console.log('Starting file upload:', file.name, 'for contract:', contractId);
+    console.log('=== FILE UPLOAD START ===');
+    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+    console.log('Contract ID:', contractId);
+    console.log('Current contingent count BEFORE upload:', totalCount);
+    console.log('Replace existing:', replaceExisting);
     
     if (!contractId) {
       showToast('Ошибка: не указан ID договора', 'error');
@@ -108,17 +118,26 @@ export default function ContractContingentPage() {
     
     setIsUploading(true);
     try {
-      console.log('Calling uploadExcelContingent...');
-      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
-      console.log('Upload result:', result);
+      console.log('Calling uploadExcelContingent API...');
+      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId, replaceExisting);
+      console.log('=== UPLOAD RESULT ===');
+      console.log('Created:', result.created);
+      console.log('Skipped:', result.skipped);
+      console.log('Skipped reasons:', result.skipped_reasons);
       
       // Перезагружаем данные без кэша для получения актуальных данных
+      console.log('Reloading data after upload...');
       await loadData(1, true); // Перезагружаем первую страницу без кэша
       
       // Также обновляем все данные для поиска
-      setTimeout(() => loadAllDataForSearch(), 500);
+      setTimeout(() => {
+        console.log('Loading all data for search after upload...');
+        loadAllDataForSearch();
+      }, 500);
       
-      if (result.skipped > 0) {
+      if (replaceExisting) {
+        showToast(`Контингент заменен! Загружено: ${result.created} записей`, 'success');
+      } else if (result.skipped > 0) {
         const reasons = result.skipped_reasons || {};
         const reasonsText = [
           reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
@@ -130,13 +149,46 @@ export default function ContractContingentPage() {
       }
       
       setShowUploadModal(false);
+      setShowReplaceConfirm(false);
+      setPendingFile(null);
     } catch (error: any) {
       console.error('Upload error:', error);
+      
+      // Проверяем, если это предупреждение о существующих данных
+      if (error.message && error.message.includes('уже есть') && error.message.includes('сотрудников')) {
+        // Парсим количество существующих записей из сообщения
+        const match = error.message.match(/уже есть (\d+) сотрудников/);
+        const count = match ? parseInt(match[1]) : totalCount;
+        
+        setExistingCount(count);
+        setPendingFile(file);
+        setShowUploadModal(false);
+        setShowReplaceConfirm(true);
+        return;
+      }
+      
       showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
       setIsUploading(false);
       e.target.value = '';
     }
+  };
+
+  const handleConfirmReplace = async () => {
+    if (!pendingFile) return;
+    
+    // Загружаем файл с флагом замены
+    const fakeEvent = {
+      target: { value: '', files: [pendingFile] }
+    } as any;
+    
+    await handleFileUpload(fakeEvent, true);
+  };
+
+  const handleCancelReplace = () => {
+    setShowReplaceConfirm(false);
+    setPendingFile(null);
+    setExistingCount(0);
   };
 
   const handleExportContingent = async () => {
@@ -536,6 +588,72 @@ export default function ContractContingentPage() {
           <div className="text-sm text-gray-500 dark:text-gray-400">
             <p>Поддерживаемые форматы: .xlsx, .xls</p>
             <p>Максимальный размер файла: 10 МБ</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Модальное окно подтверждения замены */}
+      <Modal
+        isOpen={showReplaceConfirm}
+        onClose={handleCancelReplace}
+        title="Подтверждение замены данных"
+      >
+        <div className="space-y-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Внимание! Данные будут заменены
+                </h3>
+                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  <p>
+                    В договоре №{contract?.contract_number} уже есть <strong>{existingCount} сотрудников</strong>.
+                  </p>
+                  <p className="mt-2">
+                    Загрузка нового файла <strong>полностью заменит</strong> все существующие записи.
+                  </p>
+                  <p className="mt-2">
+                    Если вы хотите добавить новых сотрудников к существующим, сначала экспортируйте текущий список, 
+                    добавьте новых сотрудников в файл, а затем загрузите обновленный файл.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between pt-4">
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                try {
+                  await handleExportContingent();
+                  showToast('Текущий список экспортирован. Добавьте новых сотрудников в файл и загрузите обновленный список.', 'info');
+                } catch (error: any) {
+                  showToast(error.message || 'Ошибка экспорта', 'error');
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Сначала экспортировать
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCancelReplace}>
+                Отмена
+              </Button>
+              <Button 
+                onClick={handleConfirmReplace}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={isUploading}
+              >
+                {isUploading ? 'Загрузка...' : 'Заменить данные'}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

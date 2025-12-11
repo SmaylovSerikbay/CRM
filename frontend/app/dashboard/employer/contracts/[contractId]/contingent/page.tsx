@@ -28,6 +28,9 @@ export default function EmployerContractContingentPage() {
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [existingCount, setExistingCount] = useState(0);
 
   useEffect(() => {
     if (contractId) {
@@ -60,19 +63,21 @@ export default function EmployerContractContingentPage() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, replaceExisting: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     setIsUploading(true);
     try {
-      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId);
+      const result = await workflowStoreAPI.uploadExcelContingent(file, contractId, replaceExisting);
       
       // Перезагружаем данные без кэша для получения актуальных данных
       const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId, false);
-      setContingent(updatedContingent);
+      setContingent(updatedContingent.data || updatedContingent);
       
-      if (result.skipped > 0) {
+      if (replaceExisting) {
+        showToast(`Контингент заменен! Загружено: ${result.created} записей`, 'success');
+      } else if (result.skipped > 0) {
         const reasons = result.skipped_reasons || {};
         const reasonsText = [
           reasons.duplicate ? `дубликаты: ${reasons.duplicate}` : '',
@@ -84,12 +89,46 @@ export default function EmployerContractContingentPage() {
       }
       
       setShowUploadModal(false);
+      setShowReplaceConfirm(false);
+      setPendingFile(null);
     } catch (error: any) {
+      console.error('Upload error:', error);
+      
+      // Проверяем, если это предупреждение о существующих данных
+      if (error.message && error.message.includes('уже есть') && error.message.includes('сотрудников')) {
+        // Парсим количество существующих записей из сообщения
+        const match = error.message.match(/уже есть (\d+) сотрудников/);
+        const count = match ? parseInt(match[1]) : contingent.length;
+        
+        setExistingCount(count);
+        setPendingFile(file);
+        setShowUploadModal(false);
+        setShowReplaceConfirm(true);
+        return;
+      }
+      
       showToast(error.message || 'Ошибка загрузки файла', 'error');
     } finally {
       setIsUploading(false);
       e.target.value = '';
     }
+  };
+
+  const handleConfirmReplace = async () => {
+    if (!pendingFile) return;
+    
+    // Загружаем файл с флагом замены
+    const fakeEvent = {
+      target: { value: '', files: [pendingFile] }
+    } as any;
+    
+    await handleFileUpload(fakeEvent, true);
+  };
+
+  const handleCancelReplace = () => {
+    setShowReplaceConfirm(false);
+    setPendingFile(null);
+    setExistingCount(0);
   };
 
   const handleExportContingent = async () => {

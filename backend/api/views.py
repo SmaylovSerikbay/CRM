@@ -958,8 +958,9 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
             user_id = request.data.get('user_id')
             contract_id = request.data.get('contract_id')  # ID договора
             excel_file = request.FILES.get('file')
+            replace_existing = request.data.get('replace_existing', 'false').lower() == 'true'  # Флаг замены существующих записей
             
-            print(f"DEBUG UPLOAD: user_id={user_id}, contract_id={contract_id}, file={excel_file.name if excel_file else None}", file=sys.stderr)
+            print(f"DEBUG UPLOAD: user_id={user_id}, contract_id={contract_id}, file={excel_file.name if excel_file else None}, replace_existing={replace_existing}", file=sys.stderr)
             
             if not excel_file:
                 return Response({'error': 'Excel file is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1109,6 +1110,25 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     'detail': f'Отсутствуют обязательные колонки: {", ".join(missing_columns)}. Пожалуйста, скачайте последний действующий шаблон и заполните его'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # ВАЖНО: Проверяем наличие существующих записей
+            existing_employees_count = ContingentEmployee.objects.filter(contract=contract).count()
+            print(f"DEBUG UPLOAD START: Договор {contract.contract_number} (ID: {contract.id}) содержит {existing_employees_count} сотрудников ПЕРЕД загрузкой", file=sys.stderr)
+            
+            # Если есть существующие записи и не установлен флаг замены, предупреждаем пользователя
+            if existing_employees_count > 0 and not replace_existing:
+                return Response({
+                    'warning': 'existing_data',
+                    'message': f'В договоре уже есть {existing_employees_count} сотрудников. Загрузка нового файла заменит все существующие записи.',
+                    'existing_count': existing_employees_count,
+                    'action_required': 'confirm_replacement'
+                }, status=status.HTTP_409_CONFLICT)
+            
+            # Если пользователь подтвердил замену, удаляем существующие записи
+            if existing_employees_count > 0 and replace_existing:
+                deleted_count = ContingentEmployee.objects.filter(contract=contract).count()
+                ContingentEmployee.objects.filter(contract=contract).delete()
+                print(f"DEBUG REPLACE: Удалено {deleted_count} существующих записей для замены", file=sys.stderr)
+            
             created_employees = []
             skipped = 0
             skipped_reasons = {'duplicate': 0, 'no_name': 0}  # Убрали no_iin, так как ИИН теперь необязателен
@@ -1217,20 +1237,44 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                     unique_string = f"{name}_{birth_date or 'unknown'}_{row_idx}"
                     iin = hashlib.md5(unique_string.encode()).hexdigest()[:12]  # Используем первые 12 символов MD5
                 
-                # Проверяем, существует ли уже сотрудник в рамках этого договора (по ИИН или по ФИО + дате рождения)
+                # КРИТИЧЕСКИ ВАЖНО: Проверяем, существует ли уже сотрудник в рамках этого договора
+                print(f"DEBUG ROW {row_idx}: Проверяем дубликаты для {name}, contract_id={contract.id if contract else 'None'}", file=sys.stderr)
+                
+                # Сначала получаем количество существующих записей в договоре
+                existing_count = ContingentEmployee.objects.filter(contract=contract).count()
+                print(f"DEBUG ROW {row_idx}: Существующих записей в договоре: {existing_count}", file=sys.stderr)
+                
                 existing = None
-                if iin and len(iin) >= 10:
+                
+                # 1. Проверяем по ИИН в рамках этого договора (если ИИН валидный)
+                if iin and len(iin) >= 10 and iin.isdigit():
                     existing = ContingentEmployee.objects.filter(contract=contract, iin=iin).first()
+                    if existing:
+                        print(f"DEBUG ROW {row_idx}: Найден дубликат по ИИН {iin} - {existing.name} (ID: {existing.id})", file=sys.stderr)
+                
+                # 2. Если не найден по ИИН, проверяем по ФИО + дате рождения в рамках этого договора
                 if not existing:
-                    # Проверяем по ФИО и дате рождения в рамках этого договора
                     existing = ContingentEmployee.objects.filter(
                         contract=contract, 
-                        name=name,
+                        name__iexact=name,  # Используем iexact для регистронезависимого сравнения
                         birth_date=birth_date
                     ).first()
+                    if existing:
+                        print(f"DEBUG ROW {row_idx}: Найден дубликат по ФИО+дате рождения - {existing.name} (ID: {existing.id})", file=sys.stderr)
+                
+                # 3. Дополнительная проверка по ФИО (без даты рождения) для более строгого контроля
+                if not existing:
+                    name_duplicates = ContingentEmployee.objects.filter(
+                        contract=contract, 
+                        name__iexact=name
+                    )
+                    if name_duplicates.exists():
+                        print(f"DEBUG ROW {row_idx}: Найдены записи с таким же ФИО: {[emp.id for emp in name_duplicates]}", file=sys.stderr)
+                        # Если есть точное совпадение по ФИО, считаем дубликатом
+                        existing = name_duplicates.first()
                 
                 if existing:
-                    print(f"DEBUG ROW {row_idx}: Дубликат найден - {name} (ID: {existing.id}), пропускаем", file=sys.stderr)
+                    print(f"DEBUG ROW {row_idx}: ДУБЛИКАТ НАЙДЕН - {name} (существующий ID: {existing.id}), пропускаем", file=sys.stderr)
                     skipped_reasons['duplicate'] += 1
                     skipped += 1
                     continue
@@ -1278,6 +1322,11 @@ class ContingentEmployeeViewSet(viewsets.ModelViewSet):
                 )
                 print(f"DEBUG CREATE: Сотрудник создан с ID: {employee.id}", file=sys.stderr)
                 created_employees.append(employee)
+            
+            # ВАЖНО: Логируем состояние ПОСЛЕ загрузки
+            final_employees_count = ContingentEmployee.objects.filter(contract=contract).count()
+            print(f"DEBUG UPLOAD END: Договор {contract.contract_number} (ID: {contract.id}) содержит {final_employees_count} сотрудников ПОСЛЕ загрузки", file=sys.stderr)
+            print(f"DEBUG UPLOAD SUMMARY: Было {existing_employees_count}, создано {len(created_employees)}, пропущено {skipped}, итого должно быть {existing_employees_count + len(created_employees)}, фактически {final_employees_count}", file=sys.stderr)
             
             serializer = ContingentEmployeeSerializer(created_employees, many=True)
             return Response({
