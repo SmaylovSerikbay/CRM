@@ -47,12 +47,12 @@ export default function ContractContingentPage() {
     }
   }, [currentPage]);
 
-  const loadData = async (page: number = 1) => {
+  const loadData = async (page: number = 1, forceRefresh: boolean = false) => {
     try {
       setIsLoading(true);
       
       // Загружаем страницу данных с пагинацией
-      const result = await workflowStoreAPI.getContingentByContract(contractId, true, page, itemsPerPage);
+      const result = await workflowStoreAPI.getContingentByContract(contractId, !forceRefresh, page, itemsPerPage);
       setContingent(result.data);
       setTotalCount(result.pagination.count);
       setServerTotalPages(result.pagination.totalPages);
@@ -113,7 +113,10 @@ export default function ContractContingentPage() {
       console.log('Upload result:', result);
       
       // Перезагружаем данные без кэша для получения актуальных данных
-      loadData(1); // Перезагружаем первую страницу
+      await loadData(1, true); // Перезагружаем первую страницу без кэша
+      
+      // Также обновляем все данные для поиска
+      setTimeout(() => loadAllDataForSearch(), 500);
       
       if (result.skipped > 0) {
         const reasons = result.skipped_reasons || {};
@@ -179,7 +182,7 @@ export default function ContractContingentPage() {
     try {
       await workflowStoreAPI.deleteContingentEmployee(employeeId);
       // Перезагружаем данные без кэша для получения актуальных данных
-      loadData(currentPage); // Перезагружаем текущую страницу
+      await loadData(currentPage, true); // Перезагружаем текущую страницу без кэша
       showToast('Сотрудник успешно удален', 'success');
     } catch (error: any) {
       showToast(error.message || 'Ошибка удаления', 'error');
@@ -501,23 +504,33 @@ export default function ContractContingentPage() {
           </div>
           
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
-            <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Перетащите файл сюда или выберите файл
-            </p>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileUpload}
-              disabled={isUploading}
-              className="hidden"
-              id="file-upload"
-            />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <span className={`inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                {isUploading ? 'Загрузка...' : 'Выбрать файл'}
-              </span>
-            </label>
+            {isUploading ? (
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p className="text-blue-600 dark:text-blue-400 font-medium">Загрузка файла...</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Пожалуйста, подождите</p>
+              </div>
+            ) : (
+              <>
+                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Перетащите файл сюда или выберите файл
+                </p>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <span className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer">
+                    Выбрать файл
+                  </span>
+                </label>
+              </>
+            )}
           </div>
           
           <div className="text-sm text-gray-500 dark:text-gray-400">
