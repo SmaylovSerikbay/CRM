@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { ArrowLeft, Users, Upload, Download, Plus, Edit2, Trash2, Search, Filter } from 'lucide-react';
+import { ArrowLeft, Users, Upload, Download, Plus, Edit2, Trash2, Search, Filter, X } from 'lucide-react';
 import { workflowStoreAPI, ContingentEmployee } from '@/lib/store/workflow-store-api';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
@@ -87,6 +87,13 @@ export default function ContractContingentPage() {
   const [showCreateHarmfulFactorsDropdown, setShowCreateHarmfulFactorsDropdown] = useState(false);
   const [editHarmfulFactorsSearch, setEditHarmfulFactorsSearch] = useState('');
   const [createHarmfulFactorsSearch, setCreateHarmfulFactorsSearch] = useState('');
+  
+  // Состояния для фильтров
+  const [nameFilter, setNameFilter] = useState('');
+  const [positionFilter, setPositionFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [harmfulFactorFilter, setHarmfulFactorFilter] = useState('');
+  const [showHarmfulFactorDropdown, setShowHarmfulFactorDropdown] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -109,6 +116,7 @@ export default function ContractContingentPage() {
       if (!target.closest('.harmful-factors-dropdown')) {
         setShowEditHarmfulFactorsDropdown(false);
         setShowCreateHarmfulFactorsDropdown(false);
+        setShowHarmfulFactorDropdown(false);
       }
     };
 
@@ -437,22 +445,25 @@ export default function ContractContingentPage() {
 
 
   // Для поиска используем все данные, для отображения - текущую страницу
-  const displayContingent = searchQuery ? 
+  const hasFilters = nameFilter || positionFilter || departmentFilter || harmfulFactorFilter;
+  
+  const displayContingent = hasFilters ? 
     allContingent.filter(employee => {
-      const searchLower = searchQuery.toLowerCase();
-      return employee.name.toLowerCase().includes(searchLower) ||
-        employee.position.toLowerCase().includes(searchLower) ||
-        employee.department.toLowerCase().includes(searchLower) ||
-        employee.harmfulFactors?.some(factor => factor.toLowerCase().includes(searchLower));
+      const nameMatch = !nameFilter || employee.name.toLowerCase().includes(nameFilter.toLowerCase());
+      const positionMatch = !positionFilter || employee.position.toLowerCase().includes(positionFilter.toLowerCase());
+      const departmentMatch = !departmentFilter || employee.department.toLowerCase().includes(departmentFilter.toLowerCase());
+      const harmfulFactorMatch = !harmfulFactorFilter || employee.harmfulFactors?.some(factor => factor === harmfulFactorFilter);
+      
+      return nameMatch && positionMatch && departmentMatch && harmfulFactorMatch;
     }) : 
     contingent;
 
   // Пагинация для поиска (client-side) или server-side
-  const totalPages = searchQuery ? 
+  const totalPages = hasFilters ? 
     Math.ceil(displayContingent.length / itemsPerPage) : 
     serverTotalPages;
   
-  const paginatedContingent = searchQuery ? 
+  const paginatedContingent = hasFilters ? 
     displayContingent.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) :
     displayContingent;
 
@@ -482,118 +493,280 @@ export default function ContractContingentPage() {
       </div>
 
       {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href={`/dashboard/clinic/contracts/${contractId}`}>
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад к договору
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Контингент
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Договор №{contract?.contract_number} - {totalCount} сотрудников
-            </p>
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href={`/dashboard/clinic/contracts/${contractId}`}>
+              <Button variant="outline" size="sm" className="text-gray-600 hover:text-gray-900">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Назад к договору
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Контингент
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Договор №{contract?.contract_number} • {totalCount} сотрудников
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={async () => {
-              try {
-                await workflowStoreAPI.downloadContingentTemplate();
-              } catch (error: any) {
-                showToast(error.message || 'Ошибка скачивания шаблона', 'error');
-              }
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Скачать шаблон
-          </Button>
-          <Button variant="outline" onClick={handleExportContingent}>
-            <Download className="h-4 w-4 mr-2" />
-            Экспорт
-          </Button>
-          <Button variant="outline" onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Добавить сотрудника
-          </Button>
-          <Button onClick={() => setShowUploadModal(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Загрузить файл
-          </Button>
         </div>
       </div>
 
-      {/* Поиск */}
-      <Card className="p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Поиск по ФИО, должности, объекту/участку..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      {/* Панель действий */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  await workflowStoreAPI.downloadContingentTemplate();
+                } catch (error: any) {
+                  showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                }
+              }}
+              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Скачать шаблон
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportContingent}
+              className="text-green-600 border-green-200 hover:bg-green-50"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Экспорт
+            </Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowCreateModal(true)}
+              className="text-purple-600 border-purple-200 hover:bg-purple-50"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Добавить сотрудника
+            </Button>
+            <Button 
+              onClick={() => setShowUploadModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Загрузить файл
+            </Button>
+          </div>
         </div>
-      </Card>
+      </div>
+
+      {/* Фильтры */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-5 w-5 text-gray-500" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Фильтры</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Фильтр по ФИО */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              ФИО
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Поиск по ФИО..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Фильтр по должности */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Должность
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Поиск по должности..."
+                value={positionFilter}
+                onChange={(e) => setPositionFilter(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Фильтр по объекту/участку */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Объект или участок
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Поиск по участку..."
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Фильтр по вредным факторам */}
+          <div className="relative harmful-factors-dropdown">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Профессиональная вредность
+            </label>
+            <div className="relative">
+              <Input
+                placeholder="Выберите вредный фактор..."
+                value={harmfulFactorFilter ? (harmfulFactorFilter.length > 40 ? `${harmfulFactorFilter.substring(0, 40)}...` : harmfulFactorFilter) : ''}
+                onChange={(e) => setHarmfulFactorFilter(e.target.value)}
+                onFocus={() => setShowHarmfulFactorDropdown(true)}
+                className="pr-10 cursor-pointer"
+                readOnly
+              />
+              <button
+                type="button"
+                onClick={() => setShowHarmfulFactorDropdown(!showHarmfulFactorDropdown)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {/* Выпадающий список вредных факторов */}
+              {showHarmfulFactorDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div className="p-2">
+                    <Input
+                      placeholder="Поиск факторов..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="py-1">
+                    <div
+                      onClick={() => {
+                        setHarmfulFactorFilter('');
+                        setShowHarmfulFactorDropdown(false);
+                      }}
+                      className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-500"
+                    >
+                      Все факторы
+                    </div>
+                    {HARMFUL_FACTORS_OPTIONS
+                      .filter(factor => 
+                        factor.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((factor) => (
+                        <div
+                          key={factor}
+                          onClick={() => {
+                            setHarmfulFactorFilter(factor);
+                            setShowHarmfulFactorDropdown(false);
+                          }}
+                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
+                            harmfulFactorFilter === factor ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''
+                          }`}
+                        >
+                          {factor}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Кнопка очистки фильтров */}
+        {(nameFilter || positionFilter || departmentFilter || harmfulFactorFilter) && (
+          <div className="mt-4 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setNameFilter('');
+                setPositionFilter('');
+                setDepartmentFilter('');
+                setHarmfulFactorFilter('');
+                setSearchQuery('');
+              }}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Очистить фильтры
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Статистика */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
+        <Card className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 bg-blue-500 rounded-lg">
+              <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Всего сотрудников</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Всего сотрудников</p>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                 {totalCount}
               </p>
             </div>
           </div>
         </Card>
         
-        <Card className="p-4">
+        <Card className="p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-              <Search className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <div className="p-2 bg-green-500 rounded-lg">
+              <Search className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Показано</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {paginatedContingent.length}
+              <p className="text-sm text-green-700 dark:text-green-300 font-medium">
+                {hasFilters ? 'Найдено' : 'На странице'}
+              </p>
+              <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {hasFilters ? displayContingent.length : paginatedContingent.length}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-              <Filter className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <div className="p-2 bg-purple-500 rounded-lg">
+              <Filter className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Подразделений</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {new Set((allContingent.length > 0 ? allContingent : contingent).map(emp => emp.department)).size}
+              <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">Подразделений</p>
+              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                {new Set((hasFilters ? displayContingent : (allContingent.length > 0 ? allContingent : contingent)).map(emp => emp.department)).size}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-              <Users className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <div className="p-2 bg-orange-500 rounded-lg">
+              <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Должностей</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {new Set(contingent.map(emp => emp.position)).size}
+              <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">Должностей</p>
+              <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                {new Set((hasFilters ? displayContingent : contingent).map(emp => emp.position)).size}
               </p>
             </div>
           </div>
@@ -601,31 +774,44 @@ export default function ContractContingentPage() {
       </div>
 
       {/* Список сотрудников */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">
-            Список сотрудников ({searchQuery ? displayContingent.length : totalCount})
-          </h3>
+      <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-200 dark:border-gray-800">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Список сотрудников
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              {hasFilters ? `Найдено: ${displayContingent.length} из ${totalCount}` : `Всего: ${totalCount} сотрудников`}
+            </p>
+          </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            Показано: {paginatedContingent.length} из {searchQuery ? displayContingent.length : totalCount}
+            Страница {currentPage} из {totalPages}
           </div>
         </div>
         
         {paginatedContingent.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            {searchQuery ? 'Сотрудники не найдены' : 'Контингент не загружен'}
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">
+              <Users className="h-12 w-12 mx-auto" />
+            </div>
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {hasFilters ? 'Сотрудники не найдены' : 'Контингент не загружен'}
+            </h4>
+            <p className="text-gray-600 dark:text-gray-400">
+              {hasFilters ? 'Попробуйте изменить параметры фильтрации' : 'Загрузите файл с контингентом или добавьте сотрудников вручную'}
+            </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">ФИО</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Должность</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Объект или участок</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Профессиональная вредность</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Телефон</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Действия</th>
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">ФИО</th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Должность</th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Объект/участок</th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Вредность</th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Телефон</th>
+                  <th className="text-center py-4 px-6 font-semibold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -634,11 +820,11 @@ export default function ContractContingentPage() {
                     key={employee.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <td className="py-3 px-4">
+                    <td className="py-4 px-6">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{employee.name}</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">{employee.name}</p>
                         {employee.birthDate && (
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(employee.birthDate).toLocaleDateString('ru-RU')}
@@ -646,33 +832,37 @@ export default function ContractContingentPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.position}</td>
-                    <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.department}</td>
-                    <td className="py-3 px-4">
+                    <td className="py-4 px-6">
+                      <span className="text-gray-900 dark:text-white font-medium">{employee.position}</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-gray-900 dark:text-white">{employee.department}</span>
+                    </td>
+                    <td className="py-4 px-6">
                       <div className="flex flex-wrap gap-1">
-                        {employee.harmfulFactors?.slice(0, 2).map((factor, idx) => (
-                          <span key={idx} className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
-                            {factor.length > 20 ? `${factor.substring(0, 20)}...` : factor}
+                        {employee.harmfulFactors?.slice(0, 1).map((factor, idx) => (
+                          <span key={idx} className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded-full">
+                            {factor.length > 25 ? `${factor.substring(0, 25)}...` : factor}
                           </span>
                         ))}
-                        {employee.harmfulFactors && employee.harmfulFactors.length > 2 && (
-                          <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">
-                            +{employee.harmfulFactors.length - 2}
-                          </span>
-                        )}
                         {(!employee.harmfulFactors || employee.harmfulFactors.length === 0) && (
-                          <span className="text-gray-400 text-sm">Не указано</span>
+                          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">Не указано</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-900 dark:text-white">{employee.phone || 'Не указан'}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
+                    <td className="py-4 px-6">
+                      <span className="text-gray-900 dark:text-white">
+                        {employee.phone || <span className="text-gray-400">Не указан</span>}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center justify-center gap-2">
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={() => handleEdit(employee)}
                           title="Редактировать"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -680,7 +870,8 @@ export default function ContractContingentPage() {
                           size="sm" 
                           variant="outline" 
                           onClick={() => handleDeleteEmployee(employee.id)}
-                          className="text-red-600 hover:text-red-700"
+                          title="Удалить"
+                          className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -695,26 +886,59 @@ export default function ContractContingentPage() {
 
         {/* Пагинация */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Страница {currentPage} из {totalPages}
+              Показано {paginatedContingent.length} из {hasFilters ? displayContingent.length : totalCount} записей
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
+                className="text-gray-600 hover:text-gray-900"
               >
-                Назад
+                ← Назад
               </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={currentPage === pageNum ? "" : "text-gray-600 hover:text-gray-900"}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                {totalPages > 5 && (
+                  <>
+                    <span className="text-gray-400 px-2">...</span>
+                    <Button
+                      variant={currentPage === totalPages ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      className={currentPage === totalPages ? "" : "text-gray-600 hover:text-gray-900"}
+                    >
+                      {totalPages}
+                    </Button>
+                  </>
+                )}
+              </div>
+              
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
+                className="text-gray-600 hover:text-gray-900"
               >
-                Вперед
+                Вперед →
               </Button>
             </div>
           </div>
