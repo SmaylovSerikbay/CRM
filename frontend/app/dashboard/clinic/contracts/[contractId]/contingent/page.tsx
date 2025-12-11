@@ -979,7 +979,7 @@ export default function ContractContingentPage() {
                   value={editHarmfulFactorsSearch}
                   onChange={(e) => setEditHarmfulFactorsSearch(e.target.value)}
                   onFocus={() => setShowEditHarmfulFactorsDropdown(true)}
-                  placeholder="Поиск вредных факторов..."
+                  placeholder="Выберите вредный фактор..."
                   className="pr-10"
                 />
                 <button
@@ -993,27 +993,22 @@ export default function ContractContingentPage() {
                 </button>
               </div>
               
-              {/* Выбранные вредные факторы */}
+              {/* Выбранный вредный фактор */}
               {editData.harmfulFactors && editData.harmfulFactors.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {editData.harmfulFactors.map((factor, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md"
+                <div className="mb-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Выбранный фактор:</div>
+                  <span className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                    {editData.harmfulFactors[0].length > 50 ? `${editData.harmfulFactors[0].substring(0, 50)}...` : editData.harmfulFactors[0]}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditData({ ...editData, harmfulFactors: [] });
+                      }}
+                      className="ml-1 text-blue-500 hover:text-blue-700"
                     >
-                      {factor.length > 30 ? `${factor.substring(0, 30)}...` : factor}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newFactors = editData.harmfulFactors?.filter((_, i) => i !== index) || [];
-                          setEditData({ ...editData, harmfulFactors: newFactors });
-                        }}
-                        className="ml-1 text-blue-500 hover:text-blue-700"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                      ×
+                    </button>
+                  </span>
                 </div>
               )}
               
@@ -1025,21 +1020,15 @@ export default function ContractContingentPage() {
                       factor.toLowerCase().includes(editHarmfulFactorsSearch.toLowerCase())
                     )
                     .map((factor) => {
-                      const isSelected = editData.harmfulFactors?.includes(factor) || false;
+                      const isSelected = editData.harmfulFactors?.[0] === factor;
                       return (
                         <div
                           key={factor}
                           onClick={() => {
-                            const currentFactors = editData.harmfulFactors || [];
-                            if (isSelected) {
-                              // Убираем фактор
-                              const newFactors = currentFactors.filter(f => f !== factor);
-                              setEditData({ ...editData, harmfulFactors: newFactors });
-                            } else {
-                              // Добавляем фактор
-                              const newFactors = [...currentFactors, factor];
-                              setEditData({ ...editData, harmfulFactors: newFactors });
-                            }
+                            // Выбираем только один фактор
+                            setEditData({ ...editData, harmfulFactors: [factor] });
+                            setShowEditHarmfulFactorsDropdown(false);
+                            setEditHarmfulFactorsSearch('');
                           }}
                           className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
                             isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''
@@ -1047,7 +1036,7 @@ export default function ContractContingentPage() {
                         >
                           <div className="flex items-center">
                             <input
-                              type="checkbox"
+                              type="radio"
                               checked={isSelected}
                               onChange={() => {}} // Обработка в onClick родителя
                               className="mr-2"
@@ -1218,7 +1207,7 @@ export default function ContractContingentPage() {
                     value={createHarmfulFactorsSearch}
                     onChange={(e) => setCreateHarmfulFactorsSearch(e.target.value)}
                     onFocus={() => setShowCreateHarmfulFactorsDropdown(true)}
-                    placeholder="Поиск вредных факторов..."
+                    placeholder="Выберите вредный фактор..."
                     className={`pr-10 ${createAttempted && (!createData.harmfulFactors || createData.harmfulFactors.length === 0) ? 'border-red-500' : ''}`}
                   />
                   <button
@@ -1232,27 +1221,22 @@ export default function ContractContingentPage() {
                   </button>
                 </div>
                 
-                {/* Выбранные вредные факторы */}
+                {/* Выбранный вредный фактор */}
                 {createData.harmfulFactors && createData.harmfulFactors.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {createData.harmfulFactors.map((factor, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md"
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Выбранный фактор:</div>
+                    <span className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                      {createData.harmfulFactors[0].length > 50 ? `${createData.harmfulFactors[0].substring(0, 50)}...` : createData.harmfulFactors[0]}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateData({ ...createData, harmfulFactors: [] });
+                        }}
+                        className="ml-1 text-blue-500 hover:text-blue-700"
                       >
-                        {factor.length > 30 ? `${factor.substring(0, 30)}...` : factor}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newFactors = createData.harmfulFactors?.filter((_, i) => i !== index) || [];
-                            setCreateData({ ...createData, harmfulFactors: newFactors });
-                          }}
-                          className="ml-1 text-blue-500 hover:text-blue-700"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                        ×
+                      </button>
+                    </span>
                   </div>
                 )}
                 
@@ -1264,21 +1248,15 @@ export default function ContractContingentPage() {
                         factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
                       )
                       .map((factor) => {
-                        const isSelected = createData.harmfulFactors?.includes(factor) || false;
+                        const isSelected = createData.harmfulFactors?.[0] === factor;
                         return (
                           <div
                             key={factor}
                             onClick={() => {
-                              const currentFactors = createData.harmfulFactors || [];
-                              if (isSelected) {
-                                // Убираем фактор
-                                const newFactors = currentFactors.filter(f => f !== factor);
-                                setCreateData({ ...createData, harmfulFactors: newFactors });
-                              } else {
-                                // Добавляем фактор
-                                const newFactors = [...currentFactors, factor];
-                                setCreateData({ ...createData, harmfulFactors: newFactors });
-                              }
+                              // Выбираем только один фактор
+                              setCreateData({ ...createData, harmfulFactors: [factor] });
+                              setShowCreateHarmfulFactorsDropdown(false);
+                              setCreateHarmfulFactorsSearch('');
                             }}
                             className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
                               isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''
@@ -1286,7 +1264,7 @@ export default function ContractContingentPage() {
                           >
                             <div className="flex items-center">
                               <input
-                                type="checkbox"
+                                type="radio"
                                 checked={isSelected}
                                 onChange={() => {}} // Обработка в onClick родителя
                                 className="mr-2"
@@ -1300,7 +1278,7 @@ export default function ContractContingentPage() {
                       factor.toLowerCase().includes(createHarmfulFactorsSearch.toLowerCase())
                     ).length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                        Вредные факторы не найдены
+                        Факторы не найдены
                       </div>
                     )}
                   </div>
