@@ -370,18 +370,8 @@ export default function ContractContingentPage() {
     }
   };
 
-  const handleDeleteEmployee = async (employeeId: string) => {
-    if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) return;
-    
-    try {
-      await workflowStoreAPI.deleteContingentEmployee(employeeId);
-      // Перезагружаем данные без кэша для получения актуальных данных
-      await loadData(currentPage, true); // Перезагружаем текущую страницу без кэша
-      showToast('Сотрудник успешно удален', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Ошибка удаления', 'error');
-    }
-  };
+
+
 
   // Для поиска используем все данные, для отображения - текущую страницу
   const displayContingent = searchQuery ? 
