@@ -521,7 +521,7 @@ export default function ContractContingentPage() {
   
   const paginatedContingent = hasFilters ? 
     displayContingent.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) :
-    displayContingent;
+    contingent; // Используем contingent (текущая страница с сервера) когда нет фильтров
 
   if (isLoading) {
     return (
