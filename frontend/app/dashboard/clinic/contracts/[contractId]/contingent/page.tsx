@@ -445,6 +445,14 @@ export default function ContractContingentPage() {
   // Для поиска используем все данные, для отображения - текущую страницу
   const hasFilters = nameFilter || positionFilter || departmentFilter || harmfulFactorFilter;
   
+  // Если есть фильтры, но allContingent не загружен, загружаем его
+  useEffect(() => {
+    if (hasFilters && allContingent.length === 0) {
+      console.log('Filters applied but allContingent not loaded, loading now...');
+      loadAllDataForSearch();
+    }
+  }, [hasFilters, allContingent.length]);
+  
   // Отладка для понимания проблемы
   if (hasFilters) {
     console.log('=== FILTER DEBUG ===');
