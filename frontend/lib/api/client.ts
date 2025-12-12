@@ -189,7 +189,7 @@ class ApiClient {
     // Метод для получения всех данных (для экспорта и т.д.)
     try {
       const response = await this.request(`/contingent-employees/by_contract_optimized/?user_id=${userId}&contract_id=${contractId}&page_size=10000`);
-      return Array.isArray(response) ? response : (response.results || []);
+      return Array.isArray(response) ? response : ((response as any).results || []);
     } catch (error) {
       console.warn('Failed to get all contingent data:', error);
       return [];

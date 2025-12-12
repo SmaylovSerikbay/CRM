@@ -139,6 +139,7 @@ export default function CreateCalendarPlanPage() {
           department,
           startDate,
           endDate,
+          employeeIds,
           harmfulFactors: formData.harmfulFactors,
           selectedDoctors: formData.selectedDoctors,
         };

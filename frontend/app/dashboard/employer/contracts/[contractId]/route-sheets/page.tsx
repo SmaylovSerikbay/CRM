@@ -49,7 +49,7 @@ export default function EmployerContractRouteSheetsPage() {
       
       // Фильтруем маршрутные листы по контингенту договора
       const contingentData = await workflowStoreAPI.getContingentByContract(contractId);
-      const contractEmployeeIds = new Set(contingentData.map(emp => emp.id));
+      const contractEmployeeIds = new Set(contingentData.data?.map(emp => emp.id) || []);
       
       const filteredSheets = routeSheetsData.filter(sheet => 
         contractEmployeeIds.has(sheet.patientId)

@@ -155,7 +155,20 @@ class WorkflowStoreAPI {
   }
 
   // Простое кэширование для контингента по договору
-  private contingentByContractCache = new Map<string, { data: ContingentEmployee[], timestamp: number }>();
+  private contingentByContractCache = new Map<string, { 
+    data: {
+      data: ContingentEmployee[];
+      pagination: {
+        count: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrevious: boolean;
+      };
+    }, 
+    timestamp: number 
+  }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
   async getContingentByContract(contractId: string, useCache: boolean = true, page: number = 1, pageSize: number = 50): Promise<{

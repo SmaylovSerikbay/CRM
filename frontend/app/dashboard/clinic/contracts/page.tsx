@@ -484,17 +484,19 @@ export default function ContractsPage() {
       setIsLoadingContingent(true);
       
       // Загружаем данные параллельно
-      const [contingentData, plansData] = await Promise.all([
+      const [contingentResult, plansData] = await Promise.all([
         workflowStoreAPI.getContingentByContract(contractId),
         workflowStoreAPI.getCalendarPlansByContract(contractId)
       ]);
+      
+      const contingentData = contingentResult.data || [];
       
       // Сохраняем в кэш
       setLoadedContractData(prev => ({
         ...prev,
         [cacheKey]: {
-          contingent: contingentData,
-          plans: plansData,
+          contingent: contingentData as ContingentEmployee[],
+          plans: plansData as CalendarPlan[],
           loadedAt: Date.now()
         }
       }));
@@ -820,7 +822,7 @@ export default function ContractsPage() {
           
           return emp.harmfulFactors.some(empFactor => {
             // Нормализуем строки для сравнения (убираем точки, приводим к нижнему регистру)
-            const normalizeString = (str) => str.toLowerCase().replace(/\./g, '').trim();
+            const normalizeString = (str: string) => str.toLowerCase().replace(/\./g, '').trim();
             const normalizedSelected = normalizeString(selectedFactor);
             const normalizedEmp = normalizeString(empFactor);
             
@@ -954,7 +956,8 @@ export default function ContractsPage() {
       await loadContractData(contractId, true);
       
       // Обновляем список участков для календарного плана
-      const contractContingent = updated.filter(emp => emp.contractId === contractId);
+      const updatedContingent = await workflowStoreAPI.getContingentByContract(contractId);
+      const contractContingent = updatedContingent.data || [];
       const contractDepartments = [...new Set(contractContingent.map(emp => emp.department))];
       setAvailableDepartments(contractDepartments);
       

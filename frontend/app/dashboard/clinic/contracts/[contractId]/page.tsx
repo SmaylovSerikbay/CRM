@@ -119,7 +119,7 @@ export default function ContractDetailPage() {
         // Обрабатываем результат контингента
         let contingentData = [];
         if (contingentResult.status === 'fulfilled') {
-          contingentData = contingentResult.value;
+          contingentData = contingentResult.value.data || [];
         } else {
           console.error('Error loading contingent:', contingentResult.reason);
         }

@@ -479,7 +479,7 @@ export default function ContractContingentPage() {
         }
         
         // Функция для нормализации строк
-        const normalize = (str) => {
+        const normalize = (str: string) => {
           if (!str) return '';
           return str
             .trim()
@@ -1231,7 +1231,7 @@ export default function ContractContingentPage() {
               </label>
               <select
                 value={editData.gender || ''}
-                onChange={(e) => setEditData({ ...editData, gender: e.target.value })}
+                onChange={(e) => setEditData({ ...editData, gender: e.target.value as 'male' | 'female' | undefined })}
                 className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white ${editAttempted && !editData.gender ? 'border-red-500' : ''}`}
               >
                 <option value="">Выберите пол</option>
@@ -1449,7 +1449,7 @@ export default function ContractContingentPage() {
               </label>
               <select
                 value={createData.gender || ''}
-                onChange={(e) => setCreateData({ ...createData, gender: e.target.value })}
+                onChange={(e) => setCreateData({ ...createData, gender: e.target.value as 'male' | 'female' | undefined })}
                 className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white ${createAttempted && !createData.gender ? 'border-red-500' : ''}`}
               >
                 <option value="">Выберите пол</option>
