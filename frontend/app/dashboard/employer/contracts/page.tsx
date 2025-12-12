@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { 
   FileText, CheckCircle, Clock, Send, X, Download, Upload, 
   Search, Filter, Building2, Calendar, Users, DollarSign, ChevronRight, ChevronDown, ChevronLeft,
-  AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, FileCheck
+  AlertCircle, CheckCircle2, XCircle, Hourglass, Ban, FileCheck, Edit, Route
 } from 'lucide-react';
 import { workflowStoreAPI } from '@/lib/store/workflow-store-api';
 import { useSearchParams } from 'next/navigation';
@@ -107,6 +107,20 @@ function EmployerContractsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
 
+  // Состояния для контингента (идентично клинике)
+  const [contingent, setContingent] = useState<any[]>([]);
+  const [isLoadingContingent, setIsLoadingContingent] = useState(false);
+  const [showContractDrawer, setShowContractDrawer] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'contingent' | 'plan' | 'route'>('contingent');
+  
+  // Фильтры для контингента (идентично клинике)
+  const [contingentNameFilter, setContingentNameFilter] = useState('');
+  const [contingentPositionFilter, setContingentPositionFilter] = useState('');
+  const [contingentDepartmentFilter, setContingentDepartmentFilter] = useState('');
+  const [contingentHarmfulFactorsFilter, setContingentHarmfulFactorsFilter] = useState<string[]>([]);
+  const [showContingentFilters, setShowContingentFilters] = useState(false);
+  const [showHarmfulFactorsDropdown, setShowHarmfulFactorsDropdown] = useState(false);
+
   useEffect(() => {
     loadContracts();
     
@@ -180,6 +194,101 @@ function EmployerContractsContent() {
       loadContracts();
     } catch (error: any) {
       showToast(error.message || 'Ошибка отклонения договора', 'error');
+    }
+  };
+
+  // Функции для работы с контингентом (идентично клинике)
+  const loadContingent = async (contractId: string) => {
+    try {
+      setIsLoadingContingent(true);
+      const data = await workflowStoreAPI.getAllContingentByContract(contractId);
+      setContingent(data);
+    } catch (error) {
+      console.error('Error loading contingent:', error);
+      showToast('Ошибка загрузки контингента', 'error');
+    } finally {
+      setIsLoadingContingent(false);
+    }
+  };
+
+  // Фильтрация контингента (идентично клинике)
+  const getFilteredContingent = (contractId: string): any[] => {
+    const contractContingent = contingent.filter(emp => emp.contractId === contractId);
+    
+    return contractContingent.filter(emp => {
+      const matchesName = !contingentNameFilter || 
+        emp.name.toLowerCase().includes(contingentNameFilter.toLowerCase());
+      
+      const matchesPosition = !contingentPositionFilter || 
+        emp.position.toLowerCase().includes(contingentPositionFilter.toLowerCase());
+      
+      const matchesDepartment = !contingentDepartmentFilter || 
+        emp.department.toLowerCase().includes(contingentDepartmentFilter.toLowerCase());
+      
+      const matchesHarmfulFactors = contingentHarmfulFactorsFilter.length === 0 || 
+        contingentHarmfulFactorsFilter.some(selectedFactor => {
+          if (!emp.harmfulFactors || !Array.isArray(emp.harmfulFactors)) {
+            return false;
+          }
+          
+          return emp.harmfulFactors.some(empFactor => {
+            // Нормализуем строки для сравнения (убираем точки, приводим к нижнему регистру)
+            const normalizeString = (str) => str.toLowerCase().replace(/\./g, '').trim();
+            const normalizedSelected = normalizeString(selectedFactor);
+            const normalizedEmp = normalizeString(empFactor);
+            
+            // Проверяем различные варианты совпадения
+            const exactMatch = empFactor === selectedFactor;
+            const normalizedMatch = normalizedEmp === normalizedSelected;
+            const partialMatch = normalizedEmp.includes(normalizedSelected) || normalizedSelected.includes(normalizedEmp);
+            
+            return exactMatch || normalizedMatch || partialMatch;
+          });
+        });
+      
+      return matchesName && matchesPosition && matchesDepartment && matchesHarmfulFactors;
+    });
+  };
+
+  const handleExportContingent = async (contractId: string) => {
+    try {
+      const filteredData = getFilteredContingent(contractId);
+      if (filteredData.length === 0) {
+        showToast('Нет данных для экспорта', 'warning');
+        return;
+      }
+
+      // Импортируем XLSX динамически
+      const XLSX = await import('xlsx');
+      
+      const contingentData = filteredData.map(employee => ({
+        'ФИО': employee.name,
+        'Должность': employee.position,
+        'Объект или участок': employee.department,
+        'Телефон': employee.phone || '',
+        'Дата рождения': employee.birthDate || '',
+        'Пол': employee.gender === 'male' ? 'Мужской' : employee.gender === 'female' ? 'Женский' : '',
+        'Профессиональная вредность': employee.harmfulFactors?.join(', ') || '',
+        'Требует осмотра': employee.requiresExamination ? 'Да' : 'Нет',
+        'Последний осмотр': employee.lastExaminationDate || '',
+        'Следующий осмотр': employee.nextExaminationDate || '',
+        'Общий стаж': employee.totalExperienceYears || '',
+        'Стаж по должности': employee.positionExperienceYears || '',
+        'Примечания': employee.notes || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(contingentData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Контингент');
+
+      const contract = contracts.find(c => c.id === contractId);
+      const fileName = `Контингент_Договор_${contract?.contract_number}_${new Date().toLocaleDateString('ru-RU')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      showToast('Файл успешно загружен', 'success');
+    } catch (error: any) {
+      console.error('Export error:', error);
+      showToast(error.message || 'Ошибка экспорта', 'error');
     }
   };
 
@@ -626,15 +735,30 @@ function EmployerContractsContent() {
                               )}
                               {/* Кнопка для утвержденных и исполненных договоров */}
                               {(contract.status === 'approved' || contract.status === 'executed') && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleOpenContractPage(contract.id)}
-                                  title="Управление договором"
-                                >
-                                  <FileCheck className="h-4 w-4 mr-2" />
-                                  Документы
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setShowContractDrawer(contract.id);
+                                      setActiveTab('contingent');
+                                      loadContingent(contract.id);
+                                    }}
+                                    title="Просмотр контингента"
+                                  >
+                                    <Users className="h-4 w-4 mr-2" />
+                                    Контингент
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenContractPage(contract.id)}
+                                    title="Управление договором"
+                                  >
+                                    <FileCheck className="h-4 w-4 mr-2" />
+                                    Документы
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -750,6 +874,315 @@ function EmployerContractsContent() {
           </div>
         )}
       </main>
+
+      {/* Модальное окно контингента (идентично клинике) */}
+      <AnimatePresence>
+        {showContractDrawer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowContractDrawer(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Заголовок модального окна */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Договор №{contracts.find(c => c.id === showContractDrawer)?.contract_number}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {contracts.find(c => c.id === showContractDrawer)?.clinic_name}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowContractDrawer(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Вкладки */}
+              <div className="border-b border-gray-200 dark:border-gray-700">
+                <div className="flex">
+                  <button
+                    onClick={() => setActiveTab('contingent')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'contingent'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Контингент
+                      {contingent.filter(emp => emp.contractId === showContractDrawer).length > 0 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                          {contingent.filter(emp => emp.contractId === showContractDrawer).length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Содержимое вкладок */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Вкладка Контингент */}
+                {activeTab === 'contingent' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Контингент договора</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {contingent.filter(emp => emp.contractId === showContractDrawer).length} сотрудников
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await workflowStoreAPI.downloadContingentTemplate();
+                            } catch (error: any) {
+                              showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                            }
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Скачать шаблон
+                        </Button>
+                        {contingent.filter(emp => emp.contractId === showContractDrawer).length > 0 && (
+                          <Button 
+                            onClick={() => handleExportContingent(showContractDrawer)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Экспорт контингента
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {contingent.filter(emp => emp.contractId === showContractDrawer).length === 0 ? (
+                      <Card>
+                        <div className="text-center py-12">
+                          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Контингент не загружен</h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Клиника еще не загрузила список сотрудников для этого договора
+                          </p>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                  Хотите предоставить шаблон клинике?
+                                </p>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                  Скачайте стандартный шаблон Excel для передачи клинике
+                                </p>
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    await workflowStoreAPI.downloadContingentTemplate();
+                                  } catch (error: any) {
+                                    showToast(error.message || 'Ошибка скачивания шаблона', 'error');
+                                  }
+                                }}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Скачать шаблон
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ) : (
+                      <>
+                        {/* Фильтры для контингента (идентично клинике) */}
+                        <Card className="mb-4">
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-medium">Фильтры контингента</h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowContingentFilters(!showContingentFilters)}
+                              >
+                                <Filter className="h-4 w-4 mr-2" />
+                                {showContingentFilters ? 'Скрыть' : 'Показать'} фильтры
+                              </Button>
+                            </div>
+                            
+                            {showContingentFilters && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <Input
+                                  placeholder="Поиск по ФИО"
+                                  value={contingentNameFilter}
+                                  onChange={(e) => setContingentNameFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по должности"
+                                  value={contingentPositionFilter}
+                                  onChange={(e) => setContingentPositionFilter(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Поиск по участку"
+                                  value={contingentDepartmentFilter}
+                                  onChange={(e) => setContingentDepartmentFilter(e.target.value)}
+                                />
+                                <div className="relative harmful-factors-dropdown">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => setShowHarmfulFactorsDropdown(!showHarmfulFactorsDropdown)}
+                                    className="w-full justify-between text-left"
+                                  >
+                                    <span className="truncate">
+                                      {contingentHarmfulFactorsFilter.length === 0 
+                                        ? 'Выберите вредные факторы' 
+                                        : `Выбрано: ${contingentHarmfulFactorsFilter.length}`
+                                      }
+                                    </span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                  
+                                  {showHarmfulFactorsDropdown && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                      {HARMFUL_FACTORS_OPTIONS.map((factor) => (
+                                        <div
+                                          key={factor}
+                                          className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                          onClick={() => {
+                                            const isSelected = contingentHarmfulFactorsFilter.includes(factor);
+                                            if (isSelected) {
+                                              setContingentHarmfulFactorsFilter(prev => prev.filter(f => f !== factor));
+                                            } else {
+                                              setContingentHarmfulFactorsFilter(prev => [...prev, factor]);
+                                            }
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={contingentHarmfulFactorsFilter.includes(factor)}
+                                            onChange={() => {}}
+                                            className="mr-2"
+                                          />
+                                          <span className="text-sm">{factor}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {(contingentNameFilter || contingentPositionFilter || contingentDepartmentFilter || contingentHarmfulFactorsFilter.length > 0) && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Найдено: {getFilteredContingent(showContractDrawer).length} из {contingent.filter(emp => emp.contractId === showContractDrawer).length}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setContingentNameFilter('');
+                                    setContingentPositionFilter('');
+                                    setContingentDepartmentFilter('');
+                                    setContingentHarmfulFactorsFilter([]);
+                                    setShowHarmfulFactorsDropdown(false);
+                                  }}
+                                >
+                                  Очистить фильтры
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+
+                        <Card>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">ФИО</th>
+                                  <th className="px-3 py-2 text-left">Должность</th>
+                                  <th className="px-3 py-2 text-left">Объект/участок</th>
+                                  <th className="px-3 py-2 text-left">Вредные факторы</th>
+                                  <th className="px-3 py-2 text-left">Статус осмотра</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {isLoadingContingent ? (
+                                  <tr>
+                                    <td colSpan={5} className="px-3 py-8 text-center">
+                                      <div className="flex items-center justify-center space-x-2">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                        <span className="text-gray-600 dark:text-gray-400">Загрузка контингента...</span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : getFilteredContingent(showContractDrawer).length === 0 ? (
+                                  <tr>
+                                    <td colSpan={5} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                                      {contingentNameFilter || contingentPositionFilter || contingentDepartmentFilter || contingentHarmfulFactorsFilter.length > 0 
+                                        ? 'Нет сотрудников, соответствующих фильтрам'
+                                        : 'Контингент не загружен'
+                                      }
+                                    </td>
+                                  </tr>
+                                ) : getFilteredContingent(showContractDrawer).map((emp) => (
+                                <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                  <td className="px-3 py-2 font-medium">{emp.name}</td>
+                                  <td className="px-3 py-2">{emp.position}</td>
+                                  <td className="px-3 py-2">{emp.department}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {emp.harmfulFactors?.slice(0, 2).map((factor, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                          {factor}
+                                        </span>
+                                      ))}
+                                      {emp.harmfulFactors && emp.harmfulFactors.length > 2 && (
+                                        <span className="text-xs text-gray-500">+{emp.harmfulFactors.length - 2}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                      emp.requiresExamination
+                                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                    }`}>
+                                      {emp.requiresExamination ? 'Требует осмотра' : 'Не требует'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
