@@ -400,7 +400,7 @@ export default function EmployerContractDetailPage() {
                           <p>Статус: {item.old_status} → {item.new_status}</p>
                         )}
                         {item.comment && (
-                          <p className="mt-1 italic">"{item.comment}"</p>
+                          <p className="mt-1 italic">&quot;{item.comment}&quot;</p>
                         )}
                       </div>
                     </div>

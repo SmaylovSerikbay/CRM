@@ -19,6 +19,7 @@ export default function ContractCalendarPlanPage() {
   const [contract, setContract] = useState<any>(null);
   const [calendarPlans, setCalendarPlans] = useState<CalendarPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -73,6 +74,11 @@ export default function ContractCalendarPlanPage() {
       sent_to_ses: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const handleCreatePlan = () => {
+    // Перенаправляем на страницу создания календарного плана
+    router.push(`/dashboard/clinic/contracts/${contractId}/calendar-plan/create`);
   };
 
   if (isLoading) {
@@ -134,7 +140,7 @@ export default function ContractCalendarPlanPage() {
                 </p>
               </div>
             </div>
-            <Button>
+            <Button onClick={handleCreatePlan}>
               <Plus className="h-4 w-4 mr-2" />
               Создать план
             </Button>
@@ -150,7 +156,7 @@ export default function ContractCalendarPlanPage() {
               <p className="text-gray-600 dark:text-gray-400 mb-6">
                 Создайте календарный план для организации медицинских осмотров по этому договору
               </p>
-              <Button>
+              <Button onClick={handleCreatePlan}>
                 <Plus className="h-4 w-4 mr-2" />
                 Создать первый план
               </Button>

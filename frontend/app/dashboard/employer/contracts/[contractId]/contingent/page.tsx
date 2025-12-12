@@ -300,6 +300,7 @@ export default function ContractContingentPage() {
     if (!editData.gender) missingFields.push('Пол');
     if (editData.totalExperienceYears === undefined || editData.totalExperienceYears === null) missingFields.push('Общий стаж');
     if (editData.positionExperienceYears === undefined || editData.positionExperienceYears === null) missingFields.push('Стаж по должности');
+    if (!editData.harmfulFactors || editData.harmfulFactors.length === 0) missingFields.push('Вредные факторы');
     
     if (missingFields.length > 0) {
       showToast(`Заполните обязательные поля: ${missingFields.join(', ')}`, 'error');
@@ -1277,7 +1278,7 @@ export default function ContractContingentPage() {
           {/* Вредные факторы для редактирования */}
           <div className="relative harmful-factors-dropdown">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Вредные факторы
+              Вредные факторы <span className="text-red-500">*</span>
             </label>
             <div className="space-y-2">
               {/* Поиск по вредным факторам */}
@@ -1287,7 +1288,7 @@ export default function ContractContingentPage() {
                   onChange={(e) => setEditHarmfulFactorsSearch(e.target.value)}
                   onFocus={() => setShowEditHarmfulFactorsDropdown(true)}
                   placeholder="Выберите вредный фактор..."
-                  className="pr-10"
+                  className={`pr-10 ${editAttempted && (!editData.harmfulFactors || editData.harmfulFactors.length === 0) ? 'border-red-500' : ''}`}
                 />
                 <button
                   type="button"
